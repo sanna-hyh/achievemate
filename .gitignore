@@ -1,0 +1,16 @@
+# Editor / local tooling
+.cursor/
+.vscode/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets (never commit)
+.env
+.env.*
+*.pem
+
+# Local Supabase CLI (optional)
+.supabase/

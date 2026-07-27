@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AchieveMate</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="preload" href="ocean_dark_background.png" as="image" />
+  <link rel="stylesheet" href="styles.css?v=32" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-wordmark">
+      <img src="logo.png?v=5" alt="" class="topbar-logo" width="24" height="24" />
+      <span class="topbar-title">AchieveMate</span>
+    </div>
+
+    <nav class="view-switcher" id="viewSwitcher" role="tablist" aria-label="Views">
+      <button
+        type="button"
+        class="view-switcher-item is-active"
+        role="tab"
+        id="view-tab-logbook"
+        aria-controls="viewLogbook"
+        aria-selected="true"
+        data-view="logbook"
+      >
+        Logbook
+      </button>
+      <button
+        type="button"
+        class="view-switcher-item"
+        role="tab"
+        id="view-tab-studio"
+        aria-controls="viewStudio"
+        aria-selected="false"
+        data-view="studio"
+        tabindex="-1"
+      >
+        Studio
+      </button>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="saved-indicator" id="savedIndicator" aria-live="polite">
+        <span class="saved-indicator-dot" id="savedIndicatorDot" aria-hidden="true"></span>
+        <span class="saved-indicator-text" id="savedIndicatorText">Saved</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="view view-logbook is-active" id="viewLogbook" role="tabpanel" aria-labelledby="view-tab-logbook" aria-hidden="false">
+    <div class="logbook-column">
+      <header class="logbook-header">
+        <h1 class="logbook-title">Logbook</h1>
+        <span class="logbook-count" id="logbookEntryCount">0 achievements</span>
+      </header>
+
+      <section class="identity-card" aria-labelledby="identity-label">
+        <header class="identity-card-header">
+          <span class="label" id="identity-label">Identity</span>
+          <span class="caption">Appears at the top of your CV</span>
+        </header>
+        <form class="identity-grid" id="personalForm" novalidate>
+          <label class="identity-field identity-field-full">
+            <span class="label">Name</span>
+            <input type="text" name="name" autocomplete="name" placeholder="Your full name" />
+          </label>
+          <label class="identity-field">
+            <span class="label">Phone</span>
+            <input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 000 0000" />
+          </label>
+          <label class="identity-field">
+            <span class="label">Email</span>
+            <input type="email" name="email" autocomplete="email" placeholder="you@example.com" />
+          </label>
+        </form>
+      </section>
+
+      <header class="entries-header">
+        <h2 class="entries-title">Achievements</h2>
+        <button type="button" class="btn btn-primary" id="addAchievementBtn">+ Log achievement</button>
+      </header>
+
+      <div class="entries-list" id="achievementsList" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <main class="view view-studio" id="viewStudio" role="tabpanel" aria-labelledby="view-tab-studio" aria-hidden="true">
+    <div class="studio-cockpit" id="studioCockpit">
+      <aside class="studio-rail" aria-label="Source blocks">
+        <div class="studio-rail-section">
+          <span class="label">Blocks</span>
+          <div class="cv-palette-list" id="cvPalette">
+            <div
+              class="rail-block rail-block-heading cv-draggable"
+              draggable="true"
+              data-block-type="heading"
+              data-source="palette"
+            >
+              <span class="rail-block-icon" aria-hidden="true">¶</span>
+              <span class="rail-block-label">Section heading</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="studio-rail-section">
+          <div class="studio-rail-section-head">
+            <span class="label">Achievements</span>
+            <span class="studio-rail-count" id="studioRailCount">0</span>
+          </div>
+          <div class="cv-palette-achievements" id="cvAchievementPalette"></div>
+        </div>
+      </aside>
+
+      <header class="studio-toolbar">
+        <div class="studio-toolbar-left">
+          <div class="zoom-cluster" role="group" aria-label="Preview zoom">
+            <button type="button" class="btn-icon zoom-cluster-btn" id="previewZoomOutBtn" aria-label="Zoom out">−</button>
+            <output class="zoom-cluster-value" id="previewZoomValue" for="previewZoomInBtn previewZoomOutBtn">100%</output>
+            <button type="button" class="btn-icon zoom-cluster-btn" id="previewZoomInBtn" aria-label="Zoom in">+</button>
+            <button type="button" class="btn btn-ghost zoom-cluster-fit" id="previewZoomFitBtn">Fit</button>
+          </div>
+
+          <div class="density-gauge" id="densityGauge">
+            <span class="label density-gauge-label">Density</span>
+            <div class="density-gauge-track" title="">
+              <div class="density-gauge-fill" id="densityGaugeFill"></div>
+            </div>
+            <span class="density-gauge-readout" id="densityGaugeReadout">—</span>
+          </div>
+        </div>
+
+        <div class="studio-toolbar-right">
+          <div class="history-anchor">
+            <button
+              type="button"
+              class="btn-icon"
+              id="historyBtn"
+              aria-label="Export history"
+              aria-expanded="false"
+              aria-controls="historyPopover"
+            >
+              <span aria-hidden="true">◷</span>
+            </button>
+            <div
+              class="history-popover"
+              id="historyPopover"
+              role="dialog"
+              aria-label="Export history"
+              hidden
+            >
+              <ul class="export-history-list" id="exportHistoryList"></ul>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            class="btn-icon studio-drawer-toggle is-active"
+            id="toggleLayoutDrawerBtn"
+            aria-controls="cvLayoutDrawer"
+            aria-expanded="true"
+            aria-label="Toggle style drawer"
+          >
+            <span aria-hidden="true">⧗</span>
+          </button>
+
+          <button type="button" class="btn btn-primary btn-toolbar-export" id="exportPdfBtn">Export PDF</button>
+        </div>
+      </header>
+
+      <div class="studio-well">
+        <div class="cv-preview-wrap" id="cvPreviewWrap">
+          <div class="cv-preview-scaler" id="cvPreviewScaler">
+            <article class="cv-preview-document" id="cvPreview" aria-live="polite"></article>
+          </div>
+        </div>
+      </div>
+
+      <div class="drawer-scrim" id="drawerScrim" hidden aria-hidden="true"></div>
+
+      <aside class="studio-drawer" id="cvLayoutDrawer" aria-labelledby="cv-layout-heading">
+        <div class="studio-drawer-inner">
+          <h2 class="studio-drawer-title" id="cv-layout-heading">Style</h2>
+
+          <form class="cv-layout-form" id="cvLayoutForm" novalidate>
+            <section class="drawer-group">
+              <h3 class="drawer-group-heading">Typography</h3>
+              <div class="drawer-group-body">
+                <label class="drawer-field">
+                  <span class="caption drawer-field-label">Font family</span>
+                  <select name="fontFamily" id="layoutFontFamily" class="drawer-select">
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Calibri">Calibri</option>
+                    <option value="Garamond">Garamond</option>
+                  </select>
+                </label>
+
+                <div class="drawer-slider-row" data-auto-fit-field="baseFontSize">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Base size</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutBaseFontSize" id="layoutBaseFontSizeValue">10.5pt</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="baseFontSize" id="layoutBaseFontSize" min="9" max="12" step="0.5" value="10.5" />
+                </div>
+
+                <div class="drawer-slider-row">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Name size</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutNameFontSize" id="layoutNameFontSizeValue">20pt</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="nameFontSize" id="layoutNameFontSize" min="16" max="26" step="0.5" value="20" />
+                </div>
+
+                <div class="drawer-slider-row">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Heading size</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutHeadingFontSize" id="layoutHeadingFontSizeValue">13pt</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="headingFontSize" id="layoutHeadingFontSize" min="12" max="16" step="0.5" value="13" />
+                </div>
+
+                <div class="drawer-color-row">
+                  <span class="caption">Text</span>
+                  <button type="button" class="drawer-color-swatch" id="layoutTextColorSwatch" aria-label="Choose text color">
+                    <span class="drawer-color-swatch-fill" id="layoutTextColorPreview"></span>
+                  </button>
+                  <input type="color" name="textColor" id="layoutTextColor" class="visually-hidden" value="#000000" tabindex="-1" />
+                </div>
+
+                <div class="drawer-color-row">
+                  <span class="caption">Headings</span>
+                  <button type="button" class="drawer-color-swatch" id="layoutAccentColorSwatch" aria-label="Choose heading color">
+                    <span class="drawer-color-swatch-fill" id="layoutAccentColorPreview"></span>
+                  </button>
+                  <input type="color" name="accentColor" id="layoutAccentColor" class="visually-hidden" value="#000000" tabindex="-1" />
+                </div>
+
+                <div class="drawer-segmented" role="radiogroup" aria-label="Heading divider style">
+                  <label class="drawer-segment">
+                    <input type="radio" name="headingDivider" value="solid" checked />
+                    <span>Solid</span>
+                  </label>
+                  <label class="drawer-segment">
+                    <input type="radio" name="headingDivider" value="dotted" />
+                    <span>Dotted</span>
+                  </label>
+                  <label class="drawer-segment">
+                    <input type="radio" name="headingDivider" value="none" />
+                    <span>None</span>
+                  </label>
+                </div>
+              </div>
+            </section>
+
+            <section class="drawer-group">
+              <h3 class="drawer-group-heading">Layout</h3>
+              <div class="drawer-group-body">
+                <div class="drawer-slider-row" data-auto-fit-field="lineHeight">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Line height</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutLineHeight" id="layoutLineHeightValue">1.3</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="lineHeight" id="layoutLineHeight" min="1.1" max="1.5" step="0.05" value="1.3" />
+                </div>
+
+                <div class="drawer-slider-row" data-auto-fit-field="sectionGap">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Section gap</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutSectionGap" id="layoutSectionGapValue">12px</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="sectionGap" id="layoutSectionGap" min="0" max="24" step="1" value="12" />
+                </div>
+
+                <div class="drawer-slider-row">
+                  <div class="drawer-slider-head">
+                    <span class="caption">Item gap</span>
+                    <output class="mono-sm drawer-value-chip" for="layoutItemGap" id="layoutItemGapValue">4px</output>
+                  </div>
+                  <input type="range" class="drawer-slider" name="itemGap" id="layoutItemGap" min="2" max="8" step="1" value="4" />
+                </div>
+
+                <div class="drawer-segmented" role="radiogroup" aria-label="Page margin preset">
+                  <label class="drawer-segment">
+                    <input type="radio" name="pageMargin" value="compact" />
+                    <span>0.5″</span>
+                  </label>
+                  <label class="drawer-segment">
+                    <input type="radio" name="pageMargin" value="normal" checked />
+                    <span>0.75″</span>
+                  </label>
+                  <label class="drawer-segment">
+                    <input type="radio" name="pageMargin" value="spacious" />
+                    <span>1.0″</span>
+                  </label>
+                </div>
+
+                <label class="drawer-switch">
+                  <input type="checkbox" name="autoFit" id="layoutAutoFit" class="drawer-switch-input" />
+                  <span class="drawer-switch-track" aria-hidden="true"><span class="drawer-switch-knob"></span></span>
+                  <span class="drawer-switch-label">Auto-fit to one page</span>
+                </label>
+              </div>
+            </section>
+
+            <div class="drawer-actions">
+              <button type="button" class="btn btn-ghost btn-drawer-action" id="saveCvDefaultsBtn">Save as default</button>
+              <button type="button" class="btn btn-ghost btn-drawer-action" id="resetCvSettingsBtn">Reset</button>
+            </div>
+
+            <section class="drawer-group">
+              <h3 class="drawer-group-heading">Exports</h3>
+              <ul class="export-history-list export-history-list-drawer" id="drawerExportHistoryList" aria-live="polite"></ul>
+            </section>
+          </form>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <div class="modal-root" id="exportModal" hidden aria-hidden="true">
+    <div class="modal-overlay" id="exportModalOverlay" aria-hidden="true"></div>
+    <div
+      class="modal-panel export-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="exportModalTitle"
+    >
+      <h2 class="modal-title" id="exportModalTitle">Export PDF</h2>
+      <p class="mono-sm export-modal-caption" id="exportModalCaption">A4 · 0 sections · —</p>
+      <label class="export-modal-field" for="exportFileNameInput">
+        <span class="label">Filename</span>
+        <span class="export-modal-input-wrap">
+          <input
+            type="text"
+            id="exportFileNameInput"
+            class="export-modal-input"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <span class="mono-sm export-modal-suffix">.pdf</span>
+        </span>
+      </label>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" id="exportModalCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="exportModalConfirm">
+          <span class="export-modal-btn-label" id="exportModalConfirmLabel">Export</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="supabase-config.js"></script>
+  <script type="module" src="supabase-client.js"></script>
+  <script type="module" src="guest-migration.js"></script>
+  <script type="module" src="auth.js"></script>
+  <script type="module" src="sync.js"></script>
+  <script src="app.js?v=13"></script>
+  <script src="cv-builder.js?v=5"></script>
+  <script src="cv-preview.js?v=21"></script>
+  <script src="cv-layout-panel.js?v=8"></script>
+  <script src="workspace-tabs.js?v=6"></script>
+</body>
+</html>
