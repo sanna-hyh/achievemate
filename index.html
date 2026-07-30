@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=39" />
 </head>
 <body>
   <header class="topbar">
@@ -180,12 +180,10 @@
   <main class="view view-logbook is-active" id="viewLogbook" role="tabpanel" aria-labelledby="view-tab-logbook" aria-hidden="false">
     <div class="logbook-column">
       <header class="logbook-header">
-        <h1 class="logbook-title">Logbook</h1>
-        <span class="logbook-count" id="logbookEntryCount">0 achievements</span>
-      </header>
-
-      <header class="entries-header">
-        <h2 class="entries-title">Achievements</h2>
+        <div class="logbook-header-main">
+          <h1 class="logbook-title">Logbook</h1>
+          <p class="logbook-subtitle">Your achievements. Your story. <span class="logbook-count" id="logbookEntryCount">0 achievements</span></p>
+        </div>
         <button type="button" class="btn btn-primary" id="addAchievementBtn">+ Log achievement</button>
       </header>
 
@@ -468,7 +466,7 @@
   <script type="module" src="guest-migration.js"></script>
   <script type="module" src="auth.js"></script>
   <script type="module" src="sync.js"></script>
-  <script src="app.js?v=18"></script>
+  <script src="app.js?v=23"></script>
   <script src="cv-builder.js?v=5"></script>
   <script src="cv-preview.js?v=21"></script>
   <script src="cv-layout-panel.js?v=8"></script>

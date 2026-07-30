@@ -61,8 +61,6 @@ let armedDeleteId = null;
 let armedDeleteTimer = null;
 let logbookLoading = true;
 let deckFrontIndex = 0;
-let deckViewAll = false;
-let deckHoverLocked = false;
 
 function createId(prefix = "ach") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -288,7 +286,15 @@ function updateEntryCount() {
   }
 
   const count = state.achievements.length;
-  logbookEntryCount.textContent = `${count} achievement${count === 1 ? "" : "s"}`;
+  const nextText = `${count} achievement${count === 1 ? "" : "s"}`;
+  const countChanged = logbookEntryCount.textContent !== nextText;
+
+  logbookEntryCount.textContent = nextText;
+
+  if (!countChanged) {
+    return;
+  }
+
   logbookEntryCount.classList.add("is-updating");
   window.setTimeout(() => logbookEntryCount.classList.remove("is-updating"), 150);
 }
@@ -601,9 +607,28 @@ function navigateDeck(delta) {
   const next = deckFrontIndex + delta;
   if (next >= 0 && next < state.achievements.length) {
     deckFrontIndex = next;
-    deckHoverLocked = false;
     renderAchievements();
   }
+}
+
+function getCoverFlowCardMarkup(achievement) {
+  const titleText = achievement.title?.trim() || "Untitled achievement";
+  const titleClass = achievement.title?.trim() ? "cover-card-title" : "cover-card-title is-placeholder";
+  const lines = getDescriptionLines(achievement.description);
+  const bodyText = lines.join(" ");
+
+  return `
+    <div class="cover-card-actions deck-card-actions">
+      <button type="button" class="btn-icon btn-edit" aria-label="Edit achievement">✎</button>
+      <button type="button" class="btn-icon btn-delete" aria-label="Delete achievement">×</button>
+    </div>
+    <div class="cover-card-inner">
+      <h3 class="${titleClass}">${escapeHtml(titleText)}</h3>
+      ${achievement.date?.trim() ? `<time class="cover-card-date">${escapeHtml(achievement.date)}</time>` : ""}
+      ${bodyText ? `<p class="cover-card-body">${escapeHtml(bodyText)}</p>` : ""}
+      ${achievement.fileName ? `<div class="cover-card-foot"></div>` : ""}
+    </div>
+  `;
 }
 
 function getDeckCardMarkup(achievement, { compact = false } = {}) {
@@ -663,9 +688,32 @@ function bindEntryDeleteButton(deleteBtn, achievement) {
   });
 }
 
+function createCardTiltShell(innerHtml) {
+  const tilt = document.createElement("div");
+  tilt.className = "cover-card-tilt";
+
+  const canvas = document.createElement("div");
+  canvas.className = "cover-card-tilt-canvas";
+  canvas.setAttribute("aria-hidden", "true");
+
+  for (let i = 1; i <= 25; i += 1) {
+    const tracker = document.createElement("div");
+    tracker.className = `cover-card-tracker tr-${i}`;
+    canvas.appendChild(tracker);
+  }
+
+  const face = document.createElement("div");
+  face.className = "cover-card-tilt-face";
+  face.innerHTML = innerHtml;
+  canvas.appendChild(face);
+
+  tilt.appendChild(canvas);
+  return { tilt, face };
+}
+
 function createDeckCard(achievement, offset, isFront) {
   const card = document.createElement("article");
-  card.className = `entry deck-card${isFront ? " is-front" : " is-behind"}`;
+  card.className = `cover-card deck-card${isFront ? " is-front" : " is-behind"}`;
   card.dataset.id = achievement.id;
   card.dataset.offset = String(offset);
   card.setAttribute("role", "button");
@@ -673,25 +721,37 @@ function createDeckCard(achievement, offset, isFront) {
   card.setAttribute(
     "aria-label",
     isFront
-      ? `${achievement.title?.trim() || "Untitled achievement"}, front card. Click to edit.`
-      : `${achievement.title?.trim() || "Untitled achievement"}. Hover to view.`
+      ? `${achievement.title?.trim() || "Untitled achievement"}, selected. Click to edit.`
+      : `${achievement.title?.trim() || "Untitled achievement"}. Click to view.`
   );
 
-  const { html } = getDeckCardMarkup(achievement);
-  card.innerHTML = `<div class="deck-card-inner">${html}</div>`;
+  let contentRoot = card;
+
+  if (isFront) {
+    const { tilt, face } = createCardTiltShell(getCoverFlowCardMarkup(achievement));
+    card.appendChild(tilt);
+
+    const actions = face.querySelector(".cover-card-actions");
+    if (actions) {
+      tilt.appendChild(actions);
+    }
+
+    contentRoot = face;
+  } else {
+    card.innerHTML = getCoverFlowCardMarkup(achievement);
+  }
 
   const proofChip = createProofChip(achievement);
-  const footEl = card.querySelector(".entry-foot");
-  if (proofChip && footEl) {
-    footEl.appendChild(proofChip);
+  if (proofChip) {
+    proofChip.className = "cover-card-proof";
+    proofChip.innerHTML = `<span class="cover-card-proof-icon" aria-hidden="true">📎</span><span>${escapeHtml(achievement.fileName)}</span>`;
+    const footEl = contentRoot.querySelector(".cover-card-foot");
+    if (footEl) {
+      footEl.appendChild(proofChip);
+    }
   }
 
   if (isFront) {
-    card.insertAdjacentHTML(
-      "beforeend",
-      '<p class="deck-card-hint caption">Click card to edit</p>'
-    );
-
     const editBtn = card.querySelector(".btn-edit");
     editBtn.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -714,35 +774,12 @@ function createDeckCard(achievement, offset, isFront) {
     });
   } else {
     const achievementIndex = state.achievements.findIndex((item) => item.id === achievement.id);
-    let hoverTimer = null;
-
-    const bringToFront = () => {
-      if (deckHoverLocked || deckFrontIndex === achievementIndex) {
-        return;
-      }
-      deckFrontIndex = achievementIndex;
-      deckHoverLocked = true;
-      renderAchievements();
-    };
-
-    card.addEventListener("mouseenter", () => {
-      if (deckHoverLocked) {
-        return;
-      }
-      hoverTimer = window.setTimeout(bringToFront, 140);
-    });
-
-    card.addEventListener("mouseleave", () => {
-      window.clearTimeout(hoverTimer);
-    });
 
     card.addEventListener("click", () => {
-      window.clearTimeout(hoverTimer);
       if (deckFrontIndex === achievementIndex) {
         return;
       }
       deckFrontIndex = achievementIndex;
-      deckHoverLocked = true;
       renderAchievements();
     });
   }
@@ -754,42 +791,24 @@ function createDeckStack() {
   clampDeckFrontIndex();
 
   const section = document.createElement("section");
-  section.className = "deck-stack";
-  section.setAttribute("aria-label", "Achievement deck");
+  section.className = "cover-flow";
+  section.setAttribute("aria-label", "Achievement cards");
 
-  const toolbar = document.createElement("div");
-  toolbar.className = "deck-stack-toolbar";
+  const carousel = document.createElement("div");
+  carousel.className = "cover-flow-carousel";
 
   const prevBtn = document.createElement("button");
   prevBtn.type = "button";
-  prevBtn.className = "btn-icon deck-nav-btn";
+  prevBtn.className = "cover-flow-nav cover-flow-nav-prev";
   prevBtn.setAttribute("aria-label", "Previous card");
-  prevBtn.textContent = "‹";
+  prevBtn.innerHTML = '<span aria-hidden="true">‹</span>';
   prevBtn.disabled = deckFrontIndex <= 0;
   prevBtn.addEventListener("click", () => navigateDeck(-1));
 
-  const indicator = document.createElement("span");
-  indicator.className = "deck-stack-indicator";
-  indicator.textContent = `${deckFrontIndex + 1} / ${state.achievements.length}`;
-
-  const nextBtn = document.createElement("button");
-  nextBtn.type = "button";
-  nextBtn.className = "btn-icon deck-nav-btn";
-  nextBtn.setAttribute("aria-label", "Next card");
-  nextBtn.textContent = "›";
-  nextBtn.disabled = deckFrontIndex >= state.achievements.length - 1;
-  nextBtn.addEventListener("click", () => navigateDeck(1));
-
-  toolbar.append(prevBtn, indicator, nextBtn);
-
   const stage = document.createElement("div");
-  stage.className = "deck-stack-stage";
+  stage.className = "cover-flow-stage";
   stage.setAttribute("role", "group");
-  stage.setAttribute("aria-roledescription", "card deck");
-  stage.addEventListener("mouseleave", () => {
-    deckHoverLocked = false;
-  });
-
+  stage.setAttribute("aria-roledescription", "carousel");
   [-2, -1, 0, 1, 2].forEach((offset) => {
     const index = deckFrontIndex + offset;
     if (index < 0 || index >= state.achievements.length) {
@@ -798,22 +817,35 @@ function createDeckStack() {
     stage.appendChild(createDeckCard(state.achievements[index], offset, offset === 0));
   });
 
-  const footer = document.createElement("div");
-  footer.className = "deck-stack-footer";
+  const nextBtn = document.createElement("button");
+  nextBtn.type = "button";
+  nextBtn.className = "cover-flow-nav cover-flow-nav-next";
+  nextBtn.setAttribute("aria-label", "Next card");
+  nextBtn.innerHTML = '<span aria-hidden="true">›</span>';
+  nextBtn.disabled = deckFrontIndex >= state.achievements.length - 1;
+  nextBtn.addEventListener("click", () => navigateDeck(1));
 
-  const viewAllBtn = document.createElement("button");
-  viewAllBtn.type = "button";
-  viewAllBtn.className = "btn btn-ghost deck-view-all-btn";
-  viewAllBtn.textContent = deckViewAll
-    ? "Hide list"
-    : `View all (${state.achievements.length})`;
-  viewAllBtn.addEventListener("click", () => {
-    deckViewAll = !deckViewAll;
-    renderAchievements();
+  carousel.append(prevBtn, stage, nextBtn);
+
+  const dots = document.createElement("div");
+  dots.className = "cover-flow-dots";
+  dots.setAttribute("role", "tablist");
+  dots.setAttribute("aria-label", "Card pagination");
+
+  state.achievements.forEach((achievement, index) => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = `cover-flow-dot${index === deckFrontIndex ? " is-active" : ""}`;
+    dot.setAttribute("role", "tab");
+    dot.setAttribute("aria-label", `Go to card ${index + 1}`);
+    dot.setAttribute("aria-selected", String(index === deckFrontIndex));
+    dot.addEventListener("click", () => {
+      deckFrontIndex = index;
+      renderAchievements();
+    });
   });
 
-  footer.append(viewAllBtn);
-  section.append(toolbar, stage, footer);
+  section.append(carousel, dots);
   return section;
 }
 
@@ -1046,7 +1078,6 @@ function renderAchievements() {
   }
 
   if (state.achievements.length === 0) {
-    deckViewAll = false;
     renderEmptyState();
     return;
   }
@@ -1062,20 +1093,24 @@ function renderAchievements() {
     achievementsList.appendChild(createDeckStack());
   }
 
-  if (deckViewAll || editingAchievementId) {
-    const listWrap = document.createElement("div");
-    listWrap.className = `entries-list-all${deckViewAll ? " is-visible" : ""}`;
+  const listWrap = document.createElement("section");
+  listWrap.className = "entries-list-all";
+  listWrap.setAttribute("aria-label", "All achievements");
 
-    state.achievements.forEach((achievement) => {
-      if (editingAchievementId === achievement.id) {
-        return;
-      }
-      listWrap.appendChild(createDisplayEntry(achievement));
-    });
+  const listHeading = document.createElement("h2");
+  listHeading.className = "entries-list-all-heading";
+  listHeading.textContent = "All achievements";
 
-    if (listWrap.childElementCount > 0) {
-      achievementsList.appendChild(listWrap);
+  state.achievements.forEach((achievement) => {
+    if (editingAchievementId === achievement.id) {
+      return;
     }
+    listWrap.appendChild(createDisplayEntry(achievement));
+  });
+
+  if (listWrap.childElementCount > 0) {
+    listWrap.prepend(listHeading);
+    achievementsList.appendChild(listWrap);
   }
 }
 
@@ -1094,7 +1129,6 @@ function addAchievement() {
 
   state.achievements.push(achievement);
   deckFrontIndex = state.achievements.length - 1;
-  deckViewAll = false;
   editingAchievementId = achievement.id;
   editingDraft = {
     title: "",
