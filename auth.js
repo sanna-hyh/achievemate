@@ -13,11 +13,13 @@ const AUTH_MESSAGES = {
 };
 
 let authModalRoot = null;
-let signOutBtn = null;
-let saveAccountBtn = null;
 let isAuthed = false;
 let pendingAuthResolve = null;
 let pendingAuthCallback = null;
+
+const signOutBtn = document.getElementById("signOutBtn");
+const topbarSignOutBtn = document.getElementById("topbarSignOutBtn");
+const saveAccountBtn = document.getElementById("saveAccountBtn");
 
 function removeAuthModal() {
   authModalRoot?.remove();
@@ -164,60 +166,45 @@ function showAuthModal(reason = "save") {
   emailInput.focus();
 }
 
-function ensureSaveAccountButton() {
-  const topbarRight = document.querySelector(".topbar-right");
-  if (!topbarRight || saveAccountBtn) {
-    return saveAccountBtn;
-  }
+function signOut() {
+  supabase.auth.signOut();
+}
 
-  saveAccountBtn = document.createElement("button");
-  saveAccountBtn.type = "button";
-  saveAccountBtn.className = "btn btn-ghost btn-save-account";
-  saveAccountBtn.id = "saveAccountBtn";
-  saveAccountBtn.textContent = "Save to account";
-  saveAccountBtn.addEventListener("click", () => {
+function bindSignOutButtons() {
+  signOutBtn?.addEventListener("click", signOut);
+  topbarSignOutBtn?.addEventListener("click", signOut);
+}
+
+function bindSaveAccountButton() {
+  saveAccountBtn?.addEventListener("click", () => {
     window.AchieveMateAuth?.requireAuth({ reason: "save" });
   });
-
-  topbarRight.insertBefore(saveAccountBtn, topbarRight.firstChild);
-  return saveAccountBtn;
 }
 
-function ensureSignOutButton() {
-  if (signOutBtn) {
-    return signOutBtn;
-  }
-
-  const topbarRight = document.querySelector(".topbar-right");
-  if (!topbarRight) {
-    return null;
-  }
-
-  signOutBtn = document.createElement("button");
-  signOutBtn.type = "button";
-  signOutBtn.className = "btn-icon";
-  signOutBtn.id = "signOutBtn";
-  signOutBtn.setAttribute("aria-label", "Sign out");
-  signOutBtn.textContent = "⎋";
-  signOutBtn.addEventListener("click", () => {
-    supabase.auth.signOut();
-  });
-
-  topbarRight.appendChild(signOutBtn);
-  return signOutBtn;
-}
-
-function updateAuthChrome() {
-  if (isAuthed) {
-    saveAccountBtn?.remove();
-    saveAccountBtn = null;
-    ensureSignOutButton();
-    signOutBtn?.removeAttribute("hidden");
+function updateAccountStatus() {
+  const statusEl = document.getElementById("sidebarAccountStatus");
+  if (!statusEl) {
     return;
   }
 
+  statusEl.textContent = isAuthed
+    ? "Signed in · synced to cloud"
+    : "Not signed in · saved locally";
+}
+
+function updateAuthChrome() {
+  updateAccountStatus();
+
+  if (isAuthed) {
+    saveAccountBtn?.setAttribute("hidden", "");
+    signOutBtn?.removeAttribute("hidden");
+    topbarSignOutBtn?.removeAttribute("hidden");
+    return;
+  }
+
+  saveAccountBtn?.removeAttribute("hidden");
   signOutBtn?.setAttribute("hidden", "");
-  ensureSaveAccountButton();
+  topbarSignOutBtn?.setAttribute("hidden", "");
 }
 
 async function onAuthed(sessionUser, { fromModal = false } = {}) {
@@ -253,6 +240,9 @@ function requireAuth({ reason = "save", onSuccess } = {}) {
 }
 
 async function initAuth() {
+  bindSignOutButtons();
+  bindSaveAccountButton();
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -282,4 +272,5 @@ window.AchieveMateAuth = {
   isSignedIn: () => isAuthed,
   requireAuth,
   showAuthModal,
+  signOut,
 };

@@ -11,12 +11,23 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=32" />
+  <link rel="stylesheet" href="styles.css?v=33" />
 </head>
 <body>
   <header class="topbar">
+    <button
+      type="button"
+      class="btn-icon topbar-sidebar-toggle"
+      id="sidebarToggleBtn"
+      aria-label="Toggle sidebar"
+      aria-expanded="true"
+      aria-controls="appSidebar"
+    >
+      <span aria-hidden="true">☰</span>
+    </button>
+
     <div class="topbar-wordmark">
-      <img src="logo.png?v=5" alt="" class="topbar-logo" width="24" height="24" />
+      <img src="logo.png?v=5" alt="" class="topbar-logo" width="32" height="32" />
       <span class="topbar-title">AchieveMate</span>
     </div>
 
@@ -47,6 +58,14 @@
     </nav>
 
     <div class="topbar-right">
+      <button
+        type="button"
+        class="btn btn-ghost topbar-logout-btn"
+        id="topbarSignOutBtn"
+        hidden
+      >
+        Log out
+      </button>
       <div class="saved-indicator" id="savedIndicator" aria-live="polite">
         <span class="saved-indicator-dot" id="savedIndicatorDot" aria-hidden="true"></span>
         <span class="saved-indicator-text" id="savedIndicatorText">Saved</span>
@@ -54,33 +73,116 @@
     </div>
   </header>
 
+  <div class="app-shell">
+    <aside class="app-sidebar" id="appSidebar" aria-label="App menu">
+      <div class="app-sidebar-expanded">
+        <div class="app-sidebar-header">
+          <span class="label">Menu</span>
+          <button
+            type="button"
+            class="btn-icon btn-icon-sm app-sidebar-collapse-btn"
+            id="sidebarCollapseBtn"
+            aria-label="Collapse sidebar"
+          >
+            ‹
+          </button>
+        </div>
+
+        <section class="sidebar-panel">
+          <button
+            type="button"
+            class="sidebar-panel-toggle"
+            id="sidebarPersonalToggle"
+            aria-expanded="true"
+            aria-controls="sidebarPersonalBody"
+          >
+            <span class="sidebar-panel-icon" aria-hidden="true">◉</span>
+            <span class="sidebar-panel-label">Personal info</span>
+            <span class="sidebar-panel-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="sidebar-panel-body" id="sidebarPersonalBody">
+            <p class="caption sidebar-panel-hint">Appears at the top of your CV</p>
+            <p class="sidebar-identity-summary" id="sidebarIdentitySummary">Add your name and contact</p>
+            <form class="identity-grid sidebar-identity-grid" id="personalForm" novalidate>
+              <label class="identity-field identity-field-full">
+                <span class="label">Name</span>
+                <input type="text" name="name" autocomplete="name" placeholder="Your full name" />
+              </label>
+              <label class="identity-field identity-field-full">
+                <span class="label">Phone</span>
+                <input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 000 0000" />
+              </label>
+              <label class="identity-field identity-field-full">
+                <span class="label">Email</span>
+                <input type="email" name="email" autocomplete="email" placeholder="you@example.com" />
+              </label>
+            </form>
+          </div>
+        </section>
+
+        <section class="sidebar-panel">
+          <div class="sidebar-panel-static-head">
+            <span class="sidebar-panel-icon" aria-hidden="true">☁</span>
+            <span class="sidebar-panel-label">Account</span>
+          </div>
+          <div class="sidebar-panel-body sidebar-panel-body-flush">
+            <p class="caption sidebar-account-status" id="sidebarAccountStatus">Not signed in · saved locally</p>
+            <div class="sidebar-account-actions" id="sidebarAccount">
+              <button type="button" class="btn btn-ghost sidebar-account-btn" id="saveAccountBtn">
+                <span class="sidebar-account-icon" aria-hidden="true">☁</span>
+                <span class="sidebar-account-label">Save to account</span>
+              </button>
+              <button type="button" class="btn btn-ghost sidebar-account-btn" id="signOutBtn" hidden>
+                <span class="sidebar-account-icon" aria-hidden="true">⎋</span>
+                <span class="sidebar-account-label">Log out</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="sidebar-panel">
+          <button
+            type="button"
+            class="sidebar-panel-toggle"
+            id="sidebarSettingsToggle"
+            aria-expanded="false"
+            aria-controls="sidebarSettingsBody"
+          >
+            <span class="sidebar-panel-icon" aria-hidden="true">⚙</span>
+            <span class="sidebar-panel-label">Settings</span>
+            <span class="sidebar-panel-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="sidebar-panel-body" id="sidebarSettingsBody" hidden>
+            <p class="caption sidebar-panel-hint">CV typography, layout, and export history are in Studio.</p>
+            <button type="button" class="btn btn-ghost sidebar-open-studio-btn" id="sidebarOpenStudioBtn">
+              Open Studio →
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <nav class="app-sidebar-rail" aria-label="Quick menu">
+        <button type="button" class="sidebar-rail-btn" data-panel="personal" title="Personal info">
+          <span aria-hidden="true">◉</span>
+        </button>
+        <button type="button" class="sidebar-rail-btn" data-panel="account" title="Account">
+          <span aria-hidden="true">☁</span>
+        </button>
+        <button type="button" class="sidebar-rail-btn" data-panel="settings" title="Settings">
+          <span aria-hidden="true">⚙</span>
+        </button>
+      </nav>
+    </aside>
+
+    <div class="app-sidebar-scrim" id="sidebarScrim" hidden aria-hidden="true"></div>
+
+    <div class="app-main">
   <main class="view view-logbook is-active" id="viewLogbook" role="tabpanel" aria-labelledby="view-tab-logbook" aria-hidden="false">
     <div class="logbook-column">
       <header class="logbook-header">
         <h1 class="logbook-title">Logbook</h1>
         <span class="logbook-count" id="logbookEntryCount">0 achievements</span>
       </header>
-
-      <section class="identity-card" aria-labelledby="identity-label">
-        <header class="identity-card-header">
-          <span class="label" id="identity-label">Identity</span>
-          <span class="caption">Appears at the top of your CV</span>
-        </header>
-        <form class="identity-grid" id="personalForm" novalidate>
-          <label class="identity-field identity-field-full">
-            <span class="label">Name</span>
-            <input type="text" name="name" autocomplete="name" placeholder="Your full name" />
-          </label>
-          <label class="identity-field">
-            <span class="label">Phone</span>
-            <input type="tel" name="phone" autocomplete="tel" placeholder="+1 555 000 0000" />
-          </label>
-          <label class="identity-field">
-            <span class="label">Email</span>
-            <input type="email" name="email" autocomplete="email" placeholder="you@example.com" />
-          </label>
-        </form>
-      </section>
 
       <header class="entries-header">
         <h2 class="entries-title">Achievements</h2>
@@ -323,6 +425,8 @@
       </aside>
     </div>
   </main>
+    </div>
+  </div>
 
   <div class="modal-root" id="exportModal" hidden aria-hidden="true">
     <div class="modal-overlay" id="exportModalOverlay" aria-hidden="true"></div>
@@ -364,10 +468,11 @@
   <script type="module" src="guest-migration.js"></script>
   <script type="module" src="auth.js"></script>
   <script type="module" src="sync.js"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=18"></script>
   <script src="cv-builder.js?v=5"></script>
   <script src="cv-preview.js?v=21"></script>
   <script src="cv-layout-panel.js?v=8"></script>
+  <script src="sidebar.js?v=1"></script>
   <script src="workspace-tabs.js?v=6"></script>
 </body>
 </html>
