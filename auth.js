@@ -1,5 +1,8 @@
 import { supabase } from "./supabase-client.js";
-import { migrateGuestDataToSupabase } from "./guest-migration.js";
+import {
+  migrateGuestDataToSupabase,
+  clearAppDataLocalStorage,
+} from "./guest-migration.js";
 
 const AUTH_MESSAGES = {
   export: {
@@ -166,8 +169,8 @@ function showAuthModal(reason = "save") {
   emailInput.focus();
 }
 
-function signOut() {
-  supabase.auth.signOut();
+async function signOut() {
+  await supabase.auth.signOut();
 }
 
 function bindSignOutButtons() {
@@ -257,6 +260,7 @@ async function initAuth() {
 
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === "SIGNED_OUT") {
+    clearAppDataLocalStorage();
     window.location.reload();
     return;
   }

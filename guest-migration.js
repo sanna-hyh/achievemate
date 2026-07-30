@@ -150,6 +150,11 @@ export function clearGuestLocalStorage() {
   GUEST_KEYS.forEach((key) => localStorage.removeItem(key));
 }
 
+/** Logbook/CV cache only — Supabase auth keys (`sb-*`) are left intact. */
+export function clearAppDataLocalStorage() {
+  clearGuestLocalStorage();
+}
+
 export function isGuestLocalStorageEmpty() {
   return GUEST_KEYS.every((key) => !localStorage.getItem(key));
 }
@@ -461,6 +466,7 @@ window.AchieveMateMigration = {
   verifyDataMigration,
   readGuestPayload,
   clearGuestLocalStorage,
+  clearAppDataLocalStorage,
   isGuestLocalStorageEmpty,
   attachAuthMigrationListener,
   GUEST_STORAGE_KEY,

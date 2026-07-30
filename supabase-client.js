@@ -10,8 +10,8 @@ const url = String(rawUrl || "")
 
 export const supabase = createClient(url, anonKey, {
   auth: {
-    persistSession: true,        // survives reloads via localStorage
-    autoRefreshToken: true,
+    persistSession: true,        // keep users signed in across visits (sb-* keys)
+    autoRefreshToken: true,      // refresh before the access token expires
     detectSessionInUrl: true,    // handles email-confirmation redirects
     flowType: "pkce",
   },

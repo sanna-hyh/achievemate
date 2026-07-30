@@ -615,7 +615,9 @@ function getCoverFlowCardMarkup(achievement) {
   const titleText = achievement.title?.trim() || "Untitled achievement";
   const titleClass = achievement.title?.trim() ? "cover-card-title" : "cover-card-title is-placeholder";
   const lines = getDescriptionLines(achievement.description);
-  const bodyText = lines.join(" ");
+  const bulletsMarkup = lines.length
+    ? `<ul class="cover-card-bullets">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+    : "";
 
   return `
     <div class="cover-card-actions deck-card-actions">
@@ -625,7 +627,7 @@ function getCoverFlowCardMarkup(achievement) {
     <div class="cover-card-inner">
       <h3 class="${titleClass}">${escapeHtml(titleText)}</h3>
       ${achievement.date?.trim() ? `<time class="cover-card-date">${escapeHtml(achievement.date)}</time>` : ""}
-      ${bodyText ? `<p class="cover-card-body">${escapeHtml(bodyText)}</p>` : ""}
+      ${bulletsMarkup}
       ${achievement.fileName ? `<div class="cover-card-foot"></div>` : ""}
     </div>
   `;

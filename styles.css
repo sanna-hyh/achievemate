@@ -1213,17 +1213,39 @@ body.sidebar-collapsed .app-sidebar-rail {
   color: var(--text-muted);
 }
 
-.cover-card-body {
+.cover-card-bullets {
   flex: 1;
   min-height: 0;
   margin: 18px 0 0;
+  padding: 0;
   overflow: hidden;
+  list-style: none;
+}
+
+.cover-card-bullets li {
+  position: relative;
+  padding-left: 14px;
   font-family: var(--font-ui);
   font-size: 0.875rem;
   font-weight: 400;
-  line-height: 1.65;
+  line-height: 1.55;
   color: var(--text-secondary);
   word-break: break-word;
+}
+
+.cover-card-bullets li + li {
+  margin-top: 6px;
+}
+
+.cover-card-bullets li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 3px;
+  height: 3px;
+  background: var(--brass);
+  border-radius: 50%;
 }
 
 .cover-card-foot {
