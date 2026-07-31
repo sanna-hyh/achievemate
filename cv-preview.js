@@ -27,9 +27,347 @@
   let armedRestoreButton = null;
   let layoutFrame = null;
   let fitPreviewFrame = null;
+  let editSaveTimer = null;
+  let layoutDebounceTimer = null;
   let baseFitScale = 1;
   let userZoom = 1;
   let documentDragState = null;
+  let documentDragCancelled = false;
+  let sectionPointer = null;
+  let sectionDragSession = null;
+  let editClickState = null;
+  const SECTION_DRAG_THRESHOLD_PX = 8;
+  const EDIT_DOUBLE_CLICK_MS = 720;
+  const EDIT_DOUBLE_CLICK_MAX_DISTANCE_PX = 16;
+
+  function clearEditClickState() {
+    editClickState = null;
+  }
+
+  function detectEditDoubleClick(event) {
+    if (event.target.closest(".cv-section-remove, .cv-section-handle")) {
+      clearEditClickState();
+      return null;
+    }
+    if (event.target.closest('[contenteditable="true"].is-editing')) {
+      clearEditClickState();
+      return null;
+    }
+
+    const editTarget = resolveEditTarget(event.target);
+    if (!editTarget) {
+      clearEditClickState();
+      return null;
+    }
+
+    const now = performance.now();
+    const previous = editClickState;
+
+    if (
+      previous &&
+      previous.target === editTarget &&
+      now - previous.time <= EDIT_DOUBLE_CLICK_MS &&
+      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= EDIT_DOUBLE_CLICK_MAX_DISTANCE_PX
+    ) {
+      clearEditClickState();
+      return editTarget;
+    }
+
+    editClickState = {
+      target: editTarget,
+      time: now,
+      x: event.clientX,
+      y: event.clientY,
+    };
+    return null;
+  }
+
+  function resolveEditDoubleClickTarget(event) {
+    if (event.detail >= 2) {
+      return resolveEditTarget(event.target);
+    }
+    return detectEditDoubleClick(event);
+  }
+
+  function clearSectionPointer() {
+    if (sectionPointer?.wrap) {
+      sectionPointer.wrap.classList.remove("is-drag-armed");
+    }
+    sectionPointer = null;
+  }
+
+  function resolveEditTarget(target) {
+    if (!target) {
+      return null;
+    }
+
+    return target.closest("[data-edit-key]");
+  }
+
+  function placeCaretAtPoint(clientX, clientY) {
+    if (document.caretRangeFromPoint) {
+      const range = document.caretRangeFromPoint(clientX, clientY);
+      if (range) {
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+    }
+
+    if (document.caretPositionFromPoint) {
+      const position = document.caretPositionFromPoint(clientX, clientY);
+      if (position) {
+        const range = document.createRange();
+        range.setStart(position.offsetNode, position.offset);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+    }
+  }
+
+  function activateEdit(node, event) {
+    if (!node) {
+      return;
+    }
+
+    clearSectionPointer();
+    node.setAttribute("contenteditable", "true");
+    node.classList.add("is-editing");
+    isEditingPreview = true;
+    node.focus({ preventScroll: true });
+
+    if (event) {
+      placeCaretAtPoint(event.clientX, event.clientY);
+    }
+  }
+
+  function tryActivateEdit(event, explicitTarget = null) {
+    if (event.target.closest(".cv-section-remove, .cv-section-handle")) {
+      return false;
+    }
+    if (event.target.closest('[contenteditable="true"].is-editing')) {
+      return false;
+    }
+
+    const editTarget = explicitTarget || resolveEditTarget(event.target);
+    if (!editTarget) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearEditClickState();
+    activateEdit(editTarget, event);
+    return true;
+  }
+
+  function scheduleEditSave() {
+    window.clearTimeout(editSaveTimer);
+    editSaveTimer = window.setTimeout(flushEditSave, 500);
+  }
+
+  function flushEditSave() {
+    window.clearTimeout(editSaveTimer);
+    editSaveTimer = null;
+    saveState();
+  }
+
+  function scheduleSmartLayoutDebounced() {
+    window.clearTimeout(layoutDebounceTimer);
+    layoutDebounceTimer = window.setTimeout(() => {
+      layoutDebounceTimer = null;
+      if (isEditingPreview) {
+        scheduleSmartLayoutDebounced();
+        return;
+      }
+      scheduleSmartLayout({ quiet: true });
+    }, 450);
+  }
+
+  function beginDocumentDrag(wrap, layoutItemId, event, previewSource) {
+    const layoutIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    window.AchieveMateDrag.payload = {
+      source: "document",
+      layoutItemId,
+      layoutIndex,
+    };
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/json", JSON.stringify(window.AchieveMateDrag.payload));
+    documentDragState = { layoutItemId, handled: false };
+    documentDragCancelled = false;
+    wrap.classList.add("is-dragging");
+    window.AchieveMateDragPreview?.begin(event, previewSource || wrap, { variant: "document" });
+  }
+
+  function finishDocumentDrag(event) {
+    const wrap = cvPreview?.querySelector(
+      `.cv-section-wrap[data-layout-item-id="${documentDragState?.layoutItemId || ""}"]`
+    );
+    wrap?.classList.remove("is-dragging");
+    hideInsertionLine();
+    removeDraggedSectionIfDroppedOutside(event);
+    documentDragState = null;
+    documentDragCancelled = false;
+    window.AchieveMateDrag.payload = null;
+    window.AchieveMateDragPreview?.end();
+    sectionDragSession = null;
+    clearSectionPointer();
+  }
+
+  function startPointerSectionDrag(wrap, layoutItemId, moveEvent) {
+    if (sectionDragSession || !wrap) {
+      return;
+    }
+
+    const layoutIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    if (layoutIndex === -1) {
+      return;
+    }
+
+    window.AchieveMateDrag.payload = {
+      source: "document",
+      layoutItemId,
+      layoutIndex,
+    };
+    documentDragState = { layoutItemId, handled: false };
+    documentDragCancelled = false;
+    wrap.classList.add("is-dragging");
+
+    window.AchieveMateDragPreview?.beginPointer(wrap, {
+      variant: "document",
+      clientX: moveEvent.clientX,
+      clientY: moveEvent.clientY,
+    });
+
+    sectionDragSession = { wrap, layoutItemId };
+
+    const onMove = (event) => {
+      window.AchieveMateDragPreview?.movePointer(event.clientX, event.clientY);
+      if (isPointerOverDocument(event.clientX, event.clientY)) {
+        showInsertionLine(resolveDropIndex(getPreviewBody(), event.clientY));
+      } else {
+        hideInsertionLine();
+      }
+    };
+
+    const onUp = (event) => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+
+      const builder = window.AchieveMateCvBuilder;
+      hideInsertionLine();
+
+      if (builder && documentDragState && !documentDragCancelled) {
+        const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+
+        if (currentIndex !== -1 && isPointerOverDocument(event.clientX, event.clientY)) {
+          const index = resolveDropIndex(getPreviewBody(), event.clientY);
+          documentDragState.handled = true;
+          builder.moveLayoutItem(currentIndex, index);
+        } else if (event.clientX !== 0 || event.clientY !== 0) {
+          documentDragState.handled = true;
+          removeSectionFromCv(layoutItemId);
+        }
+      }
+
+      wrap.classList.remove("is-dragging");
+      sectionDragSession = null;
+      documentDragState = null;
+      documentDragCancelled = false;
+      window.AchieveMateDrag.payload = null;
+      window.AchieveMateDragPreview?.end();
+      clearSectionPointer();
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  function bindPreviewPointerInteraction() {
+    if (!cvPreview) {
+      return;
+    }
+
+    cvPreview.addEventListener("mousedown", (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+      if (event.target.closest(".cv-section-remove, .cv-section-handle")) {
+        return;
+      }
+      if (event.target.closest('[contenteditable="true"].is-editing')) {
+        return;
+      }
+
+      const editDoubleTarget = resolveEditDoubleClickTarget(event);
+      if (editDoubleTarget && tryActivateEdit(event, editDoubleTarget)) {
+        return;
+      }
+
+      const wrap = event.target.closest(".cv-section-wrap");
+      const editable = resolveEditTarget(event.target);
+      if (!wrap && !editable) {
+        return;
+      }
+
+      sectionPointer = {
+        wrap,
+        layoutItemId: wrap?.dataset.layoutItemId || null,
+        x: event.clientX,
+        y: event.clientY,
+        target: event.target,
+        moved: false,
+      };
+
+      const onMove = (moveEvent) => {
+        if (!sectionPointer) {
+          return;
+        }
+
+        const distance = Math.hypot(moveEvent.clientX - sectionPointer.x, moveEvent.clientY - sectionPointer.y);
+        if (distance >= SECTION_DRAG_THRESHOLD_PX) {
+          moveEvent.preventDefault();
+          sectionPointer.moved = true;
+          sectionPointer.wrap?.classList.add("is-drag-armed");
+
+          if (sectionPointer.wrap && sectionPointer.layoutItemId) {
+            startPointerSectionDrag(sectionPointer.wrap, sectionPointer.layoutItemId, moveEvent);
+          }
+        }
+      };
+
+      const onUp = (upEvent) => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+
+        if (!sectionPointer) {
+          return;
+        }
+
+        if (sectionPointer.moved || sectionDragSession) {
+          if (!documentDragState) {
+            clearSectionPointer();
+          }
+          return;
+        }
+
+        clearSectionPointer();
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+
+    cvPreview.addEventListener("dblclick", (event) => {
+      const editTarget = resolveEditTarget(event.target);
+      if (editTarget) {
+        tryActivateEdit(event, editTarget);
+      }
+    });
+  }
   const MIN_USER_ZOOM = 1;
   const MAX_USER_ZOOM = 3;
   const ZOOM_STEP = 0.12;
@@ -52,8 +390,6 @@
     if (!wrap || !cvPreview || !studioView || !studioView.classList.contains("is-active")) {
       return null;
     }
-
-    resetPreviewTransform();
 
     const wrapStyle = getComputedStyle(wrap);
     const padX = parseFloat(wrapStyle.paddingLeft) + parseFloat(wrapStyle.paddingRight);
@@ -488,6 +824,48 @@
     return sanitizeRichText(node.innerHTML);
   }
 
+  function splitDescriptionLineHtml(node) {
+    const lines = [[]];
+
+    const append = (html) => {
+      lines[lines.length - 1].push(html);
+    };
+
+    node.childNodes.forEach((child) => {
+      if (child.nodeName === "BR") {
+        lines.push([]);
+        return;
+      }
+
+      if (child.nodeType === Node.TEXT_NODE) {
+        append(escapeHtml(child.textContent || ""));
+        return;
+      }
+
+      append(sanitizeRichText(child.outerHTML));
+    });
+
+    return lines
+      .map((parts) => parts.join("").trim())
+      .filter(Boolean)
+      .map((line) => line.replace(/^[•\-*]\s*/, ""))
+      .filter((line) => line !== "Add description points");
+  }
+
+  function getDescriptionEditableContent(node) {
+    return splitDescriptionLineHtml(node)
+      .map((line) => `• ${line}`)
+      .join("\n");
+  }
+
+  function getNodeEditContent(node) {
+    if (node.classList.contains("cv-preview-description")) {
+      return getDescriptionEditableContent(node);
+    }
+
+    return getEditableContent(node);
+  }
+
   const HEADING_DIVIDER_CLASSES = [
     "cv-heading-divider-solid",
     "cv-heading-divider-dotted",
@@ -620,9 +998,16 @@
     return cvPreview.scrollHeight > cvPreview.clientHeight + 2;
   }
 
-  function applySmartLayout() {
-    resetPreviewTransform();
+  function applySmartLayout(options = {}) {
     applyLayoutStyles();
+
+    const finishLayout = () => {
+      if (options.syncFit) {
+        applyPreviewZoom();
+      } else {
+        scheduleFitPreview();
+      }
+    };
 
     if (state.cvLayout.length === 0) {
       cvPreview.classList.remove("cv-preview-single-page");
@@ -630,7 +1015,7 @@
       cvPreview.dataset.contentChars = "";
       cvPreview.dataset.contentItems = "";
       updateDensityGauge({ mode: "empty" });
-      scheduleFitPreview();
+      finishLayout();
       return;
     }
 
@@ -638,7 +1023,7 @@
       cvPreview.classList.add("cv-preview-single-page");
       cvPreview.dataset.layoutDensity = "manual";
       updateDensityGauge({ mode: "manual" });
-      scheduleFitPreview();
+      finishLayout();
       return;
     }
 
@@ -681,7 +1066,7 @@
       overflow,
     });
 
-    scheduleFitPreview();
+    finishLayout();
   }
 
   let layoutSkeletonTimer = null;
@@ -698,16 +1083,18 @@
     cvPreview?.classList.remove("is-layout-running");
   }
 
-  function scheduleSmartLayout() {
+  function scheduleSmartLayout(options = {}) {
     if (layoutFrame) {
       cancelAnimationFrame(layoutFrame);
     }
 
-    showLayoutSkeleton();
+    if (!options.quiet) {
+      showLayoutSkeleton();
+    }
 
     layoutFrame = requestAnimationFrame(() => {
       layoutFrame = null;
-      applySmartLayout();
+      applySmartLayout({ syncFit: true });
       hideLayoutSkeleton();
     });
   }
@@ -874,10 +1261,34 @@
     });
   }
 
+  function removeDraggedSectionIfDroppedOutside(event) {
+    const pending = documentDragState;
+    if (!pending || pending.handled || documentDragCancelled) {
+      return false;
+    }
+
+    if (event.clientX === 0 && event.clientY === 0) {
+      return false;
+    }
+
+    if (isPointerOverDocument(event.clientX, event.clientY)) {
+      return false;
+    }
+
+    pending.handled = true;
+    removeSectionFromCv(pending.layoutItemId);
+    window.AchieveMateDragPreview?.end();
+    documentDragState = null;
+    window.AchieveMateDrag.payload = null;
+    return true;
+  }
+
   function bindDocumentDragDrop() {
     if (!cvPreview) {
       return;
     }
+
+    const studioWell = document.querySelector(".studio-well");
 
     cvPreview.addEventListener("dragover", (event) => {
       const payload = parseDragPayload(event);
@@ -911,6 +1322,7 @@
       if (!payload || !isPointerOverDocument(event.clientX, event.clientY)) {
         documentDragState = null;
         window.AchieveMateDrag.payload = null;
+        window.AchieveMateDragPreview?.end();
         return;
       }
 
@@ -927,6 +1339,7 @@
         }
         const item = builder.createLayoutItem(payload.type, payload.achievementId);
         builder.insertLayoutItem(item, index);
+        window.AchieveMateDragPreview?.end();
         return;
       }
 
@@ -935,11 +1348,37 @@
           documentDragState.handled = true;
         }
         builder.moveLayoutItem(payload.layoutIndex, index);
+        window.AchieveMateDragPreview?.end();
+      }
+    });
+
+    studioWell?.addEventListener("dragover", (event) => {
+      const payload = parseDragPayload(event);
+      if (payload?.source !== "document") {
+        return;
+      }
+
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      hideInsertionLine();
+    });
+
+    studioWell?.addEventListener("drop", (event) => {
+      if (removeDraggedSectionIfDroppedOutside(event)) {
+        event.preventDefault();
       }
     });
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if (sectionDragSession) {
+          documentDragCancelled = true;
+          hideInsertionLine();
+          return;
+        }
+        if (documentDragState) {
+          documentDragCancelled = true;
+        }
         hideInsertionLine();
       }
     });
@@ -951,28 +1390,18 @@
       const handle = wrap.querySelector(".cv-section-handle");
       const removeBtn = wrap.querySelector(".cv-section-remove");
 
+      wrap.draggable = false;
+
       handle?.addEventListener("dragstart", (event) => {
         event.stopPropagation();
-        const layoutIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-        window.AchieveMateDrag.payload = {
-          source: "document",
-          layoutItemId,
-          layoutIndex,
-        };
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData(
-          "application/json",
-          JSON.stringify(window.AchieveMateDrag.payload)
-        );
-        documentDragState = { layoutItemId, handled: false };
-        wrap.classList.add("is-dragging");
+        beginDocumentDrag(wrap, layoutItemId, event, handle);
       });
 
-      handle?.addEventListener("dragend", () => {
-        wrap.classList.remove("is-dragging");
-        documentDragState = null;
-        window.AchieveMateDrag.payload = null;
-        hideInsertionLine();
+      handle?.addEventListener("dragend", (event) => {
+        if (documentDragState?.layoutItemId !== layoutItemId) {
+          return;
+        }
+        finishDocumentDrag(event);
       });
 
       handle?.addEventListener("keydown", (event) => {
@@ -1019,7 +1448,7 @@
     return current;
   }
 
-  function setEdit(path, value) {
+  function setEdit(path, value, options = {}) {
     const parts = path.split(".");
     let current = state.cvPreviewEdits;
 
@@ -1032,7 +1461,17 @@
     }
 
     current[parts[parts.length - 1]] = value;
-    saveState();
+
+    if (options.skipSave) {
+      return;
+    }
+
+    if (options.flushSave) {
+      flushEditSave();
+      return;
+    }
+
+    scheduleEditSave();
   }
 
   function captureEditsFromDom() {
@@ -1041,28 +1480,13 @@
     }
 
     cvPreview.querySelectorAll("[data-edit-key]").forEach((node) => {
-      setEdit(node.dataset.editKey, getEditableContent(node));
+      setEdit(node.dataset.editKey, getNodeEditContent(node), { skipSave: true });
     });
 
-    cvPreview.querySelectorAll(".cv-preview-entry[data-item-id]").forEach((entry) => {
-      const itemId = entry.dataset.itemId;
-      const bullets = entry.querySelectorAll(".cv-preview-bullets li");
-      if (bullets.length === 0) {
-        return;
-      }
-
-      const text = [...bullets]
-        .map((line) => {
-          const content = getEditableContent(line);
-          return content ? `• ${content}` : "";
-        })
-        .filter((line) => line !== "•")
-        .join("\n");
-      setEdit(`items.${itemId}.description`, text);
-    });
+    flushEditSave();
   }
 
-  function descriptionToListHtml(description) {
+  function descriptionToEditableHtml(description) {
     const lines = String(description || "")
       .split("\n")
       .map((line) => line.trim())
@@ -1074,9 +1498,19 @@
       return "";
     }
 
-    return `<ul class="cv-preview-bullets">${lines
-      .map((line) => `<li contenteditable="true">${richTextToHtml(line)}</li>`)
-      .join("")}</ul>`;
+    return lines.map((line) => richTextToHtml(`• ${line}`)).join("<br>");
+  }
+
+  function bindDescriptionEnterHandler(node, onEdit) {
+    node.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.shiftKey) {
+        return;
+      }
+
+      event.preventDefault();
+      document.execCommand("insertHTML", false, "<br>• ");
+      onEdit?.();
+    });
   }
 
   function bindRichTextShortcuts(node, onEdit) {
@@ -1126,8 +1560,8 @@
 
   function bindEditableNodes() {
     cvPreview.querySelectorAll("[data-edit-key]").forEach((node) => {
-      const persistEdit = () => {
-        setEdit(node.dataset.editKey, getEditableContent(node));
+      const persistEdit = (options = {}) => {
+        setEdit(node.dataset.editKey, getNodeEditContent(node), options);
       };
 
       node.addEventListener("focus", () => {
@@ -1137,50 +1571,19 @@
 
       node.addEventListener("blur", () => {
         node.classList.remove("is-editing");
-        persistEdit();
+        node.setAttribute("contenteditable", "false");
+        persistEdit({ flushSave: true });
         isEditingPreview = false;
-        scheduleSmartLayout();
+        scheduleSmartLayoutDebounced();
       });
 
-      node.addEventListener("input", persistEdit);
-      bindRichTextShortcuts(node, persistEdit);
-      bindCvPasteHandler(node, persistEdit);
-    });
+      node.addEventListener("input", () => persistEdit());
+      bindRichTextShortcuts(node, () => persistEdit());
+      bindCvPasteHandler(node, () => persistEdit());
 
-    cvPreview.querySelectorAll(".cv-preview-bullets li").forEach((node, index, nodes) => {
-      const parent = node.closest("[data-item-id]");
-      if (!parent) {
-        return;
+      if (node.classList.contains("cv-preview-description")) {
+        bindDescriptionEnterHandler(node, () => persistEdit());
       }
-
-      const itemId = parent.dataset.itemId;
-      const editKey = `items.${itemId}.description`;
-
-      const persistBullets = () => {
-        const bullets = [...nodes]
-          .map((item) => {
-            const content = getEditableContent(item);
-            return content ? `• ${content}` : "";
-          })
-          .filter(Boolean);
-        setEdit(editKey, bullets.join("\n"));
-      };
-
-      node.addEventListener("focus", () => {
-        isEditingPreview = true;
-        node.classList.add("is-editing");
-      });
-
-      node.addEventListener("blur", () => {
-        node.classList.remove("is-editing");
-        persistBullets();
-        isEditingPreview = false;
-        scheduleSmartLayout();
-      });
-
-      node.addEventListener("input", persistBullets);
-      bindRichTextShortcuts(node, persistBullets);
-      bindCvPasteHandler(node, persistBullets);
     });
   }
 
@@ -1194,13 +1597,13 @@
 
     return `
       <header class="cv-preview-header">
-        <h1 class="cv-preview-name" contenteditable="true" data-edit-key="personal.name">${richTextToHtml(name)}</h1>
+        <h1 class="cv-preview-name" contenteditable="false" data-edit-key="personal.name">${richTextToHtml(name)}</h1>
         ${
           contactLine
-            ? `<p class="cv-preview-contact" contenteditable="true" data-edit-key="personal.contact">${richTextToHtml(
+            ? `<p class="cv-preview-contact" contenteditable="false" data-edit-key="personal.contact">${richTextToHtml(
                 getEdit("personal.contact", contactLine)
               )}</p>`
-            : `<p class="cv-preview-contact cv-preview-placeholder" contenteditable="true" data-edit-key="personal.contact">Phone | Email</p>`
+            : `<p class="cv-preview-contact cv-preview-placeholder" contenteditable="false" data-edit-key="personal.contact">Phone | Email</p>`
         }
       </header>
     `;
@@ -1212,7 +1615,7 @@
     if (item.type === "heading") {
       const title = getEdit(`items.${item.id}.title`, item.title || "Section Title");
       inner = `
-        <h2 class="cv-preview-section-heading" contenteditable="true" data-edit-key="items.${item.id}.title" data-item-id="${item.id}">
+        <h2 class="cv-preview-section-heading" contenteditable="false" data-edit-key="items.${item.id}.title" data-item-id="${item.id}">
           ${richTextToHtml(title)}
         </h2>
       `;
@@ -1228,16 +1631,16 @@
         ? getEdit(`items.${item.id}.description`, achievement?.description || "")
         : "";
 
-      const descriptionHtml = showDescription ? descriptionToListHtml(description) : "";
+      const descriptionHtml = showDescription ? descriptionToEditableHtml(description) : "";
       const descriptionMarkup = descriptionHtml
-        ? `<div class="cv-preview-entry-body" data-edit-key="items.${item.id}.description">${descriptionHtml}</div>`
+        ? `<div class="cv-preview-entry-body cv-preview-description" contenteditable="false" data-edit-key="items.${item.id}.description">${descriptionHtml}</div>`
         : "";
 
       inner = `
         <section class="cv-preview-entry" data-item-id="${item.id}">
           <div class="cv-preview-entry-header">
-            <h3 class="cv-preview-entry-title" contenteditable="true" data-edit-key="items.${item.id}.title">${richTextToHtml(title)}</h3>
-            <span class="cv-preview-entry-date" contenteditable="true" data-edit-key="items.${item.id}.date">${richTextToHtml(date || "Date")}</span>
+            <h3 class="cv-preview-entry-title" contenteditable="false" data-edit-key="items.${item.id}.title">${richTextToHtml(title)}</h3>
+            <span class="cv-preview-entry-date" contenteditable="false" data-edit-key="items.${item.id}.date">${richTextToHtml(date || "Date")}</span>
           </div>
           ${descriptionMarkup}
         </section>
@@ -1739,6 +2142,7 @@
   bindHistoryPopover();
   bindPreviewZoomControls();
   bindDocumentDragDrop();
+  bindPreviewPointerInteraction();
   scheduleFitPreview();
 
   window.AchieveMateCvPreview = {

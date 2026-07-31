@@ -10,9 +10,28 @@
   }
 
   const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+  const track = tablist.querySelector(".view-switcher-track");
+  const indicator = tablist.querySelector(".view-switcher-indicator");
   const STORAGE_KEY = "achievemate-active-tab";
   let activeView = "logbook";
   let switchTimer = null;
+
+  function updateSwitcherIndicator(activeTab) {
+    if (!track || !indicator || !activeTab) {
+      return;
+    }
+
+    const left = activeTab.offsetLeft;
+    const width = activeTab.offsetWidth;
+
+    indicator.style.width = `${width}px`;
+    indicator.style.transform = `translateX(${left}px)`;
+  }
+
+  function syncSwitcherIndicator() {
+    const activeTab = tabs.find((tab) => tab.classList.contains("is-active"));
+    updateSwitcherIndicator(activeTab);
+  }
 
   function mapLegacyTab(tabId) {
     if (tabId === "profile" || tabId === "achievements" || tabId === "logbook") {
@@ -59,6 +78,8 @@
       tab.setAttribute("aria-selected", String(isActive));
       tab.tabIndex = isActive ? 0 : -1;
     });
+
+    syncSwitcherIndicator();
 
     activeView = viewId;
 
@@ -136,6 +157,18 @@
     tab.setAttribute("aria-selected", String(isActive));
     tab.tabIndex = isActive ? 0 : -1;
   });
+
+  requestAnimationFrame(syncSwitcherIndicator);
+
+  if (track && typeof ResizeObserver !== "undefined") {
+    const resizeObserver = new ResizeObserver(() => {
+      syncSwitcherIndicator();
+    });
+    resizeObserver.observe(track);
+    tabs.forEach((tab) => resizeObserver.observe(tab));
+  } else {
+    window.addEventListener("resize", syncSwitcherIndicator);
+  }
 
   if (initialView === "studio") {
     requestAnimationFrame(() => {

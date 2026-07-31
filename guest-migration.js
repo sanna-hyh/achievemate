@@ -120,6 +120,8 @@ function normalizeGuestPayload(raw) {
         id: item.client_id || item.id || `ach-${Date.now()}`,
         title: item.title || "",
         date: item.date || item.date_label || "",
+        category: item.category || "others",
+        starred: Boolean(item.starred),
         description: item.description || "",
         showDescription: item.show_description ?? item.showDescription ?? true,
         fileName: item.fileName || item.proof_name || "",
@@ -187,6 +189,8 @@ function applyPayloadToApp(payload) {
   state.personalInfo = { ...state.personalInfo, ...payload.personalInfo };
   state.achievements = payload.achievements.map((achievement) => ({
     ...achievement,
+    category: achievement.category || "others",
+    starred: Boolean(achievement.starred),
     fileData: "",
     proofPath: achievement.proofPath || "",
   }));
@@ -281,6 +285,8 @@ export async function migrateGuestDataToSupabase(user, { silent = false } = {}) 
         client_id: achievement.id,
         title: achievement.title || "",
         date_label: achievement.date || "",
+        category: achievement.category || "others",
+        starred: Boolean(achievement.starred),
         description: achievement.description || "",
         show_description: achievement.showDescription ?? true,
         proof_name: proofName,

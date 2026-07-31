@@ -4,13 +4,87 @@
     return;
   }
 
-  const { state, saveState, createId, escapeHtml } = app;
+  const { state, saveState, createId, escapeHtml, sortAchievementsForStudio } = app;
 
   const cvPalette = document.getElementById("cvPalette");
   const cvAchievementPalette = document.getElementById("cvAchievementPalette");
   const studioRailCount = document.getElementById("studioRailCount");
+  const studioClearCvBtn = document.getElementById("studioClearCvBtn");
 
   window.AchieveMateDrag = window.AchieveMateDrag || { payload: null };
+
+  const CLEAR_CV_LABEL = "Remove all items";
+  let armedClearCv = false;
+  let armedClearCvTimer = null;
+
+  function resetClearCvButton() {
+    armedClearCv = false;
+    window.clearTimeout(armedClearCvTimer);
+    armedClearCvTimer = null;
+
+    if (!studioClearCvBtn) {
+      return;
+    }
+
+    studioClearCvBtn.classList.remove("is-armed");
+    studioClearCvBtn.textContent = CLEAR_CV_LABEL;
+  }
+
+  function updateClearCvButton() {
+    if (!studioClearCvBtn) {
+      return;
+    }
+
+    const hasItems = state.cvLayout.length > 0;
+    studioClearCvBtn.disabled = !hasItems;
+
+    if (!hasItems) {
+      resetClearCvButton();
+    }
+  }
+
+  function clearAllCvItems() {
+    if (state.cvLayout.length === 0) {
+      return;
+    }
+
+    const previousLayout = JSON.parse(JSON.stringify(state.cvLayout));
+    const previousItemEdits = JSON.parse(JSON.stringify(state.cvPreviewEdits.items || {}));
+
+    state.cvLayout = [];
+    state.cvPreviewEdits.items = {};
+    saveState();
+    renderRail();
+    window.AchieveMateCvPreview?.render();
+
+    window.AchieveMateToast?.show("CV cleared — start fresh", {
+      actionLabel: "Undo",
+      onAction: () => {
+        state.cvLayout = previousLayout;
+        state.cvPreviewEdits.items = previousItemEdits;
+        saveState();
+        renderRail();
+        window.AchieveMateCvPreview?.render();
+      },
+    });
+  }
+
+  function handleClearCvClick() {
+    if (!studioClearCvBtn || studioClearCvBtn.disabled) {
+      return;
+    }
+
+    if (!armedClearCv) {
+      armedClearCv = true;
+      studioClearCvBtn.classList.add("is-armed");
+      studioClearCvBtn.textContent = "Sure?";
+      armedClearCvTimer = window.setTimeout(resetClearCvButton, 2000);
+      return;
+    }
+
+    resetClearCvButton();
+    clearAllCvItems();
+  }
 
   function getAchievement(achievementId) {
     return state.achievements.find((item) => item.id === achievementId);
@@ -92,16 +166,8 @@
     event.dataTransfer.setData("text/plain", payload.type || "block");
   }
 
-  function setDragGhost(event, sourceEl) {
-    const clone = sourceEl.cloneNode(true);
-    clone.classList.add("cv-drag-ghost");
-    clone.style.position = "fixed";
-    clone.style.top = "-1000px";
-    clone.style.left = "-1000px";
-    clone.style.width = "240px";
-    document.body.appendChild(clone);
-    event.dataTransfer.setDragImage(clone, 120, 22);
-    window.setTimeout(() => clone.remove(), 0);
+  function beginDragPreview(event, sourceEl, payload) {
+    window.AchieveMateDragPreview?.begin(event, sourceEl, { variant: "rail", payload });
   }
 
   function bindPaletteHeading() {
@@ -115,13 +181,17 @@
         source: "rail",
         type: "heading",
       });
-      setDragGhost(event, headingBlock);
+      beginDragPreview(event, headingBlock, {
+        source: "rail",
+        type: "heading",
+      });
       headingBlock.classList.add("is-dragging");
     });
 
     headingBlock.addEventListener("dragend", () => {
       headingBlock.classList.remove("is-dragging");
       window.AchieveMateDrag.payload = null;
+      window.AchieveMateDragPreview?.end();
       window.AchieveMateCvPreview?.hideInsertionLine();
     });
   }
@@ -154,7 +224,7 @@
       return;
     }
 
-    state.achievements.forEach((achievement) => {
+    sortAchievementsForStudio(state.achievements).forEach((achievement) => {
       const onCv = isOnCv(achievement.id);
       const block = document.createElement("div");
       block.className = `rail-block rail-block-achievement cv-draggable${onCv ? " is-on-cv" : ""}`;
@@ -178,13 +248,18 @@
           type: "achievement",
           achievementId: achievement.id,
         });
-        setDragGhost(event, block);
+        beginDragPreview(event, block, {
+          source: "rail",
+          type: "achievement",
+          achievementId: achievement.id,
+        });
         block.classList.add("is-dragging");
       });
 
       block.addEventListener("dragend", () => {
         block.classList.remove("is-dragging");
         window.AchieveMateDrag.payload = null;
+        window.AchieveMateDragPreview?.end();
         window.AchieveMateCvPreview?.hideInsertionLine();
       });
 
@@ -194,9 +269,11 @@
 
   function renderRail() {
     renderAchievementPalette();
+    updateClearCvButton();
   }
 
   bindPaletteHeading();
+  studioClearCvBtn?.addEventListener("click", handleClearCvClick);
   renderRail();
 
   window.AchieveMateCvBuilder = {
@@ -205,6 +282,7 @@
     insertLayoutItem,
     moveLayoutItem,
     removeLayoutItem,
+    clearAllCvItems,
     getAchievement,
     isOnCv,
   };

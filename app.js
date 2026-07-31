@@ -33,6 +33,26 @@ const DEFAULT_CV_SETTINGS = {
   autoFit: false,
 };
 
+const ACHIEVEMENT_CATEGORIES = [
+  { id: "education", label: "Education" },
+  { id: "leadership", label: "Leadership" },
+  { id: "competition", label: "Competition" },
+  { id: "internship", label: "Internship" },
+  { id: "volunteering", label: "Volunteering" },
+  { id: "others", label: "Others" },
+];
+
+const DEFAULT_ACHIEVEMENT_CATEGORY = "others";
+
+const CATEGORY_ICON_SVGS = {
+  education: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 3.5h4.5v9H3.5a1 1 0 0 1-1-1v-8zM9 3.5h4.5v9h-3.5a1 1 0 0 1-1-1v-8zM7 3.5v9" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  leadership: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M3 5.5v5l8 3V2.5L3 5.5zM3 8H2a1 1 0 0 0-1 1v0a1 1 0 0 0 1 1h1" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  competition: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M4.5 3h7v2a3.5 3.5 0 0 1-7 0V3zM8 8.5V11M5.5 11h5M6 13h4M4.5 3V2M11.5 3V2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  internship: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.5" y="5.5" width="11" height="8" rx="1" stroke="currentColor" stroke-width="1.35"/><path d="M5.5 5.5V4.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  volunteering: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 13.5S3.5 10.5 3.5 7.5A2.5 2.5 0 0 1 8 6a2.5 2.5 0 0 1 4.5 1.5c0 3-4.5 6-4.5 6z" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  others: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5 2.5 5.5 8 8.5l5.5-3L8 2.5zM2.5 8 8 11l5.5-3M2.5 10.5 8 13.5l5.5-3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+};
+
 const state = {
   personalInfo: {
     name: "",
@@ -61,6 +81,16 @@ let armedDeleteId = null;
 let armedDeleteTimer = null;
 let logbookLoading = true;
 let deckFrontIndex = 0;
+let timelineCategoryFilter = "all";
+
+const CATEGORY_EMPTY_MESSAGES = {
+  education: "Log a course, degree, or learning milestone — this chapter is waiting for you.",
+  leadership: "Led a team or initiative? Your leadership moments belong here.",
+  competition: "Competed or placed in something? Add it when you're ready.",
+  internship: "Every internship counts. Yours could be the next entry.",
+  volunteering: "Give-back moments matter. Capture one when you can.",
+  others: "Anything that shaped you fits here. Add your next story.",
+};
 
 function createId(prefix = "ach") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -160,6 +190,8 @@ function loadState() {
       if (Array.isArray(parsed.achievements)) {
         state.achievements = parsed.achievements.map((achievement) => ({
           ...achievement,
+          category: normalizeAchievementCategory(achievement.category),
+          starred: Boolean(achievement.starred),
           description: stripBulletGlyphs(achievement.description || ""),
           proofPath: achievement.proofPath || "",
         }));
@@ -217,6 +249,174 @@ function getDescriptionLines(description) {
 
 function formatBulletText(value) {
   return stripBulletGlyphs(value);
+}
+
+function normalizeAchievementCategory(value) {
+  const id = String(value || DEFAULT_ACHIEVEMENT_CATEGORY).toLowerCase();
+  return ACHIEVEMENT_CATEGORIES.some((category) => category.id === id)
+    ? id
+    : DEFAULT_ACHIEVEMENT_CATEGORY;
+}
+
+function getAchievementCategory(categoryId) {
+  const id = normalizeAchievementCategory(categoryId);
+  return ACHIEVEMENT_CATEGORIES.find((category) => category.id === id);
+}
+
+function getCategoryIconMarkup(categoryId, className = "category-icon") {
+  const id = normalizeAchievementCategory(categoryId);
+  const svg = CATEGORY_ICON_SVGS[id] || CATEGORY_ICON_SVGS.others;
+  return `<span class="${className}" aria-hidden="true">${svg}</span>`;
+}
+
+function getCategoryBadgeMarkup(categoryId, { variant = "cover" } = {}) {
+  const category = getAchievementCategory(categoryId);
+  const baseClass = variant === "entry" ? "entry-category" : "cover-card-category";
+
+  return `
+    <div class="${baseClass}" aria-label="Category: ${category.label}">
+      ${getCategoryIconMarkup(category.id, `${baseClass}-icon`)}
+      <span class="${baseClass}-label">${escapeHtml(category.label.toUpperCase())}</span>
+    </div>
+  `;
+}
+
+function getStarIconSvg(filled = false) {
+  if (filled) {
+    return `<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.8 9.96 5.78l4.36.63-3.15 3.07.74 4.34L8 11.67 3.09 14.82l.74-4.34L.68 6.41l4.36-.63L8 1.8z"/></svg>`;
+  }
+
+  return `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.8 9.96 5.78l4.36.63-3.15 3.07.74 4.34L8 11.67 3.09 14.82l.74-4.34L.68 6.41l4.36-.63L8 1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+}
+
+function getStarBadgeMarkup(className = "achievement-star") {
+  return `<span class="${className}" aria-label="Starred">${getStarIconSvg(true)}</span>`;
+}
+
+const MONTH_SORT_ORDER = [
+  ["january", 1],
+  ["jan", 1],
+  ["february", 2],
+  ["feb", 2],
+  ["march", 3],
+  ["mar", 3],
+  ["april", 4],
+  ["apr", 4],
+  ["may", 5],
+  ["june", 6],
+  ["jun", 6],
+  ["july", 7],
+  ["jul", 7],
+  ["august", 8],
+  ["aug", 8],
+  ["september", 9],
+  ["sep", 9],
+  ["sept", 9],
+  ["october", 10],
+  ["oct", 10],
+  ["november", 11],
+  ["nov", 11],
+  ["december", 12],
+  ["dec", 12],
+];
+
+function extractAchievementYear(dateStr) {
+  if (!dateStr?.trim()) {
+    return null;
+  }
+
+  const matches = [...String(dateStr).matchAll(/\b(19|20)\d{2}\b/g)];
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return Math.min(...matches.map((match) => Number.parseInt(match[0], 10)));
+}
+
+function extractSortMonth(dateStr) {
+  if (!dateStr?.trim()) {
+    return 99;
+  }
+
+  const lower = dateStr.toLowerCase();
+  let month = 99;
+
+  MONTH_SORT_ORDER.forEach(([name, value]) => {
+    if (new RegExp(`\\b${name}\\b`, "i").test(lower)) {
+      month = Math.min(month, value);
+    }
+  });
+
+  return month;
+}
+
+function compareAchievementsByTimeline(a, b) {
+  const yearA = extractAchievementYear(a.date);
+  const yearB = extractAchievementYear(b.date);
+
+  if (yearA === null && yearB === null) {
+    return 0;
+  }
+  if (yearA === null) {
+    return 1;
+  }
+  if (yearB === null) {
+    return -1;
+  }
+
+  if (yearA !== yearB) {
+    return yearB - yearA;
+  }
+
+  const monthA = extractSortMonth(a.date);
+  const monthB = extractSortMonth(b.date);
+  if (monthA !== monthB) {
+    return monthB - monthA;
+  }
+
+  return 0;
+}
+
+function groupAchievementsByYear(achievements) {
+  const groups = new Map();
+  const undated = [];
+
+  achievements.forEach((achievement) => {
+    const year = extractAchievementYear(achievement.date);
+    if (year === null) {
+      undated.push(achievement);
+      return;
+    }
+
+    if (!groups.has(year)) {
+      groups.set(year, []);
+    }
+    groups.get(year).push(achievement);
+  });
+
+  groups.forEach((items) => {
+    items.sort(compareAchievementsByTimeline);
+  });
+
+  return {
+    years: [...groups.keys()].sort((a, b) => b - a),
+    groups,
+    undated,
+  };
+}
+
+function sortAchievementsByTimeline(achievements) {
+  return [...achievements].sort(compareAchievementsByTimeline);
+}
+
+function sortAchievementsForStudio(achievements) {
+  return [...achievements].sort((a, b) => {
+    const starredDiff = Number(Boolean(b.starred)) - Number(Boolean(a.starred));
+    if (starredDiff !== 0) {
+      return starredDiff;
+    }
+    return compareAchievementsByTimeline(a, b);
+  });
 }
 
 function readFileAsDataUrl(file) {
@@ -474,6 +674,8 @@ function startEditing(achievementId) {
   editingDraft = {
     title: achievement.title || "",
     date: achievement.date || "",
+    category: normalizeAchievementCategory(achievement.category),
+    starred: Boolean(achievement.starred),
     description: achievement.description || "",
     fileName: achievement.fileName || "",
     fileType: achievement.fileType || "",
@@ -526,6 +728,8 @@ function saveEditing() {
 
   achievement.title = editingDraft.title.trim();
   achievement.date = editingDraft.date.trim();
+  achievement.category = normalizeAchievementCategory(editingDraft.category);
+  achievement.starred = Boolean(editingDraft.starred);
   achievement.description = stripBulletGlyphs(editingDraft.description);
   achievement.fileName = editingDraft.fileName || "";
   achievement.fileType = editingDraft.fileType || "";
@@ -566,7 +770,9 @@ function renderEmptyState() {
     <div class="empty-state-glyph" aria-hidden="true">◈</div>
     <h3 class="empty-state-headline">Your logbook is empty</h3>
     <p class="empty-state-body">Every achievement you log becomes a building block for your CV.</p>
-    <button type="button" class="btn btn-primary empty-state-cta">+ Log your first achievement</button>
+    <button type="button" class="btn btn-primary empty-state-cta">
+      + Add achievement
+    </button>
   `;
   empty.querySelector(".empty-state-cta").addEventListener("click", addAchievement);
   achievementsList.appendChild(empty);
@@ -602,10 +808,67 @@ function clampDeckFrontIndex() {
   deckFrontIndex = Math.max(0, Math.min(deckFrontIndex, state.achievements.length - 1));
 }
 
+function deckLoops() {
+  return state.achievements.length >= 3;
+}
+
+function wrapDeckIndex(index) {
+  const count = state.achievements.length;
+  if (count === 0) {
+    return 0;
+  }
+  return ((index % count) + count) % count;
+}
+
+function resolveDeckIndex(offset) {
+  const count = state.achievements.length;
+  const index = deckFrontIndex + offset;
+
+  if (deckLoops()) {
+    return wrapDeckIndex(index);
+  }
+
+  if (index < 0 || index >= count) {
+    return null;
+  }
+
+  return index;
+}
+
+function getDeckOffsets() {
+  const count = state.achievements.length;
+
+  if (!deckLoops()) {
+    return [-2, -1, 0, 1, 2];
+  }
+
+  if (count === 3) {
+    return [-1, 0, 1];
+  }
+
+  if (count === 4) {
+    return [-2, -1, 0, 1];
+  }
+
+  return [-2, -1, 0, 1, 2];
+}
+
 function navigateDeck(delta) {
+  const count = state.achievements.length;
+  if (count === 0) {
+    return;
+  }
+
   clampDeckFrontIndex();
+
+  if (deckLoops()) {
+    deckFrontIndex = wrapDeckIndex(deckFrontIndex + delta);
+    renderAchievements();
+    return;
+  }
+
   const next = deckFrontIndex + delta;
-  if (next >= 0 && next < state.achievements.length) {
+  if (next >= 0 && next < count) {
     deckFrontIndex = next;
     renderAchievements();
   }
@@ -614,6 +877,27 @@ function navigateDeck(delta) {
 function getCoverFlowCardMarkup(achievement) {
   const titleText = achievement.title?.trim() || "Untitled achievement";
   const titleClass = achievement.title?.trim() ? "cover-card-title" : "cover-card-title is-placeholder";
+  const isLeadershipLayout = normalizeAchievementCategory(achievement.category) === "leadership";
+
+  if (isLeadershipLayout) {
+    return `
+      <div class="cover-card-actions deck-card-actions">
+        <button type="button" class="btn-icon btn-edit" aria-label="Edit achievement">✎</button>
+        <button type="button" class="btn-icon btn-delete" aria-label="Delete achievement">×</button>
+      </div>
+      <div class="cover-card-inner cover-card-inner--leadership">
+        ${achievement.starred ? getStarBadgeMarkup("cover-card-star") : ""}
+        ${getCategoryBadgeMarkup(achievement.category)}
+        <div class="cover-card-media">
+          <img src="leadership.png" alt="" class="cover-card-media-image" />
+        </div>
+        <h3 class="${titleClass}">${escapeHtml(titleText)}</h3>
+        ${achievement.date?.trim() ? `<time class="cover-card-date">${escapeHtml(achievement.date)}</time>` : ""}
+        ${achievement.fileName ? `<div class="cover-card-foot"></div>` : ""}
+      </div>
+    `;
+  }
+
   const lines = getDescriptionLines(achievement.description);
   const bulletsMarkup = lines.length
     ? `<ul class="cover-card-bullets">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
@@ -625,6 +909,8 @@ function getCoverFlowCardMarkup(achievement) {
       <button type="button" class="btn-icon btn-delete" aria-label="Delete achievement">×</button>
     </div>
     <div class="cover-card-inner">
+      ${achievement.starred ? getStarBadgeMarkup("cover-card-star") : ""}
+      ${getCategoryBadgeMarkup(achievement.category)}
       <h3 class="${titleClass}">${escapeHtml(titleText)}</h3>
       ${achievement.date?.trim() ? `<time class="cover-card-date">${escapeHtml(achievement.date)}</time>` : ""}
       ${bulletsMarkup}
@@ -715,7 +1001,10 @@ function createCardTiltShell(innerHtml) {
 
 function createDeckCard(achievement, offset, isFront) {
   const card = document.createElement("article");
-  card.className = `cover-card deck-card${isFront ? " is-front" : " is-behind"}`;
+  const isLeadershipLayout = normalizeAchievementCategory(achievement.category) === "leadership";
+  card.className = `cover-card deck-card${isFront ? " is-front" : " is-behind"}${
+    isLeadershipLayout ? " is-leadership-layout" : ""
+  }`;
   card.dataset.id = achievement.id;
   card.dataset.offset = String(offset);
   card.setAttribute("role", "button");
@@ -792,6 +1081,9 @@ function createDeckCard(achievement, offset, isFront) {
 function createDeckStack() {
   clampDeckFrontIndex();
 
+  const achievementCount = state.achievements.length;
+  const loopDeck = deckLoops();
+
   const section = document.createElement("section");
   section.className = "cover-flow";
   section.setAttribute("aria-label", "Achievement cards");
@@ -804,16 +1096,16 @@ function createDeckStack() {
   prevBtn.className = "cover-flow-nav cover-flow-nav-prev";
   prevBtn.setAttribute("aria-label", "Previous card");
   prevBtn.innerHTML = '<span aria-hidden="true">‹</span>';
-  prevBtn.disabled = deckFrontIndex <= 0;
+  prevBtn.disabled = !loopDeck && deckFrontIndex <= 0;
   prevBtn.addEventListener("click", () => navigateDeck(-1));
 
   const stage = document.createElement("div");
   stage.className = "cover-flow-stage";
   stage.setAttribute("role", "group");
   stage.setAttribute("aria-roledescription", "carousel");
-  [-2, -1, 0, 1, 2].forEach((offset) => {
-    const index = deckFrontIndex + offset;
-    if (index < 0 || index >= state.achievements.length) {
+  getDeckOffsets().forEach((offset) => {
+    const index = resolveDeckIndex(offset);
+    if (index === null) {
       return;
     }
     stage.appendChild(createDeckCard(state.achievements[index], offset, offset === 0));
@@ -824,10 +1116,15 @@ function createDeckStack() {
   nextBtn.className = "cover-flow-nav cover-flow-nav-next";
   nextBtn.setAttribute("aria-label", "Next card");
   nextBtn.innerHTML = '<span aria-hidden="true">›</span>';
-  nextBtn.disabled = deckFrontIndex >= state.achievements.length - 1;
+  nextBtn.disabled = !loopDeck && deckFrontIndex >= achievementCount - 1;
   nextBtn.addEventListener("click", () => navigateDeck(1));
 
   carousel.append(prevBtn, stage, nextBtn);
+
+  const counter = document.createElement("p");
+  counter.className = "cover-flow-count";
+  counter.setAttribute("aria-live", "polite");
+  counter.textContent = `${deckFrontIndex + 1} of ${achievementCount}`;
 
   const dots = document.createElement("div");
   dots.className = "cover-flow-dots";
@@ -847,7 +1144,7 @@ function createDeckStack() {
     });
   });
 
-  section.append(carousel, dots);
+  section.append(carousel, counter, dots);
   return section;
 }
 
@@ -866,6 +1163,8 @@ function createDisplayEntry(achievement) {
   const foot = achievement.fileName ? `<div class="entry-foot"></div>` : "";
 
   card.innerHTML = `
+    ${achievement.starred ? getStarBadgeMarkup("entry-star") : ""}
+    ${getCategoryBadgeMarkup(achievement.category, { variant: "entry" })}
     <div class="entry-head">
       <h3 class="${titleClass}">${escapeHtml(titleText)}</h3>
       ${achievement.date?.trim() ? `<time class="entry-date">${escapeHtml(achievement.date)}</time>` : ""}
@@ -891,6 +1190,108 @@ function createDisplayEntry(achievement) {
   return card;
 }
 
+function createTimelineGroup(yearLabel, achievements, { showYear = true } = {}) {
+  const group = document.createElement("div");
+  group.className = "entries-timeline-group";
+
+  const marker = document.createElement("aside");
+  marker.className = "entries-timeline-marker";
+  marker.setAttribute("aria-hidden", showYear ? "false" : "true");
+
+  if (showYear && yearLabel) {
+    const yearEl = document.createElement("time");
+    yearEl.className = "entries-timeline-year";
+    yearEl.dateTime = String(yearLabel);
+    yearEl.textContent = String(yearLabel);
+    marker.appendChild(yearEl);
+  }
+
+  const entriesCol = document.createElement("div");
+  entriesCol.className = "entries-timeline-entries";
+  achievements.forEach((achievement) => {
+    entriesCol.appendChild(createDisplayEntry(achievement));
+  });
+
+  group.append(marker, entriesCol);
+  return group;
+}
+
+function filterAchievementsByCategory(achievements, filterId) {
+  if (filterId === "all") {
+    return achievements;
+  }
+
+  return achievements.filter(
+    (achievement) => normalizeAchievementCategory(achievement.category) === filterId
+  );
+}
+
+function createTimelineCategoryFilter(activeFilter, onChange) {
+  const bar = document.createElement("div");
+  bar.className = "timeline-category-filter";
+  bar.setAttribute("role", "tablist");
+  bar.setAttribute("aria-label", "Filter achievements by category");
+
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = `timeline-category-filter-item${activeFilter === "all" ? " is-active" : ""}`;
+  allBtn.setAttribute("role", "tab");
+  allBtn.setAttribute("aria-selected", String(activeFilter === "all"));
+  allBtn.textContent = "All";
+  allBtn.addEventListener("click", () => onChange("all"));
+  bar.appendChild(allBtn);
+
+  ACHIEVEMENT_CATEGORIES.forEach((category) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `timeline-category-filter-item timeline-category-filter-item-icon${
+      activeFilter === category.id ? " is-active" : ""
+    }`;
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-label", category.label);
+    btn.setAttribute("aria-selected", String(activeFilter === category.id));
+    btn.innerHTML = getCategoryIconMarkup(category.id, "timeline-category-filter-icon");
+    btn.addEventListener("click", () => onChange(category.id));
+    bar.appendChild(btn);
+  });
+
+  return bar;
+}
+
+function createTimelineCategoryEmpty(categoryId) {
+  const empty = document.createElement("div");
+  empty.className = "timeline-category-empty";
+  const category = getAchievementCategory(categoryId);
+  const message =
+    CATEGORY_EMPTY_MESSAGES[categoryId] ||
+    `No ${category.label.toLowerCase()} achievements yet. Add one to get started.`;
+
+  empty.innerHTML = `
+    <p class="timeline-category-empty-text">${escapeHtml(message)}</p>
+    <button type="button" class="btn btn-ghost timeline-category-empty-cta">+ Add achievement</button>
+  `;
+
+  empty.querySelector(".timeline-category-empty-cta").addEventListener("click", addAchievement);
+  return empty;
+}
+
+function createTimelineList(achievements) {
+  const timeline = document.createElement("div");
+  timeline.className = "entries-timeline";
+
+  const { years, groups, undated } = groupAchievementsByYear(achievements);
+
+  years.forEach((year) => {
+    timeline.appendChild(createTimelineGroup(year, groups.get(year)));
+  });
+
+  if (undated.length > 0) {
+    timeline.appendChild(createTimelineGroup(null, undated, { showYear: false }));
+  }
+
+  return timeline;
+}
+
 function createEditEntry(achievement) {
   const card = document.createElement("article");
   card.className = "entry is-editing";
@@ -899,6 +1300,8 @@ function createEditEntry(achievement) {
   const draft = editingDraft || {
     title: achievement.title || "",
     date: achievement.date || "",
+    category: normalizeAchievementCategory(achievement.category),
+    starred: Boolean(achievement.starred),
     description: achievement.description || "",
     fileName: achievement.fileName || "",
     fileType: achievement.fileType || "",
@@ -907,6 +1310,31 @@ function createEditEntry(achievement) {
   };
 
   card.innerHTML = `
+    <div class="entry-edit-toolbar">
+      <div class="entry-edit-category-group">
+        <span class="label entry-edit-category-label">Category</span>
+        <div class="category-toggle">
+          <button
+            type="button"
+            class="category-toggle-btn"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-label="Choose category"
+          >
+            <span class="category-toggle-icon" aria-hidden="true"></span>
+            <span class="category-toggle-text"></span>
+            <span class="category-toggle-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </button>
+          <div class="category-toggle-menu" role="listbox" aria-label="Category" hidden></div>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="btn-icon entry-star-btn"
+        aria-label="Star achievement"
+        aria-pressed="false"
+      ></button>
+    </div>
     <div class="entry-edit-row">
       <label class="entry-edit-title">
         <span class="label">Title</span>
@@ -936,13 +1364,106 @@ function createEditEntry(achievement) {
   const titleInput = card.querySelector('[name="title"]');
   const dateInput = card.querySelector('[name="date"]');
   const descriptionInput = card.querySelector('[name="description"]');
+  const categoryToggle = card.querySelector(".category-toggle");
+  const categoryToggleBtn = card.querySelector(".category-toggle-btn");
+  const categoryToggleMenu = card.querySelector(".category-toggle-menu");
+  const entryStarBtn = card.querySelector(".entry-star-btn");
   const proofWrap = card.querySelector(".entry-edit-proof");
+
+  function updateStarButtonUI() {
+    const starred = Boolean(draft.starred);
+    entryStarBtn.innerHTML = getStarIconSvg(starred);
+    entryStarBtn.classList.toggle("is-starred", starred);
+    entryStarBtn.setAttribute("aria-pressed", String(starred));
+    entryStarBtn.setAttribute("aria-label", starred ? "Unstar achievement" : "Star achievement");
+  }
+
+  entryStarBtn.addEventListener("click", () => {
+    draft.starred = !draft.starred;
+    syncDraft();
+    updateStarButtonUI();
+  });
+
+  function closeCategoryMenu() {
+    categoryToggleMenu.hidden = true;
+    categoryToggleBtn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", onDocumentClick);
+  }
+
+  function openCategoryMenu() {
+    categoryToggleMenu.hidden = false;
+    categoryToggleBtn.setAttribute("aria-expanded", "true");
+    window.setTimeout(() => {
+      document.addEventListener("click", onDocumentClick);
+    }, 0);
+  }
+
+  function onDocumentClick(event) {
+    if (!categoryToggle.contains(event.target)) {
+      closeCategoryMenu();
+    }
+  }
+
+  function updateCategoryToggleUI() {
+    const category = getAchievementCategory(draft.category);
+    categoryToggleBtn.className = "category-toggle-btn";
+    categoryToggleBtn.querySelector(".category-toggle-icon").outerHTML = getCategoryIconMarkup(
+      category.id,
+      "category-toggle-icon"
+    );
+    categoryToggleBtn.querySelector(".category-toggle-text").textContent = category.label;
+
+    categoryToggleMenu.querySelectorAll(".category-toggle-option").forEach((option) => {
+      const isSelected = option.dataset.value === draft.category;
+      option.classList.toggle("is-selected", isSelected);
+      option.setAttribute("aria-selected", String(isSelected));
+    });
+  }
+
+  function renderCategoryToggle() {
+    categoryToggleMenu.innerHTML = ACHIEVEMENT_CATEGORIES.map(
+      (category) => `
+        <button
+          type="button"
+          class="category-toggle-option${draft.category === category.id ? " is-selected" : ""}"
+          role="option"
+          data-value="${category.id}"
+          aria-selected="${draft.category === category.id}"
+        >
+          ${getCategoryIconMarkup(category.id, "category-toggle-option-icon")}
+          <span>${category.label}</span>
+        </button>
+      `
+    ).join("");
+
+    categoryToggleMenu.querySelectorAll(".category-toggle-option").forEach((option) => {
+      option.addEventListener("click", () => {
+        draft.category = option.dataset.value;
+        syncDraft();
+        updateCategoryToggleUI();
+        closeCategoryMenu();
+      });
+    });
+
+    updateCategoryToggleUI();
+  }
+
+  categoryToggleBtn.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (categoryToggleMenu.hidden) {
+      openCategoryMenu();
+      return;
+    }
+    closeCategoryMenu();
+  });
 
   function syncDraft() {
     editingDraft = {
       ...draft,
       title: titleInput.value,
       date: dateInput.value,
+      category: normalizeAchievementCategory(draft.category),
+      starred: Boolean(draft.starred),
       description: descriptionInput.value,
       fileName: draft.fileName,
       fileType: draft.fileType,
@@ -1034,6 +1555,8 @@ function createEditEntry(achievement) {
     proofWrap.append(attachBtn, fileInput);
   }
 
+  renderCategoryToggle();
+  updateStarButtonUI();
   renderProofControls();
 
   titleInput.addEventListener("input", syncDraft);
@@ -1048,6 +1571,11 @@ function createEditEntry(achievement) {
 
   card.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      if (!categoryToggleMenu.hidden) {
+        event.preventDefault();
+        closeCategoryMenu();
+        return;
+      }
       event.preventDefault();
       cancelEditing();
     } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -1066,10 +1594,6 @@ function renderAchievements() {
   if (!achievementsList) {
     return;
   }
-
-  // #region agent log
-  fetch('http://127.0.0.1:7398/ingest/523bc814-bbd5-4260-baf0-542146ab4ca4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5c4027'},body:JSON.stringify({sessionId:'5c4027',location:'app.js:renderAchievements',message:'renderAchievements called',data:{logbookLoading,achievementCount:state.achievements.length,editingId:editingAchievementId},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
 
   updateEntryCount();
   achievementsList.innerHTML = "";
@@ -1099,19 +1623,37 @@ function renderAchievements() {
   listWrap.className = "entries-list-all";
   listWrap.setAttribute("aria-label", "All achievements");
 
+  const listHeader = document.createElement("div");
+  listHeader.className = "entries-list-all-header";
+
   const listHeading = document.createElement("h2");
   listHeading.className = "entries-list-all-heading";
   listHeading.textContent = "All achievements";
 
-  state.achievements.forEach((achievement) => {
-    if (editingAchievementId === achievement.id) {
-      return;
-    }
-    listWrap.appendChild(createDisplayEntry(achievement));
-  });
+  const visibleAchievements = state.achievements.filter(
+    (achievement) => achievement.id !== editingAchievementId
+  );
 
-  if (listWrap.childElementCount > 0) {
-    listWrap.prepend(listHeading);
+  listHeader.append(
+    listHeading,
+    createTimelineCategoryFilter(timelineCategoryFilter, (filterId) => {
+      timelineCategoryFilter = filterId;
+      renderAchievements();
+    })
+  );
+
+  const filteredAchievements = filterAchievementsByCategory(
+    visibleAchievements,
+    timelineCategoryFilter
+  );
+
+  if (visibleAchievements.length > 0) {
+    listWrap.appendChild(listHeader);
+    if (filteredAchievements.length > 0) {
+      listWrap.appendChild(createTimelineList(filteredAchievements));
+    } else {
+      listWrap.appendChild(createTimelineCategoryEmpty(timelineCategoryFilter));
+    }
     achievementsList.appendChild(listWrap);
   }
 }
@@ -1121,6 +1663,8 @@ function addAchievement() {
     id: createId(),
     title: "",
     date: "",
+    category: DEFAULT_ACHIEVEMENT_CATEGORY,
+    starred: false,
     description: "",
     showDescription: true,
     fileName: "",
@@ -1135,6 +1679,8 @@ function addAchievement() {
   editingDraft = {
     title: "",
     date: "",
+    category: DEFAULT_ACHIEVEMENT_CATEGORY,
+    starred: false,
     description: "",
     fileName: "",
     fileType: "",
@@ -1194,6 +1740,10 @@ window.AchieveMateApp = {
   renderAchievements,
   finishLogbookLoading,
   isAchievementDescriptionVisible,
+  sortAchievementsByTimeline,
+  sortAchievementsForStudio,
+  ACHIEVEMENT_CATEGORIES,
+  normalizeAchievementCategory,
 };
 
 window.AchieveMateToast = { show: showToast };

@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=40" />
+  <link rel="stylesheet" href="styles.css?v=81" />
 </head>
 <body>
   <header class="topbar">
@@ -19,8 +19,8 @@
       type="button"
       class="btn-icon topbar-sidebar-toggle"
       id="sidebarToggleBtn"
-      aria-label="Toggle sidebar"
-      aria-expanded="true"
+      aria-label="Open menu"
+      aria-expanded="false"
       aria-controls="appSidebar"
     >
       <span aria-hidden="true">☰</span>
@@ -32,29 +32,32 @@
     </div>
 
     <nav class="view-switcher" id="viewSwitcher" role="tablist" aria-label="Views">
-      <button
-        type="button"
-        class="view-switcher-item is-active"
-        role="tab"
-        id="view-tab-logbook"
-        aria-controls="viewLogbook"
-        aria-selected="true"
-        data-view="logbook"
-      >
-        Logbook
-      </button>
-      <button
-        type="button"
-        class="view-switcher-item"
-        role="tab"
-        id="view-tab-studio"
-        aria-controls="viewStudio"
-        aria-selected="false"
-        data-view="studio"
-        tabindex="-1"
-      >
-        Studio
-      </button>
+      <div class="view-switcher-track">
+        <span class="view-switcher-indicator" aria-hidden="true"></span>
+        <button
+          type="button"
+          class="view-switcher-item is-active"
+          role="tab"
+          id="view-tab-logbook"
+          aria-controls="viewLogbook"
+          aria-selected="true"
+          data-view="logbook"
+        >
+          Logbook
+        </button>
+        <button
+          type="button"
+          class="view-switcher-item"
+          role="tab"
+          id="view-tab-studio"
+          aria-controls="viewStudio"
+          aria-selected="false"
+          data-view="studio"
+          tabindex="-1"
+        >
+          Studio
+        </button>
+      </div>
     </nav>
 
     <div class="topbar-right">
@@ -82,7 +85,7 @@
             type="button"
             class="btn-icon btn-icon-sm app-sidebar-collapse-btn"
             id="sidebarCollapseBtn"
-            aria-label="Collapse sidebar"
+            aria-label="Close menu"
           >
             ‹
           </button>
@@ -160,18 +163,6 @@
           </div>
         </section>
       </div>
-
-      <nav class="app-sidebar-rail" aria-label="Quick menu">
-        <button type="button" class="sidebar-rail-btn" data-panel="personal" title="Personal info">
-          <span aria-hidden="true">◉</span>
-        </button>
-        <button type="button" class="sidebar-rail-btn" data-panel="account" title="Account">
-          <span aria-hidden="true">☁</span>
-        </button>
-        <button type="button" class="sidebar-rail-btn" data-panel="settings" title="Settings">
-          <span aria-hidden="true">⚙</span>
-        </button>
-      </nav>
     </aside>
 
     <div class="app-sidebar-scrim" id="sidebarScrim" hidden aria-hidden="true"></div>
@@ -184,7 +175,12 @@
           <h1 class="logbook-title">Logbook</h1>
           <p class="logbook-subtitle">Your achievements. Your story. <span class="logbook-count" id="logbookEntryCount">0 achievements</span></p>
         </div>
-        <button type="button" class="btn btn-primary" id="addAchievementBtn">+ Log achievement</button>
+        <div class="logbook-add-action">
+          <img src="import_data_icon.png" alt="" class="logbook-add-icon" aria-hidden="true" />
+          <button type="button" class="btn btn-primary" id="addAchievementBtn">
+            + Add achievement
+          </button>
+        </div>
       </header>
 
       <div class="entries-list" id="achievementsList" aria-live="polite"></div>
@@ -194,6 +190,7 @@
   <main class="view view-studio" id="viewStudio" role="tabpanel" aria-labelledby="view-tab-studio" aria-hidden="true">
     <div class="studio-cockpit" id="studioCockpit">
       <aside class="studio-rail" aria-label="Source blocks">
+        <div class="studio-rail-scroll">
         <div class="studio-rail-section">
           <span class="label">Blocks</span>
           <div class="cv-palette-list" id="cvPalette">
@@ -215,6 +212,18 @@
             <span class="studio-rail-count" id="studioRailCount">0</span>
           </div>
           <div class="cv-palette-achievements" id="cvAchievementPalette"></div>
+        </div>
+        </div>
+
+        <div class="studio-rail-footer">
+          <button
+            type="button"
+            class="btn btn-ghost studio-rail-clear-btn"
+            id="studioClearCvBtn"
+            disabled
+          >
+            Remove all items
+          </button>
         </div>
       </aside>
 
@@ -466,11 +475,12 @@
   <script type="module" src="guest-migration.js"></script>
   <script type="module" src="auth.js"></script>
   <script type="module" src="sync.js"></script>
-  <script src="app.js?v=24"></script>
-  <script src="cv-builder.js?v=5"></script>
-  <script src="cv-preview.js?v=21"></script>
+  <script src="app.js?v=34"></script>
+  <script src="drag-preview.js?v=4"></script>
+  <script src="cv-builder.js?v=11"></script>
+  <script src="cv-preview.js?v=30"></script>
   <script src="cv-layout-panel.js?v=8"></script>
-  <script src="sidebar.js?v=1"></script>
-  <script src="workspace-tabs.js?v=6"></script>
+  <script src="sidebar.js?v=2"></script>
+  <script src="workspace-tabs.js?v=7"></script>
 </body>
 </html>

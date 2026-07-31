@@ -1,98 +1,46 @@
 (function initAppSidebar() {
-  const STORAGE_KEY = "achievemate-sidebar-collapsed";
-  const MOBILE_QUERY = window.matchMedia("(max-width: 900px)");
-
   const sidebar = document.getElementById("appSidebar");
   const scrim = document.getElementById("sidebarScrim");
   const toggleBtn = document.getElementById("sidebarToggleBtn");
   const collapseBtn = document.getElementById("sidebarCollapseBtn");
   const openStudioBtn = document.getElementById("sidebarOpenStudioBtn");
-  const railButtons = [...document.querySelectorAll(".sidebar-rail-btn")];
   const panelToggles = [...document.querySelectorAll(".sidebar-panel-toggle")];
 
   if (!sidebar || !toggleBtn) {
     return;
   }
 
-  let collapsed = false;
-  let mobileOpen = false;
+  let sidebarOpen = false;
 
-  function isMobile() {
-    return MOBILE_QUERY.matches;
-  }
-
-  function readCollapsedPreference() {
-    try {
-      return localStorage.getItem(STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  }
-
-  function saveCollapsedPreference(value) {
-    try {
-      localStorage.setItem(STORAGE_KEY, String(value));
-    } catch {
-      /* ignore storage errors */
-    }
-  }
-
-  function syncToggleButtons() {
-    const expanded = isMobile() ? mobileOpen : !collapsed;
-    toggleBtn.setAttribute("aria-expanded", String(expanded));
-    collapseBtn?.setAttribute("aria-expanded", String(expanded));
-  }
-
-  function syncBodyClasses() {
-    document.body.classList.toggle("sidebar-collapsed", !isMobile() && collapsed);
-    document.body.classList.toggle("sidebar-mobile-open", isMobile() && mobileOpen);
+  function syncSidebarState() {
+    document.body.classList.toggle("sidebar-open", sidebarOpen);
+    toggleBtn.setAttribute("aria-expanded", String(sidebarOpen));
+    toggleBtn.setAttribute("aria-label", sidebarOpen ? "Close menu" : "Open menu");
+    collapseBtn?.setAttribute("aria-expanded", String(sidebarOpen));
 
     if (scrim) {
-      const showScrim = isMobile() && mobileOpen;
-      scrim.hidden = !showScrim;
-      scrim.setAttribute("aria-hidden", String(!showScrim));
+      scrim.hidden = !sidebarOpen;
+      scrim.setAttribute("aria-hidden", String(!sidebarOpen));
     }
-
-    syncToggleButtons();
   }
 
-  function setCollapsed(nextCollapsed) {
-    collapsed = nextCollapsed;
-    saveCollapsedPreference(nextCollapsed);
-    syncBodyClasses();
-  }
-
-  function setMobileOpen(nextOpen) {
-    mobileOpen = nextOpen;
-    syncBodyClasses();
-  }
-
-  function expandSidebar({ focusPanel = null } = {}) {
-    if (isMobile()) {
-      setMobileOpen(true);
-    } else {
-      setCollapsed(false);
-    }
+  function openSidebar({ focusPanel = null } = {}) {
+    sidebarOpen = true;
+    syncSidebarState();
 
     if (focusPanel) {
       openPanel(focusPanel);
     }
   }
 
-  function collapseSidebar() {
-    if (isMobile()) {
-      setMobileOpen(false);
-      return;
-    }
-    setCollapsed(true);
+  function closeSidebar() {
+    sidebarOpen = false;
+    syncSidebarState();
   }
 
   function toggleSidebar() {
-    if (isMobile()) {
-      setMobileOpen(!mobileOpen);
-      return;
-    }
-    setCollapsed(!collapsed);
+    sidebarOpen = !sidebarOpen;
+    syncSidebarState();
   }
 
   function openPanel(panelId) {
@@ -135,41 +83,25 @@
   });
 
   toggleBtn.addEventListener("click", toggleSidebar);
-  collapseBtn?.addEventListener("click", collapseSidebar);
-  scrim?.addEventListener("click", () => setMobileOpen(false));
-
-  railButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      expandSidebar({ focusPanel: button.dataset.panel });
-    });
-  });
+  collapseBtn?.addEventListener("click", closeSidebar);
+  scrim?.addEventListener("click", closeSidebar);
 
   openStudioBtn?.addEventListener("click", () => {
     document.querySelector('[data-view="studio"]')?.click();
-    if (isMobile()) {
-      setMobileOpen(false);
+    closeSidebar();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && sidebarOpen) {
+      closeSidebar();
     }
   });
 
-  MOBILE_QUERY.addEventListener("change", () => {
-    if (isMobile()) {
-      collapsed = readCollapsedPreference();
-      mobileOpen = false;
-    } else {
-      mobileOpen = false;
-    }
-    syncBodyClasses();
-  });
-
-  collapsed = readCollapsedPreference();
-  if (isMobile()) {
-    mobileOpen = false;
-  }
-  syncBodyClasses();
+  syncSidebarState();
 
   window.AchieveMateSidebar = {
-    expand: expandSidebar,
-    collapse: collapseSidebar,
+    expand: openSidebar,
+    collapse: closeSidebar,
     refreshIdentitySummary: () => window.AchieveMateApp?.updateSidebarIdentitySummary?.(),
   };
 })();
