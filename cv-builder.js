@@ -108,9 +108,28 @@
       .join("\u0001");
   }
 
-  function saveLibrarySnapshot(snapshot) {
-    const entry = normalizeLibraryEntry?.({ ...snapshot, id: createId("lib"), savedAt: Date.now() });
-    if (!entry) {
+  function linkLayoutItemToLibrary(layoutItem, libraryEntryId) {
+    if (!layoutItem || !libraryEntryId) {
+      return;
+    }
+    layoutItem.libraryEntryId = libraryEntryId;
+    state.cvLayout = [...state.cvLayout];
+  }
+
+  function saveLibrarySnapshot(snapshot, options = {}) {
+    const sourceLayoutItemId =
+      typeof options.sourceLayoutItemId === "string" ? options.sourceLayoutItemId : "";
+    const layoutItem = sourceLayoutItemId
+      ? state.cvLayout.find((item) => item.id === sourceLayoutItemId)
+      : null;
+
+    const draft = normalizeLibraryEntry?.({
+      ...snapshot,
+      id: createId("lib"),
+      savedAt: Date.now(),
+      sourceLayoutItemId: sourceLayoutItemId || undefined,
+    });
+    if (!draft) {
       window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
       return { saved: false, reason: "empty" };
     }
@@ -119,14 +138,47 @@
       state.cvLibrary = [];
     }
 
-    const key = librarySnapshotKey(entry);
+    const linkedId = typeof layoutItem?.libraryEntryId === "string" ? layoutItem.libraryEntryId : "";
+    if (linkedId) {
+      const linkedIndex = state.cvLibrary.findIndex((item) => item.id === linkedId);
+      if (linkedIndex !== -1) {
+        const linked = state.cvLibrary[linkedIndex];
+        if (librarySnapshotKey(linked) === librarySnapshotKey(draft)) {
+          linkLayoutItemToLibrary(layoutItem, linked.id);
+          saveState();
+          window.AchieveMateToast?.show("Already in your library", { tone: "neutral" });
+          return { saved: false, reason: "duplicate", entry: linked };
+        }
+
+        const updated = normalizeLibraryEntry({
+          ...draft,
+          id: linked.id,
+          savedAt: Date.now(),
+          sourceLayoutItemId: sourceLayoutItemId || linked.sourceLayoutItemId,
+        });
+        const next = [...state.cvLibrary];
+        next.splice(linkedIndex, 1);
+        state.cvLibrary = [updated, ...next];
+        linkLayoutItemToLibrary(layoutItem, updated.id);
+        saveState();
+        renderRail();
+        window.AchieveMateToast?.show("Updated in library");
+        return { saved: true, updated: true, entry: updated };
+      }
+    }
+
+    const key = librarySnapshotKey(draft);
     const existing = state.cvLibrary.find((item) => librarySnapshotKey(item) === key);
     if (existing) {
+      linkLayoutItemToLibrary(layoutItem, existing.id);
+      saveState();
       window.AchieveMateToast?.show("Already in your library", { tone: "neutral" });
       return { saved: false, reason: "duplicate", entry: existing };
     }
 
+    const entry = draft;
     state.cvLibrary = [entry, ...state.cvLibrary];
+    linkLayoutItemToLibrary(layoutItem, entry.id);
     saveState();
     renderRail();
     window.AchieveMateToast?.show("Saved to library");
@@ -135,6 +187,7 @@
 
   function seedLayoutItemFromLibrary(entry) {
     const item = createLayoutItem("cv-item");
+    item.libraryEntryId = entry.id;
     const bucket = {};
     (LIBRARY_FIELDS || ["title", "subtitle", "date", "location", "description"]).forEach((field) => {
       if (String(entry[field] || "").trim()) {
@@ -160,16 +213,52 @@
     return item.id;
   }
 
+  function clearLibraryLinks(libraryId) {
+    let changed = false;
+    state.cvLayout.forEach((item) => {
+      if (item.libraryEntryId === libraryId) {
+        delete item.libraryEntryId;
+        changed = true;
+      }
+    });
+    if (changed) {
+      state.cvLayout = [...state.cvLayout];
+    }
+    return changed;
+  }
+
+  function restoreLibraryLinks(libraryId, layoutItemIds) {
+    if (!Array.isArray(layoutItemIds) || layoutItemIds.length === 0) {
+      return;
+    }
+    const idSet = new Set(layoutItemIds);
+    let changed = false;
+    state.cvLayout.forEach((item) => {
+      if (idSet.has(item.id) && item.libraryEntryId !== libraryId) {
+        item.libraryEntryId = libraryId;
+        changed = true;
+      }
+    });
+    if (changed) {
+      state.cvLayout = [...state.cvLayout];
+    }
+  }
+
   function removeLibraryEntry(libraryId) {
     const index = state.cvLibrary.findIndex((item) => item.id === libraryId);
     if (index === -1) {
       return null;
     }
 
+    const linkedLayoutItemIds = state.cvLayout
+      .filter((item) => item.libraryEntryId === libraryId)
+      .map((item) => item.id);
     const [removed] = state.cvLibrary.splice(index, 1);
     state.cvLibrary = [...state.cvLibrary];
+    clearLibraryLinks(libraryId);
     saveState();
     renderRail();
+    window.AchieveMateCvPreview?.refreshLibraryStars?.();
 
     window.AchieveMateToast?.show("Removed from library", {
       actionLabel: "Undo",
@@ -177,8 +266,10 @@
         const next = [...state.cvLibrary];
         next.splice(index, 0, removed);
         state.cvLibrary = next;
+        restoreLibraryLinks(libraryId, linkedLayoutItemIds);
         saveState();
         renderRail();
+        window.AchieveMateCvPreview?.refreshLibraryStars?.();
       },
     });
 

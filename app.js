@@ -125,6 +125,10 @@ function normalizeLibraryEntry(raw) {
     entry.migratedFromAchievementId = raw.migratedFromAchievementId;
   }
 
+  if (typeof raw.sourceLayoutItemId === "string" && raw.sourceLayoutItemId) {
+    entry.sourceLayoutItemId = raw.sourceLayoutItemId;
+  }
+
   const hasContent = LIBRARY_FIELDS.some((field) => entry[field].trim());
   return hasContent ? entry : null;
 }
