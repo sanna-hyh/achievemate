@@ -84,7 +84,7 @@
   scrim?.addEventListener("click", closeSidebar);
 
   openStudioBtn?.addEventListener("click", () => {
-    document.querySelector('[data-view="studio"]')?.click();
+    window.AchieveMateViews?.setActiveView("studio");
     closeSidebar();
   });
 

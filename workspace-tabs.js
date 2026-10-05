@@ -1,5 +1,6 @@
 (function initViewSwitcher() {
   const tablist = document.getElementById("viewSwitcher");
+  const homeLink = document.getElementById("homeLink");
   const views = {
     logbook: document.getElementById("viewLogbook"),
     studio: document.getElementById("viewStudio"),
@@ -9,23 +10,87 @@
     return;
   }
 
-  const tabs = [...tablist.querySelectorAll('[role="tab"]')];
+  const HOME_VIEW = "studio";
+  const LOGBOOK_VIEW = "logbook";
+  const tabs = [...tablist.querySelectorAll("[data-view]")];
   const track = tablist.querySelector(".view-switcher-track");
   const indicator = tablist.querySelector(".view-switcher-indicator");
   const STORAGE_KEY = "achievemate-active-tab";
-  let activeView = "logbook";
+  let activeView = HOME_VIEW;
   let switchTimer = null;
 
-  function updateSwitcherIndicator(activeTab) {
-    if (!track || !indicator || !activeTab) {
+  function tokenFromHash(hash) {
+    const raw = String(hash || "").replace(/^#/, "");
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      decoded = raw;
+    }
+    return decoded.replace(/^\/+/, "").split(/[/?&#]/)[0].trim().toLowerCase();
+  }
+
+  function hashForView(viewId) {
+    return viewId === LOGBOOK_VIEW ? "#logbook" : "#/";
+  }
+
+  // Bare `/` is the CV canvas. Explicit `#logbook` stays on the logbook.
+  // Older names that used to mean "open the app" or "open the CV" land on the canvas.
+  // Profile/achievements were folded into the logbook, so those links still open it.
+  function resolveRoute(hash) {
+    const token = tokenFromHash(hash);
+    if (token === "logbook" || token === "viewlogbook") {
+      return { viewId: LOGBOOK_VIEW, redirect: false };
+    }
+    if (token === "profile" || token === "achievements") {
+      return { viewId: LOGBOOK_VIEW, redirect: true };
+    }
+    if (!token) {
+      return { viewId: HOME_VIEW, redirect: false };
+    }
+    return { viewId: HOME_VIEW, redirect: true };
+  }
+
+  function persistView(viewId) {
+    try {
+      localStorage.setItem(STORAGE_KEY, viewId);
+    } catch {
+      /* ignore storage errors */
+    }
+  }
+
+  function syncRoute(viewId, { replace = false } = {}) {
+    const nextHash = hashForView(viewId);
+    const current = location.hash;
+    const alreadyHome =
+      viewId === HOME_VIEW && (current === "" || current === "#" || current === "#/");
+    if (current === nextHash || alreadyHome) {
       return;
     }
 
-    const left = activeTab.offsetLeft;
-    const width = activeTab.offsetWidth;
+    if (replace) {
+      const url = new URL(location.href);
+      url.hash = nextHash;
+      history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      return;
+    }
 
-    indicator.style.width = `${width}px`;
-    indicator.style.transform = `translateX(${left}px)`;
+    location.hash = nextHash;
+  }
+
+  function updateSwitcherIndicator(activeTab) {
+    if (!track || !indicator) {
+      return;
+    }
+
+    if (!activeTab) {
+      indicator.classList.add("is-hidden");
+      return;
+    }
+
+    indicator.classList.remove("is-hidden");
+    indicator.style.width = `${activeTab.offsetWidth}px`;
+    indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
   }
 
   function syncSwitcherIndicator() {
@@ -33,29 +98,47 @@
     updateSwitcherIndicator(activeTab);
   }
 
-  function mapLegacyTab(tabId) {
-    if (tabId === "profile" || tabId === "achievements" || tabId === "logbook") {
-      return "logbook";
+  function syncChrome(viewId) {
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.view === viewId;
+      tab.classList.toggle("is-active", isActive);
+      if (isActive) {
+        tab.setAttribute("aria-current", "page");
+      } else {
+        tab.removeAttribute("aria-current");
+      }
+    });
+
+    if (homeLink) {
+      if (viewId === HOME_VIEW) {
+        homeLink.setAttribute("aria-current", "page");
+      } else {
+        homeLink.removeAttribute("aria-current");
+      }
     }
-    if (tabId === "cv-builder" || tabId === "export" || tabId === "studio") {
-      return "studio";
-    }
-    return null;
+
+    syncSwitcherIndicator();
   }
 
   function syncViewVisibility(viewId) {
     Object.entries(views).forEach(([id, view]) => {
       const isActive = id === viewId;
       view.classList.toggle("is-active", isActive);
+      view.classList.remove("is-leaving");
       view.setAttribute("aria-hidden", String(!isActive));
     });
   }
 
-  function setActiveView(viewId, { focusTab = false } = {}) {
-    if (!views[viewId] || viewId === activeView) {
-      return;
-    }
+  function scheduleStudioLayout() {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.AchieveMateCvPreview?.scheduleSmartLayout();
+        window.AchieveMateCvPreview?.scheduleFitPreview();
+      });
+    });
+  }
 
+  function applyViewChange(viewId, { focusTab = false } = {}) {
     const previousView = views[activeView];
     const nextView = views[viewId];
 
@@ -69,94 +152,70 @@
     window.clearTimeout(switchTimer);
     switchTimer = window.setTimeout(() => {
       previousView.classList.remove("is-leaving");
+      if (activeView !== viewId) {
+        return;
+      }
       previousView.setAttribute("aria-hidden", "true");
     }, 160);
 
-    tabs.forEach((tab) => {
-      const isActive = tab.dataset.view === viewId;
-      tab.classList.toggle("is-active", isActive);
-      tab.setAttribute("aria-selected", String(isActive));
-      tab.tabIndex = isActive ? 0 : -1;
-    });
-
-    syncSwitcherIndicator();
-
     activeView = viewId;
-
-    try {
-      localStorage.setItem(STORAGE_KEY, viewId);
-    } catch {
-      /* ignore storage errors */
-    }
+    syncChrome(viewId);
+    persistView(viewId);
 
     if (focusTab) {
       tabs.find((tab) => tab.dataset.view === viewId)?.focus();
     }
 
-    if (viewId === "studio") {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          window.AchieveMateCvPreview?.scheduleSmartLayout();
-          window.AchieveMateCvPreview?.scheduleFitPreview();
-        });
-      });
+    if (viewId === HOME_VIEW) {
+      scheduleStudioLayout();
+    }
+  }
+
+  function setActiveView(viewId, { focusTab = false, fromRoute = false, replaceHistory = false } = {}) {
+    if (!views[viewId]) {
+      return;
+    }
+
+    if (viewId !== activeView) {
+      applyViewChange(viewId, { focusTab });
+    } else {
+      syncChrome(viewId);
+      persistView(viewId);
+    }
+
+    if (!fromRoute || replaceHistory) {
+      syncRoute(viewId, { replace: replaceHistory });
     }
   }
 
   tablist.addEventListener("click", (event) => {
-    const tab = event.target.closest('[role="tab"]');
+    const tab = event.target.closest("[data-view]");
     if (!tab || !tablist.contains(tab)) {
       return;
     }
+    event.preventDefault();
     setActiveView(tab.dataset.view);
   });
 
-  tablist.addEventListener("keydown", (event) => {
-    const currentIndex = tabs.findIndex((tab) => tab.classList.contains("is-active"));
-    if (currentIndex === -1) {
-      return;
-    }
-
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
-      event.preventDefault();
-      nextIndex = (currentIndex + 1) % tabs.length;
-    } else if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-      event.preventDefault();
-      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      nextIndex = 0;
-    } else if (event.key === "End") {
-      event.preventDefault();
-      nextIndex = tabs.length - 1;
-    } else {
-      return;
-    }
-
-    setActiveView(tabs[nextIndex].dataset.view, { focusTab: true });
+  homeLink?.addEventListener("click", (event) => {
+    event.preventDefault();
+    setActiveView(HOME_VIEW);
   });
 
-  let initialView = "logbook";
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    const mapped = saved ? mapLegacyTab(saved) : null;
-    if (mapped && views[mapped]) {
-      initialView = mapped;
-    }
-  } catch {
-    /* ignore storage errors */
+  window.addEventListener("hashchange", () => {
+    const route = resolveRoute(location.hash);
+    setActiveView(route.viewId, { fromRoute: true, replaceHistory: route.redirect });
+  });
+
+  const initialRoute = resolveRoute(location.hash);
+  activeView = initialRoute.viewId;
+  syncViewVisibility(initialRoute.viewId);
+  syncChrome(initialRoute.viewId);
+  persistView(initialRoute.viewId);
+
+  if (initialRoute.redirect) {
+    syncRoute(initialRoute.viewId, { replace: true });
   }
-
-  activeView = initialView;
-  syncViewVisibility(initialView);
-
-  tabs.forEach((tab) => {
-    const isActive = tab.dataset.view === initialView;
-    tab.classList.toggle("is-active", isActive);
-    tab.setAttribute("aria-selected", String(isActive));
-    tab.tabIndex = isActive ? 0 : -1;
-  });
 
   requestAnimationFrame(syncSwitcherIndicator);
 
@@ -170,7 +229,7 @@
     window.addEventListener("resize", syncSwitcherIndicator);
   }
 
-  if (initialView === "studio") {
+  if (initialRoute.viewId === HOME_VIEW) {
     requestAnimationFrame(() => {
       window.AchieveMateCvPreview?.scheduleSmartLayout();
       window.AchieveMateCvPreview?.scheduleFitPreview();
@@ -180,6 +239,7 @@
   window.AchieveMateViews = {
     setActiveView,
     getActiveView: () => activeView,
+    resolveRoute,
   };
 })();
 

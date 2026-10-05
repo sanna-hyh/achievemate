@@ -2832,7 +2832,7 @@
     const topbar = document.querySelector(".topbar");
     const logbook = document.getElementById("viewLogbook");
     const studio = document.getElementById("viewStudio");
-    const activeView = window.AchieveMateViews?.getActiveView?.() || "logbook";
+    const activeView = window.AchieveMateViews?.getActiveView?.() || "studio";
 
     if (hidden) {
       topbar?.setAttribute("aria-hidden", "true");

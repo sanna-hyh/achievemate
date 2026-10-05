@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=93" />
+  <link rel="stylesheet" href="styles.css?v=94" />
 </head>
 <body>
   <header class="topbar">
@@ -26,37 +26,17 @@
       <span aria-hidden="true">☰</span>
     </button>
 
-    <div class="topbar-wordmark">
+    <a class="topbar-wordmark" id="homeLink" href="#/">
       <img src="logo.png?v=5" alt="" class="topbar-logo" width="32" height="32" />
       <span class="topbar-title">AchieveMate</span>
-    </div>
+    </a>
 
-    <nav class="view-switcher" id="viewSwitcher" role="tablist" aria-label="Views">
+    <nav class="view-switcher" id="viewSwitcher" aria-label="Views">
       <div class="view-switcher-track">
-        <span class="view-switcher-indicator" aria-hidden="true"></span>
-        <button
-          type="button"
-          class="view-switcher-item is-active"
-          role="tab"
-          id="view-tab-logbook"
-          aria-controls="viewLogbook"
-          aria-selected="true"
-          data-view="logbook"
-        >
+        <span class="view-switcher-indicator is-hidden" aria-hidden="true"></span>
+        <a class="view-switcher-item" id="view-tab-logbook" href="#logbook" data-view="logbook">
           Logbook
-        </button>
-        <button
-          type="button"
-          class="view-switcher-item"
-          role="tab"
-          id="view-tab-studio"
-          aria-controls="viewStudio"
-          aria-selected="false"
-          data-view="studio"
-          tabindex="-1"
-        >
-          Studio
-        </button>
+        </a>
       </div>
     </nav>
 
@@ -128,9 +108,9 @@
             <span class="sidebar-panel-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="sidebar-panel-body" id="sidebarSettingsBody" hidden>
-            <p class="caption sidebar-panel-hint">CV typography, layout, and export history are in Studio.</p>
+            <p class="caption sidebar-panel-hint">Typography, layout, and export history are on the main page.</p>
             <button type="button" class="btn btn-ghost sidebar-open-studio-btn" id="sidebarOpenStudioBtn">
-              Open Studio →
+              Back to main page
             </button>
           </div>
         </section>
@@ -140,7 +120,7 @@
     <div class="app-sidebar-scrim" id="sidebarScrim" hidden aria-hidden="true"></div>
 
     <div class="app-main">
-  <main class="view view-logbook is-active" id="viewLogbook" role="tabpanel" aria-labelledby="view-tab-logbook" aria-hidden="false">
+  <main class="view view-logbook" id="viewLogbook" aria-labelledby="view-tab-logbook" aria-hidden="true">
     <div class="logbook-column">
       <header class="logbook-header">
         <div class="logbook-header-main">
@@ -159,7 +139,7 @@
     </div>
   </main>
 
-  <main class="view view-studio" id="viewStudio" role="tabpanel" aria-labelledby="view-tab-studio" aria-hidden="true">
+  <main class="view view-studio is-active" id="viewStudio" aria-label="AchieveMate" aria-hidden="false">
     <div class="studio-cockpit" id="studioCockpit">
       <aside class="studio-rail" aria-label="Source blocks">
         <div class="studio-rail-scroll">
@@ -451,13 +431,13 @@
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="app.js?v=45"></script>
+  <script src="app.js?v=46"></script>
   <script src="drag-preview.js?v=5"></script>
   <script src="cv-builder.js?v=14"></script>
   <script src="cv-pdf.js?v=1"></script>
   <script src="cv-preview.js?v=46"></script>
   <script src="cv-layout-panel.js?v=8"></script>
-  <script src="sidebar.js?v=3"></script>
-  <script src="workspace-tabs.js?v=7"></script>
+  <script src="sidebar.js?v=4"></script>
+  <script src="workspace-tabs.js?v=8"></script>
 </body>
 </html>

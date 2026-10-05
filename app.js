@@ -771,7 +771,7 @@ function renderEmptyState() {
     ? `
     <div class="empty-state-personal-tip">
       <p class="empty-state-personal-tip-title">First, add your CV header</p>
-      <p class="empty-state-personal-tip-body">Open the menu and enter your name, phone, and email. They appear at the top of your CV in Studio.</p>
+      <p class="empty-state-personal-tip-body">Open the menu and enter your name, phone, and email. They appear at the top of your CV.</p>
       <button type="button" class="btn btn-ghost empty-state-personal-cta">Add personal info</button>
     </div>
   `
