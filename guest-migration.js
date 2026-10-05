@@ -130,6 +130,7 @@ function normalizeGuestPayload(raw) {
         proofPath: item.proofPath || item.proof_path || "",
       })),
       cvLayout: cvDraft?.layout || cvDraft?.cvLayout || [],
+      cvLibrary: Array.isArray(cvDraft?.cvLibrary) ? cvDraft.cvLibrary : undefined,
       cvPreviewEdits: cvDraft?.preview_edits || cvDraft?.cvPreviewEdits || { personal: {}, items: {} },
       cvSettings: cvDraft?.settings || cvDraft?.cvSettings || {},
       customDefaults: cvDraft?.custom_defaults || cvDraft?.customDefaults || {},
@@ -141,6 +142,7 @@ function normalizeGuestPayload(raw) {
     personalInfo: raw.personalInfo || { name: "", phone: "", email: "" },
     achievements: Array.isArray(raw.achievements) ? raw.achievements : [],
     cvLayout: Array.isArray(raw.cvLayout) ? raw.cvLayout : [],
+    cvLibrary: Array.isArray(raw.cvLibrary) ? raw.cvLibrary : undefined,
     cvPreviewEdits: raw.cvPreviewEdits || { personal: {}, items: {} },
     cvSettings: raw.cvSettings || {},
     customDefaults: raw.customDefaults || {},
@@ -195,6 +197,9 @@ function applyPayloadToApp(payload) {
     proofPath: achievement.proofPath || "",
   }));
   state.cvLayout = payload.cvLayout;
+  if (Array.isArray(payload.cvLibrary)) {
+    state.cvLibrary = payload.cvLibrary;
+  }
   state.cvPreviewEdits = payload.cvPreviewEdits;
   state.cvSettings = { ...DEFAULT_CV_SETTINGS, ...payload.cvSettings };
   state.exportHistory = payload.exportHistory;

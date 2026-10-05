@@ -61,6 +61,8 @@ const CATEGORY_ICON_SVGS = {
   others: `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 2.5 2.5 5.5 8 8.5l5.5-3L8 2.5zM2.5 8 8 11l5.5-3M2.5 10.5 8 13.5l5.5-3" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
+const LIBRARY_FIELDS = ["title", "subtitle", "date", "location", "description"];
+
 const state = {
   personalInfo: {
     name: "",
@@ -68,6 +70,7 @@ const state = {
     email: "",
   },
   achievements: [],
+  cvLibrary: [],
   cvLayout: [],
   cvPreviewEdits: {
     personal: {},
@@ -102,6 +105,44 @@ const CATEGORY_EMPTY_MESSAGES = {
 
 function createId(prefix = "ach") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function normalizeLibraryEntry(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const entry = {
+    id: typeof raw.id === "string" && raw.id ? raw.id : createId("lib"),
+    savedAt: Number.isFinite(Number(raw.savedAt)) ? Number(raw.savedAt) : Date.now(),
+  };
+
+  LIBRARY_FIELDS.forEach((field) => {
+    entry[field] = typeof raw[field] === "string" ? raw[field] : "";
+  });
+
+  if (typeof raw.migratedFromAchievementId === "string" && raw.migratedFromAchievementId) {
+    entry.migratedFromAchievementId = raw.migratedFromAchievementId;
+  }
+
+  const hasContent = LIBRARY_FIELDS.some((field) => entry[field].trim());
+  return hasContent ? entry : null;
+}
+
+function libraryEntryFromAchievement(achievement) {
+  const description = stripBulletGlyphs(achievement?.description || "");
+  const descriptionHasText = description.split("\n").some((line) => line.trim());
+
+  return normalizeLibraryEntry({
+    id: createId("lib"),
+    title: String(achievement?.title || "").trim(),
+    subtitle: "",
+    date: String(achievement?.date || "").trim(),
+    location: "",
+    description: descriptionHasText ? description : "",
+    savedAt: Date.now(),
+    migratedFromAchievementId: achievement?.id || "",
+  });
 }
 
 function loadCvSettings(legacySettings) {
@@ -181,6 +222,13 @@ function loadState() {
           description: stripBulletGlyphs(achievement.description || ""),
           proofPath: achievement.proofPath || "",
         }));
+      }
+      if (Array.isArray(parsed.cvLibrary)) {
+        state.cvLibrary = parsed.cvLibrary.map(normalizeLibraryEntry).filter(Boolean);
+      } else {
+        state.cvLibrary = sortAchievementsForStudio(state.achievements)
+          .map(libraryEntryFromAchievement)
+          .filter(Boolean);
       }
       if (Array.isArray(parsed.cvLayout)) {
         state.cvLayout = parsed.cvLayout;
@@ -1870,6 +1918,9 @@ window.AchieveMateApp = {
   DEFAULT_CV_SETTINGS,
   createId,
   escapeHtml,
+  getStarIconSvg,
+  normalizeLibraryEntry,
+  LIBRARY_FIELDS,
   formatBulletText,
   stripBulletGlyphs,
   getDescriptionLines,
