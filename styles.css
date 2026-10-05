@@ -3886,6 +3886,11 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   color: #bbb;
 }
 
+.cv-drag-preview,
+.cv-drag-preview * {
+  pointer-events: none;
+}
+
 .cv-drag-preview {
   position: fixed;
   z-index: 10000;

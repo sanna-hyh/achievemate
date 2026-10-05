@@ -1811,11 +1811,18 @@
 
   function isPointerOverLibrary(clientX, clientY) {
     const target = getLibraryDropTarget();
-    if (!target) {
+    if (!target || (clientX === 0 && clientY === 0)) {
       return false;
     }
     const rect = target.getBoundingClientRect();
-    return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    const pageRect = cvPreview?.getBoundingClientRect();
+    const rightEdge = pageRect ? Math.max(rect.right, Math.min(pageRect.left, rect.right + 96)) : rect.right + 32;
+    return (
+      clientX >= rect.left - 12 &&
+      clientX <= rightEdge &&
+      clientY >= rect.top - 12 &&
+      clientY <= rect.bottom + 12
+    );
   }
 
   function setLibraryDropActive(active) {
@@ -2075,6 +2082,17 @@
     }
 
     if (event.clientX === 0 && event.clientY === 0) {
+      return false;
+    }
+
+    if (isPointerOverLibrary(event.clientX, event.clientY)) {
+      pending.handled = true;
+      saveLayoutItemToLibrary(pending.layoutItemId);
+      const button = cvPreview?.querySelector(
+        `.cv-section-wrap[data-layout-item-id="${pending.layoutItemId}"] .cv-section-save`
+      );
+      flashLibrarySaveButton(button);
+      window.AchieveMateDragPreview?.end();
       return false;
     }
 
