@@ -107,7 +107,7 @@
       return {
         id: createId("cv"),
         type: "heading",
-        title: "Section Title",
+        title: "",
       };
     }
 
@@ -115,11 +115,11 @@
       return {
         id: createId("cv"),
         type: "cv-item",
-        title: "Title",
-        subtitle: "Subtitle",
-        date: "DATE",
-        location: "Location",
-        description: "Bullet 1\nBullet 2\nBullet 3",
+        title: "",
+        subtitle: "",
+        date: "",
+        location: "",
+        description: "",
       };
     }
 
