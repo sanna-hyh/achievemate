@@ -111,6 +111,18 @@
       };
     }
 
+    if (type === "cv-item") {
+      return {
+        id: createId("cv"),
+        type: "cv-item",
+        title: "Title",
+        subtitle: "Subtitle",
+        date: "DATE",
+        location: "Location",
+        description: "Bullet 1\nBullet 2\nBullet 3",
+      };
+    }
+
     return {
       id: createId("cv"),
       type: "achievement",
@@ -170,29 +182,71 @@
     window.AchieveMateDragPreview?.begin(event, sourceEl, { variant: "rail", payload });
   }
 
-  function bindPaletteHeading() {
-    const headingBlock = cvPalette?.querySelector('[data-block-type="heading"]');
-    if (!headingBlock) {
+  function addHeadingToCv(index = null) {
+    const item = createLayoutItem("heading");
+    insertLayoutItem(item, index);
+  }
+
+  function addCvItemToCv(index = null) {
+    const item = createLayoutItem("cv-item");
+    insertLayoutItem(item, index);
+  }
+
+  function bindPaletteRailBlock(block, { type, addToCv, titleHint }) {
+    if (!block) {
       return;
     }
 
-    headingBlock.addEventListener("dragstart", (event) => {
-      setDragPayload(event, {
-        source: "rail",
-        type: "heading",
-      });
-      beginDragPreview(event, headingBlock, {
-        source: "rail",
-        type: "heading",
-      });
-      headingBlock.classList.add("is-dragging");
+    let suppressClick = false;
+
+    block.setAttribute("title", titleHint);
+    block.setAttribute("role", "button");
+    block.tabIndex = 0;
+
+    block.addEventListener("dragstart", (event) => {
+      suppressClick = true;
+      const payload = { source: "rail", type };
+      setDragPayload(event, payload);
+      beginDragPreview(event, block, payload);
+      block.classList.add("is-dragging");
     });
 
-    headingBlock.addEventListener("dragend", () => {
-      headingBlock.classList.remove("is-dragging");
+    block.addEventListener("dragend", () => {
+      block.classList.remove("is-dragging");
       window.AchieveMateDrag.payload = null;
       window.AchieveMateDragPreview?.end();
       window.AchieveMateCvPreview?.hideInsertionLine();
+      window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+    });
+
+    block.addEventListener("click", () => {
+      if (suppressClick) {
+        return;
+      }
+      addToCv();
+    });
+
+    block.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      addToCv();
+    });
+  }
+
+  function bindPaletteHeading() {
+    bindPaletteRailBlock(cvPalette?.querySelector('[data-block-type="heading"]'), {
+      type: "heading",
+      addToCv: addHeadingToCv,
+      titleHint: "Click to add at end, or drag to place on CV",
+    });
+    bindPaletteRailBlock(cvPalette?.querySelector('[data-block-type="cv-item"]'), {
+      type: "cv-item",
+      addToCv: addCvItemToCv,
+      titleHint: "Click to add at end, or drag to place on CV",
     });
   }
 

@@ -88,6 +88,42 @@
     return heading;
   }
 
+  function buildCvItemContent() {
+    const article = document.createElement("section");
+    article.className = "cv-preview-entry cv-preview-cv-item";
+
+    const title = document.createElement("h3");
+    title.className = "cv-preview-entry-title cv-preview-cv-item-title";
+    title.textContent = "Title";
+    article.appendChild(title);
+
+    const subrow = document.createElement("div");
+    subrow.className = "cv-preview-cv-item-subrow";
+
+    const subtitle = document.createElement("span");
+    subtitle.className = "cv-preview-cv-item-subtitle";
+    subtitle.textContent = "Subtitle";
+
+    const date = document.createElement("span");
+    date.className = "cv-preview-entry-date cv-preview-cv-item-date";
+    date.textContent = "DATE";
+
+    subrow.append(subtitle, date);
+    article.appendChild(subrow);
+
+    const location = document.createElement("p");
+    location.className = "cv-preview-cv-item-location";
+    location.textContent = "Location";
+    article.appendChild(location);
+
+    const body = document.createElement("div");
+    body.className = "cv-preview-entry-body cv-preview-description cv-preview-cv-item-bullets";
+    body.innerHTML = "• Bullet 1<br>• Bullet 2<br>• Bullet 3";
+    article.appendChild(body);
+
+    return article;
+  }
+
   function buildAchievementContent(achievement) {
     const app = getApp();
     const article = document.createElement("article");
@@ -149,6 +185,16 @@
 
     if (payload?.type === "heading") {
       shell.appendChild(buildHeadingContent());
+      return shell;
+    }
+
+    if (payload?.type === "cv-item") {
+      shell.appendChild(buildCvItemContent());
+      return shell;
+    }
+
+    if (sourceEl.dataset.blockType === "cv-item") {
+      shell.appendChild(buildCvItemContent());
       return shell;
     }
 

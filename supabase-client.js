@@ -17,6 +17,25 @@ export const supabase = createClient(url, anonKey, {
   },
 });
 
+export function describeSupabaseOutage(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+
+  if (message.includes("paused") || message.includes("503")) {
+    return "Supabase project is paused — open supabase.com/dashboard and click Restore project.";
+  }
+
+  if (
+    message.includes("fetch") ||
+    message.includes("network") ||
+    message.includes("failed to fetch") ||
+    message.includes("name not resolved")
+  ) {
+    return "Cannot reach Supabase — your free project may be paused or removed. Restore it at supabase.com/dashboard.";
+  }
+
+  return "Couldn't reach the server — working offline";
+}
+
 // Expose for the existing non-module scripts (app.js etc. are
 // classic scripts; they reach the client through window).
 window.AchieveMateSupabase = supabase;

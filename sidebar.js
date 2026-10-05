@@ -49,9 +49,6 @@
         toggle: document.getElementById("sidebarPersonalToggle"),
         body: document.getElementById("sidebarPersonalBody"),
       },
-      account: {
-        body: document.querySelector(".sidebar-panel-static-head + .sidebar-panel-body"),
-      },
       settings: {
         toggle: document.getElementById("sidebarSettingsToggle"),
         body: document.getElementById("sidebarSettingsBody"),

@@ -1,4 +1,4 @@
-import { supabase } from "./supabase-client.js";
+import { supabase, describeSupabaseOutage } from "./supabase-client.js";
 import {
   migrateGuestDataToSupabase,
   readGuestPayload,
@@ -149,11 +149,7 @@ function applyServerState(profileRow, achievementRows, cvDocRow, exportRows) {
     };
   }
 
-  const localCountBefore = state.achievements.length;
   state.achievements = (achievementRows || []).map(achievementRowToState);
-  // #region agent log
-  fetch('http://127.0.0.1:7398/ingest/523bc814-bbd5-4260-baf0-542146ab4ca4',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5c4027'},body:JSON.stringify({sessionId:'5c4027',location:'sync.js:applyServerState',message:'achievements overwritten from server',data:{localCountBefore,serverCount:state.achievements.length,serverRowCount:(achievementRows||[]).length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
   state.cvLayout = cvDocRow?.layout || [];
   state.cvPreviewEdits = cvDocRow?.preview_edits || { personal: {}, items: {} };
   state.cvSettings = { ...DEFAULT_CV_SETTINGS, ...(cvDocRow?.settings || {}) };
@@ -498,7 +494,7 @@ async function handleBoot(user) {
     }
   } catch (error) {
     console.warn("Boot fetch failed:", error);
-    showToast("Couldn't reach the server — working offline", { tone: "danger" });
+    showToast(describeSupabaseOutage(error), { tone: "danger" });
 
     if (!bootRetried) {
       bootRetried = true;

@@ -36,7 +36,16 @@
   let sectionPointer = null;
   let sectionDragSession = null;
   let editClickState = null;
+  let cvItemEnterNavSource = null;
   const SECTION_DRAG_THRESHOLD_PX = 8;
+  const CV_ITEM_PLACEHOLDERS = {
+    title: "Title",
+    subtitle: "Subtitle",
+    date: "DATE",
+    location: "Location",
+    description: "Bullet 1\nBullet 2\nBullet 3",
+  };
+  const CV_BULLET_PREFIX = "• ";
   const EDIT_DOUBLE_CLICK_MS = 720;
   const EDIT_DOUBLE_CLICK_MAX_DISTANCE_PX = 16;
 
@@ -94,6 +103,11 @@
       sectionPointer.wrap.classList.remove("is-drag-armed");
     }
     sectionPointer = null;
+    setPointerDragSelectLock(false);
+  }
+
+  function setPointerDragSelectLock(active) {
+    document.body.classList.toggle("cv-pointer-drag-active", active);
   }
 
   function resolveEditTarget(target) {
@@ -128,16 +142,455 @@
     }
   }
 
+  function normalizePlaceholderCompare(value) {
+    return editPlainText(value).replace(/\s+/g, " ").trim();
+  }
+
+  function descriptionPlaceholderLines(value) {
+    return String(value || "")
+      .split("\n")
+      .map((line) => line.trim().replace(/^[•\-*]\s*/, ""))
+      .filter(Boolean);
+  }
+
+  function descriptionsMatchPlaceholder(content, placeholder) {
+    const current = descriptionPlaceholderLines(content);
+    const expected = descriptionPlaceholderLines(placeholder);
+    if (current.length !== expected.length) {
+      return false;
+    }
+    return current.every((line, index) => line === expected[index]);
+  }
+
+  function nodeShowsPlaceholder(node) {
+    const placeholder = node.dataset.placeholderText;
+    if (!placeholder) {
+      return false;
+    }
+
+    if (node.classList.contains("cv-preview-description")) {
+      return descriptionsMatchPlaceholder(getNodeEditContent(node), placeholder);
+    }
+
+    return normalizePlaceholderCompare(node.textContent) === normalizePlaceholderCompare(placeholder);
+  }
+
+  function syncNodePlaceholderClass(node) {
+    if (node.classList.contains("is-editing")) {
+      node.classList.remove("cv-preview-placeholder");
+      return;
+    }
+
+    node.classList.toggle("cv-preview-placeholder", nodeShowsPlaceholder(node));
+  }
+
+  function syncAllPlaceholderClasses() {
+    cvPreview?.querySelectorAll("[data-placeholder-text]").forEach(syncNodePlaceholderClass);
+  }
+
+  function selectAllInNode(node) {
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function placeCaretAfterFirstBullet(node) {
+    const selection = window.getSelection();
+    const range = document.createRange();
+    const treeWalker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    let textNode = treeWalker.nextNode();
+
+    while (textNode) {
+      const text = textNode.textContent || "";
+      const bulletIndex = text.indexOf("•");
+      if (bulletIndex !== -1) {
+        let offset = bulletIndex + 1;
+        while (offset < text.length && text[offset] === " ") {
+          offset += 1;
+        }
+        range.setStart(textNode, Math.min(offset, text.length));
+        range.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+      textNode = treeWalker.nextNode();
+    }
+
+    if (!node.textContent?.trim()) {
+      node.textContent = CV_BULLET_PREFIX;
+    }
+
+    range.selectNodeContents(node);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function setTextOffsetRange(root, start, end) {
+    const range = document.createRange();
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let pos = 0;
+    let startSet = false;
+    let textNode = walker.nextNode();
+
+    while (textNode) {
+      const len = textNode.textContent?.length || 0;
+      if (!startSet && pos + len >= start) {
+        range.setStart(textNode, Math.max(0, start - pos));
+        startSet = true;
+      }
+      if (startSet && pos + len >= end) {
+        range.setEnd(textNode, Math.max(0, end - pos));
+        break;
+      }
+      pos += len;
+      textNode = walker.nextNode();
+    }
+
+    if (!startSet) {
+      return;
+    }
+
+    if (range.compareBoundaryPoints(Range.END_TO_START, range) >= 0) {
+      range.collapse(true);
+    }
+
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function descriptionLineIndexAtPoint(node, clientX, clientY) {
+    placeCaretAtPoint(clientX, clientY);
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) {
+      return 0;
+    }
+
+    const range = selection.getRangeAt(0);
+    const preRange = document.createRange();
+    preRange.selectNodeContents(node);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const textBefore = preRange.toString();
+    return (textBefore.match(/\n/g) || []).length;
+  }
+
+  function selectDescriptionPlaceholderLine(node, lineIndex) {
+    const fullText = node.textContent || "";
+    const lines = fullText.split("\n");
+    const idx = Math.max(0, Math.min(lineIndex, lines.length - 1));
+    let charStart = 0;
+
+    for (let i = 0; i < idx; i += 1) {
+      charStart += lines[i].length + 1;
+    }
+
+    const line = lines[idx] || "";
+    const match = line.match(/^(\s*•\s*)(.*)$/);
+    if (!match) {
+      setTextOffsetRange(node, charStart, charStart + line.length);
+      return;
+    }
+
+    const prefixLen = match[1].length;
+    setTextOffsetRange(node, charStart + prefixLen, charStart + line.length);
+  }
+
+  function activateDescriptionEdit(node, event) {
+    const isPlaceholder = cvItemFieldShowsPlaceholder(node);
+
+    if (isPlaceholder) {
+      const lineIndex = event
+        ? descriptionLineIndexAtPoint(node, event.clientX, event.clientY)
+        : 0;
+      selectDescriptionPlaceholderLine(node, lineIndex);
+      return;
+    }
+
+    if (event) {
+      placeCaretAtPoint(event.clientX, event.clientY);
+      return;
+    }
+
+    placeCaretAfterFirstBullet(node);
+  }
+
+  function restorePlaceholderDisplay(node) {
+    const placeholder = node.dataset.placeholderText;
+    if (!placeholder) {
+      return;
+    }
+
+    if (node.classList.contains("cv-preview-description")) {
+      node.innerHTML = descriptionToEditableHtml(placeholder);
+    } else {
+      node.innerHTML = richTextToHtml(placeholder);
+    }
+
+    syncNodePlaceholderClass(node);
+  }
+
+  function normalizeSavedEditValue(node, value) {
+    const placeholder = node.dataset.placeholderText;
+    if (!placeholder) {
+      return value;
+    }
+
+    if (node.classList.contains("cv-preview-description")) {
+      if (descriptionsMatchPlaceholder(value, placeholder)) {
+        return "";
+      }
+      return value;
+    }
+
+    if (normalizePlaceholderCompare(value) === normalizePlaceholderCompare(placeholder)) {
+      return "";
+    }
+
+    return value;
+  }
+
+  function isEditValueEmpty(node, value) {
+    if (node.classList.contains("cv-preview-description")) {
+      return descriptionPlaceholderLines(value).length === 0;
+    }
+
+    return normalizePlaceholderCompare(value) === "";
+  }
+
+  const CV_ITEM_FIELD_KEYS = ["title", "subtitle", "date", "location", "description"];
+
+  function getCvItemStoredField(item, field) {
+    const bucket = state.cvPreviewEdits?.items?.[item.id];
+    if (!bucket || !Object.prototype.hasOwnProperty.call(bucket, field)) {
+      return undefined;
+    }
+    return bucket[field];
+  }
+
+  function getCvItemFieldContent(item, field) {
+    const stored = getCvItemStoredField(item, field);
+    return stored === undefined ? "" : stored;
+  }
+
+  function isCvItemFieldFilled(value, field) {
+    if (field === "description") {
+      return descriptionPlaceholderLines(value).length > 0;
+    }
+    return normalizePlaceholderCompare(value) !== "";
+  }
+
+  function cvItemHasUserContent(item) {
+    return CV_ITEM_FIELD_KEYS.some((field) => {
+      const stored = getCvItemStoredField(item, field);
+      return stored !== undefined && isCvItemFieldFilled(stored, field);
+    });
+  }
+
+  function parseCvItemEditKey(editKey) {
+    if (!editKey?.startsWith("items.")) {
+      return null;
+    }
+
+    const suffix = editKey.slice("items.".length);
+    const dot = suffix.lastIndexOf(".");
+    if (dot === -1) {
+      return null;
+    }
+
+    const itemId = suffix.slice(0, dot);
+    const field = suffix.slice(dot + 1);
+    if (!CV_ITEM_FIELD_KEYS.includes(field)) {
+      return null;
+    }
+
+    const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "cv-item");
+    if (!item) {
+      return null;
+    }
+
+    return { item, field };
+  }
+
+  function cvItemFieldShowsPlaceholder(node) {
+    const parsed = parseCvItemEditKey(node.dataset.editKey);
+    if (!parsed) {
+      return nodeShowsPlaceholder(node);
+    }
+
+    const content = getCvItemFieldContent(parsed.item, parsed.field);
+    return !isCvItemFieldFilled(content, parsed.field);
+  }
+
+  function syncCvItemWrapAfterEdit(section) {
+    const itemId = section?.dataset?.itemId;
+    const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "cv-item");
+    const wrap = section?.closest(".cv-section-wrap");
+    if (!item || !wrap) {
+      return;
+    }
+
+    const isDraft = !cvItemHasUserContent(item);
+    wrap.classList.toggle("is-cv-item-collapsed", !isDraft);
+
+    CV_ITEM_FIELD_KEYS.forEach((field) => {
+      const node = section.querySelector(`[data-edit-key$=".${field}"]`);
+      if (!node || node.classList.contains("is-editing")) {
+        return;
+      }
+
+      const content = getCvItemFieldContent(item, field);
+      const filled = isCvItemFieldFilled(content, field);
+
+      node.classList.toggle("cv-cv-item-field-hidden", !isDraft && !filled);
+      node.classList.toggle("cv-preview-placeholder", !filled);
+
+      if (!filled) {
+        restorePlaceholderDisplay(node);
+        return;
+      }
+
+      if (field === "description") {
+        node.innerHTML = descriptionToEditableHtml(content);
+      } else {
+        node.innerHTML = richTextToHtml(content);
+      }
+    });
+  }
+
+  function getCvItemEditableFields(section) {
+    if (!section) {
+      return [];
+    }
+
+    return CV_ITEM_FIELD_KEYS.map((key) =>
+      section.querySelector(`[data-edit-key$=".${key}"]`)
+    ).filter(Boolean);
+  }
+
+  function commitEditableField(node) {
+    finishFieldEdit(node);
+  }
+
+  function saveCvItemFieldValue(node) {
+    const value = normalizeSavedEditValue(node, getNodeEditContent(node));
+    setEdit(node.dataset.editKey, value, { flushSave: true });
+    return value;
+  }
+
+  function prepareCvItemFieldNavigation(section, fromIndex) {
+    const itemId = section?.dataset?.itemId;
+    const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "cv-item");
+    const wrap = section?.closest(".cv-section-wrap");
+    const fields = getCvItemEditableFields(section);
+
+    if (item && wrap && cvItemHasUserContent(item)) {
+      wrap.classList.add("is-cv-item-collapsed");
+    }
+
+    fields.slice(fromIndex + 1).forEach((fieldNode) => {
+      fieldNode.classList.remove("cv-cv-item-field-hidden");
+    });
+  }
+
+  function finishFieldEdit(node) {
+    node.classList.remove("is-editing");
+    node.setAttribute("contenteditable", "false");
+    if (node.classList.contains("cv-preview-description")) {
+      normalizeDescriptionBulletSpacing(node);
+    }
+    const value = normalizeSavedEditValue(node, getNodeEditContent(node));
+    setEdit(node.dataset.editKey, value, { flushSave: true });
+
+    const cvSection = node.closest(".cv-preview-cv-item");
+    if (cvSection) {
+      syncCvItemWrapAfterEdit(cvSection);
+      return;
+    }
+
+    if (node.dataset.placeholderText && isEditValueEmpty(node, value)) {
+      restorePlaceholderDisplay(node);
+    } else {
+      syncNodePlaceholderClass(node);
+    }
+  }
+
+  function updateEditingPreviewFlag() {
+    const active = document.activeElement;
+    if (active && cvPreview.contains(active) && active.matches("[data-edit-key]")) {
+      isEditingPreview = true;
+      return;
+    }
+    isEditingPreview = false;
+    scheduleSmartLayoutDebounced();
+  }
+
+  function focusEditableField(node) {
+    if (!node) {
+      return;
+    }
+
+    activateEdit(node);
+  }
+
+  function bindCvItemEnterNavigation(node) {
+    node.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key !== "Enter" || event.shiftKey) {
+          return;
+        }
+
+        const section = node.closest(".cv-preview-cv-item");
+        if (!section || node.classList.contains("cv-preview-description")) {
+          return;
+        }
+
+        const fields = getCvItemEditableFields(section);
+        const index = fields.indexOf(node);
+        if (index === -1 || index >= fields.length - 1) {
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        saveCvItemFieldValue(node);
+        node.classList.remove("is-editing");
+        node.setAttribute("contenteditable", "false");
+
+        cvItemEnterNavSource = node;
+        prepareCvItemFieldNavigation(section, index);
+        focusEditableField(fields[index + 1]);
+      },
+      true
+    );
+  }
+
   function activateEdit(node, event) {
     if (!node) {
       return;
     }
 
     clearSectionPointer();
+    const showingPlaceholder = cvItemFieldShowsPlaceholder(node);
     node.setAttribute("contenteditable", "true");
     node.classList.add("is-editing");
+    node.classList.remove("cv-preview-placeholder");
     isEditingPreview = true;
     node.focus({ preventScroll: true });
+
+    if (showingPlaceholder) {
+      if (node.classList.contains("cv-preview-description")) {
+        activateDescriptionEdit(node, event);
+      } else {
+        selectAllInNode(node);
+      }
+      return;
+    }
 
     if (event) {
       placeCaretAtPoint(event.clientX, event.clientY);
@@ -302,6 +755,15 @@
         return;
       }
 
+      const placeholderEditTarget = resolveEditTarget(event.target);
+      if (
+        placeholderEditTarget?.dataset.placeholderText &&
+        placeholderEditTarget.classList.contains("cv-preview-placeholder")
+      ) {
+        tryActivateEdit(event, placeholderEditTarget);
+        return;
+      }
+
       const editDoubleTarget = resolveEditDoubleClickTarget(event);
       if (editDoubleTarget && tryActivateEdit(event, editDoubleTarget)) {
         return;
@@ -322,6 +784,11 @@
         moved: false,
       };
 
+      if (wrap) {
+        event.preventDefault();
+        setPointerDragSelectLock(true);
+      }
+
       const onMove = (moveEvent) => {
         if (!sectionPointer) {
           return;
@@ -330,6 +797,7 @@
         const distance = Math.hypot(moveEvent.clientX - sectionPointer.x, moveEvent.clientY - sectionPointer.y);
         if (distance >= SECTION_DRAG_THRESHOLD_PX) {
           moveEvent.preventDefault();
+          window.getSelection()?.removeAllRanges();
           sectionPointer.moved = true;
           sectionPointer.wrap?.classList.add("is-drag-armed");
 
@@ -365,6 +833,12 @@
       const editTarget = resolveEditTarget(event.target);
       if (editTarget) {
         tryActivateEdit(event, editTarget);
+      }
+    });
+
+    document.addEventListener("selectstart", (event) => {
+      if (document.body.classList.contains("cv-pointer-drag-active")) {
+        event.preventDefault();
       }
     });
   }
@@ -934,6 +1408,28 @@
         return;
       }
 
+      if (item.type === "cv-item") {
+        if (!cvItemHasUserContent(item)) {
+          return;
+        }
+
+        CV_ITEM_FIELD_KEYS.forEach((field) => {
+          if (field === "description") {
+            return;
+          }
+          const content = getCvItemFieldContent(item, field);
+          if (isCvItemFieldFilled(content, field)) {
+            charCount += editPlainText(content).length;
+          }
+        });
+
+        const description = getCvItemFieldContent(item, "description");
+        const lines = descriptionPlaceholderLines(description);
+        bulletCount += lines.length;
+        charCount += lines.join("").length;
+        return;
+      }
+
       const achievement = getAchievement(item.achievementId);
       const title = getEdit(`items.${item.id}.title`, achievement?.title || "");
       const date = getEdit(`items.${item.id}.date`, achievement?.date || "");
@@ -1122,6 +1618,12 @@
 
     exportNode.querySelectorAll("[contenteditable]").forEach((node) => {
       node.removeAttribute("contenteditable");
+    });
+    exportNode.querySelectorAll(".cv-section-handles").forEach((node) => {
+      node.remove();
+    });
+    exportNode.querySelectorAll(".cv-preview-placeholder").forEach((node) => {
+      node.classList.remove("cv-preview-placeholder");
     });
 
     const wrapper = document.createElement("div");
@@ -1492,13 +1994,116 @@
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => line.replace(/^[•\-*]\s*/, ""))
+      .map((line) => line.trim())
+      .filter(Boolean)
       .filter((line) => line !== "Add description points");
 
     if (lines.length === 0) {
       return "";
     }
 
-    return lines.map((line) => richTextToHtml(`• ${line}`)).join("<br>");
+    return lines.map((line) => richTextToHtml(`${CV_BULLET_PREFIX}${line}`)).join("<br>");
+  }
+
+  function normalizeDescriptionBulletSpacing(node) {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType !== Node.TEXT_NODE) {
+        return;
+      }
+
+      const fixed = child.textContent.replace(/•([^\s\n])/g, "• $1");
+      if (fixed !== child.textContent) {
+        child.textContent = fixed;
+      }
+    });
+  }
+
+  function getCaretLineContext(node, range) {
+    const preRange = document.createRange();
+    preRange.selectNodeContents(node);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const before = preRange.toString();
+    const lineStart = before.lastIndexOf("\n") + 1;
+
+    return {
+      before,
+      beforeOnLine: before.slice(lineStart),
+    };
+  }
+
+  function shouldCapitalizeEditableInput(node, range, key) {
+    if (key.length !== 1 || !/[a-z]/.test(key)) {
+      return false;
+    }
+
+    if (!range.collapsed) {
+      return true;
+    }
+
+    if (node.classList.contains("cv-preview-description")) {
+      if (!range.collapsed) {
+        return true;
+      }
+      return false;
+    }
+
+    return getCaretLineContext(node, range).before.length === 0;
+  }
+
+  function insertDescriptionBulletLine(node) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) {
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+
+    const br = document.createElement("br");
+    const bulletChar = document.createTextNode("•");
+    const spacer = document.createTextNode(" ");
+    const caretSeed = document.createTextNode("\u00A0");
+    const fragment = document.createDocumentFragment();
+    fragment.append(br, bulletChar, spacer, caretSeed);
+
+    range.insertNode(fragment);
+
+    const selectRange = document.createRange();
+    selectRange.selectNodeContents(caretSeed);
+    selection.removeAllRanges();
+    selection.addRange(selectRange);
+  }
+
+  function bindPlaceholderAutoCapitalize(node, onEdit) {
+    node.addEventListener("keydown", (event) => {
+      if (!node.classList.contains("is-editing")) {
+        return;
+      }
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        return;
+      }
+      if (event.key.length !== 1 || !/[a-z]/.test(event.key)) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection?.rangeCount) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      if (!shouldCapitalizeEditableInput(node, range, event.key)) {
+        return;
+      }
+
+      event.preventDefault();
+      document.execCommand("insertText", false, event.key.toUpperCase());
+      onEdit?.();
+    });
+  }
+
+  function escapeDataPlaceholder(value) {
+    return String(value || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;");
   }
 
   function bindDescriptionEnterHandler(node, onEdit) {
@@ -1508,7 +2113,7 @@
       }
 
       event.preventDefault();
-      document.execCommand("insertHTML", false, "<br>• ");
+      insertDescriptionBulletLine(node);
       onEdit?.();
     });
   }
@@ -1561,30 +2166,47 @@
   function bindEditableNodes() {
     cvPreview.querySelectorAll("[data-edit-key]").forEach((node) => {
       const persistEdit = (options = {}) => {
-        setEdit(node.dataset.editKey, getNodeEditContent(node), options);
+        const raw = getNodeEditContent(node);
+        const value = normalizeSavedEditValue(node, raw);
+        setEdit(node.dataset.editKey, value, options);
       };
 
       node.addEventListener("focus", () => {
         isEditingPreview = true;
         node.classList.add("is-editing");
+        node.classList.remove("cv-preview-placeholder");
       });
 
       node.addEventListener("blur", () => {
-        node.classList.remove("is-editing");
-        node.setAttribute("contenteditable", "false");
-        persistEdit({ flushSave: true });
-        isEditingPreview = false;
-        scheduleSmartLayoutDebounced();
+        if (cvItemEnterNavSource === node) {
+          cvItemEnterNavSource = null;
+          window.requestAnimationFrame(() => {
+            updateEditingPreviewFlag();
+          });
+          return;
+        }
+
+        finishFieldEdit(node);
+        window.requestAnimationFrame(() => {
+          updateEditingPreviewFlag();
+        });
       });
 
       node.addEventListener("input", () => persistEdit());
       bindRichTextShortcuts(node, () => persistEdit());
       bindCvPasteHandler(node, () => persistEdit());
+      bindPlaceholderAutoCapitalize(node, () => persistEdit());
 
       if (node.classList.contains("cv-preview-description")) {
         bindDescriptionEnterHandler(node, () => persistEdit());
       }
+
+      if (node.closest(".cv-preview-cv-item") && !node.classList.contains("cv-preview-description")) {
+        bindCvItemEnterNavigation(node);
+      }
     });
+
+    syncAllPlaceholderClasses();
   }
 
   function renderPersonalSection() {
@@ -1597,28 +2219,147 @@
 
     return `
       <header class="cv-preview-header">
-        <h1 class="cv-preview-name" contenteditable="false" data-edit-key="personal.name">${richTextToHtml(name)}</h1>
+        <h1 class="cv-preview-name" contenteditable="false" data-edit-key="personal.name" data-placeholder-text="Your Name">${richTextToHtml(name)}</h1>
         ${
           contactLine
-            ? `<p class="cv-preview-contact" contenteditable="false" data-edit-key="personal.contact">${richTextToHtml(
+            ? `<p class="cv-preview-contact" contenteditable="false" data-edit-key="personal.contact" data-placeholder-text="Phone | Email">${richTextToHtml(
                 getEdit("personal.contact", contactLine)
               )}</p>`
-            : `<p class="cv-preview-contact cv-preview-placeholder" contenteditable="false" data-edit-key="personal.contact">Phone | Email</p>`
+            : `<p class="cv-preview-contact" contenteditable="false" data-edit-key="personal.contact" data-placeholder-text="Phone | Email">Phone | Email</p>`
         }
       </header>
     `;
   }
 
-  function renderLayoutItem(item) {
+  function renderCvItemSection(item, { publish = false } = {}) {
+    const isDraft = !cvItemHasUserContent(item);
+    if (publish && isDraft) {
+      return "";
+    }
+
+    const filled = {};
+    CV_ITEM_FIELD_KEYS.forEach((field) => {
+      filled[field] = isCvItemFieldFilled(getCvItemFieldContent(item, field), field);
+    });
+
+    const shouldShow = (field) => (publish ? filled[field] : true);
+
+    const hiddenFieldClass = (field) => {
+      if (publish || filled[field] || isDraft) {
+        return "";
+      }
+      return " cv-cv-item-field-hidden";
+    };
+
+    const placeholderClass = (field) =>
+      !publish && !filled[field] ? " cv-preview-placeholder" : "";
+
+    const fieldText = (field) =>
+      filled[field] ? getCvItemFieldContent(item, field) : CV_ITEM_PLACEHOLDERS[field];
+
+    let titleHtml = "";
+    if (shouldShow("title")) {
+      titleHtml = `
+        <h3
+          class="cv-preview-entry-title cv-preview-cv-item-title${placeholderClass("title")}${hiddenFieldClass("title")}"
+          contenteditable="false"
+          data-edit-key="items.${item.id}.title"
+          data-placeholder-text="Title"
+        >${richTextToHtml(fieldText("title"))}</h3>
+      `;
+    }
+
+    let subrowHtml = "";
+    if (shouldShow("subtitle") || shouldShow("date")) {
+      subrowHtml = `
+        <div class="cv-preview-cv-item-subrow">
+          ${
+            shouldShow("subtitle")
+              ? `<span
+            class="cv-preview-cv-item-subtitle${placeholderClass("subtitle")}${hiddenFieldClass("subtitle")}"
+            contenteditable="false"
+            data-edit-key="items.${item.id}.subtitle"
+            data-placeholder-text="Subtitle"
+          >${richTextToHtml(fieldText("subtitle"))}</span>`
+              : ""
+          }
+          ${
+            shouldShow("date")
+              ? `<span
+            class="cv-preview-entry-date cv-preview-cv-item-date${placeholderClass("date")}${hiddenFieldClass("date")}"
+            contenteditable="false"
+            data-edit-key="items.${item.id}.date"
+            data-placeholder-text="DATE"
+          >${richTextToHtml(fieldText("date"))}</span>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    let locationHtml = "";
+    if (shouldShow("location")) {
+      locationHtml = `
+        <p
+          class="cv-preview-cv-item-location${placeholderClass("location")}${hiddenFieldClass("location")}"
+          contenteditable="false"
+          data-edit-key="items.${item.id}.location"
+          data-placeholder-text="Location"
+        >${richTextToHtml(fieldText("location"))}</p>
+      `;
+    }
+
+    let bulletsHtml = "";
+    if (shouldShow("description")) {
+      const bulletContent = filled.description
+        ? getCvItemFieldContent(item, "description")
+        : CV_ITEM_PLACEHOLDERS.description;
+      const bulletMarkup = descriptionToEditableHtml(bulletContent);
+      if (bulletMarkup || !publish) {
+        bulletsHtml = `
+          <div
+            class="cv-preview-entry-body cv-preview-description cv-preview-cv-item-bullets${placeholderClass("description")}${hiddenFieldClass("description")}"
+            contenteditable="false"
+            data-edit-key="items.${item.id}.description"
+            data-placeholder-text="${escapeDataPlaceholder(CV_ITEM_PLACEHOLDERS.description)}"
+          >${bulletMarkup || descriptionToEditableHtml(CV_ITEM_PLACEHOLDERS.description)}</div>
+        `;
+      }
+    }
+
+    if (publish && !titleHtml && !subrowHtml && !locationHtml && !bulletsHtml) {
+      return "";
+    }
+
+    return `
+      <section class="cv-preview-entry cv-preview-cv-item" data-item-id="${item.id}">
+        ${titleHtml}
+        ${subrowHtml}
+        ${locationHtml}
+        ${bulletsHtml}
+      </section>
+    `;
+  }
+
+  function renderLayoutItem(item, options = {}) {
     let inner = "";
+    let wrapExtraClass = "";
 
     if (item.type === "heading") {
       const title = getEdit(`items.${item.id}.title`, item.title || "Section Title");
       inner = `
-        <h2 class="cv-preview-section-heading" contenteditable="false" data-edit-key="items.${item.id}.title" data-item-id="${item.id}">
+        <h2 class="cv-preview-section-heading" contenteditable="false" data-edit-key="items.${item.id}.title" data-item-id="${item.id}" data-placeholder-text="Section Title">
           ${richTextToHtml(title)}
         </h2>
       `;
+    } else if (item.type === "cv-item") {
+      inner = renderCvItemSection(item, options);
+      if (!inner) {
+        return "";
+      }
+      if (!options.publish && cvItemHasUserContent(item)) {
+        wrapExtraClass = " is-cv-item-collapsed";
+      }
     } else {
       const achievement = getAchievement(item.achievementId);
       const title = getEdit(
@@ -1639,8 +2380,8 @@
       inner = `
         <section class="cv-preview-entry" data-item-id="${item.id}">
           <div class="cv-preview-entry-header">
-            <h3 class="cv-preview-entry-title" contenteditable="false" data-edit-key="items.${item.id}.title">${richTextToHtml(title)}</h3>
-            <span class="cv-preview-entry-date" contenteditable="false" data-edit-key="items.${item.id}.date">${richTextToHtml(date || "Date")}</span>
+            <h3 class="cv-preview-entry-title" contenteditable="false" data-edit-key="items.${item.id}.title" data-placeholder-text="Untitled achievement">${richTextToHtml(title)}</h3>
+            <span class="cv-preview-entry-date" contenteditable="false" data-edit-key="items.${item.id}.date" data-placeholder-text="Date">${richTextToHtml(date || "Date")}</span>
           </div>
           ${descriptionMarkup}
         </section>
@@ -1648,7 +2389,7 @@
     }
 
     return `
-      <div class="cv-section-wrap" data-layout-item-id="${item.id}">
+      <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
         <div class="cv-section-handles">
           <button type="button" class="btn-icon cv-section-handle" draggable="true" aria-label="Drag to reorder section">⠿</button>
           <button type="button" class="btn-icon cv-section-remove" aria-label="Remove section from CV">×</button>
@@ -1676,7 +2417,7 @@
     const bodyContent =
       state.cvLayout.length === 0
         ? renderDocumentEmptyState()
-        : state.cvLayout.map((item) => renderLayoutItem(item)).join("");
+        : state.cvLayout.map((item) => renderLayoutItem(item, options)).join("");
 
     cvPreview.innerHTML = `
       <div class="cv-preview-layout">
@@ -1822,10 +2563,7 @@
         return;
       }
 
-      const authed = await window.AchieveMateAuth?.requireAuth({ reason: "export" });
-      if (authed) {
-        openExportModal();
-      }
+      openExportModal();
     });
 
     exportModalCancel?.addEventListener("click", () => {
@@ -1943,20 +2681,12 @@
 
     saveState();
     renderExportHistory();
-
-    window.AchieveMateSync?.insertExportHistory(fileName, snapshot)?.then((serverId) => {
-      if (serverId && entry.id !== serverId) {
-        entry.id = serverId;
-        saveState({ skipSync: true });
-      }
-    });
   }
 
   function deleteExportHistoryEntry(entryId) {
     state.exportHistory = state.exportHistory.filter((item) => item.id !== entryId);
     saveState();
     renderExportHistory();
-    window.AchieveMateSync?.deleteExportHistory(entryId);
   }
 
   function restoreExportSnapshot(entry) {
@@ -2080,6 +2810,7 @@
     setExportModalBusy(true);
 
     captureEditsFromDom();
+    renderPreview({ publish: true });
     if (getLayoutStyles().autoFit === true) {
       applySmartLayout();
     } else {
@@ -2088,6 +2819,7 @@
     await waitForLayout();
 
     const { exportNode, wrapper } = createExportNode();
+    renderPreview();
     await waitForLayout();
 
     const snapshot = buildHistorySnapshot();

@@ -955,48 +955,190 @@ body.sidebar-open .app-sidebar {
   position: absolute;
   inset: 0;
   z-index: 1;
+  display: grid;
+  border-radius: 20px;
+  overflow: visible;
+  transform-style: preserve-3d;
+  transition: transform 180ms ease-in-out;
+  pointer-events: none;
+}
+
+.cover-card-tilt-face.border-glow-card {
+  --edge-proximity: 56;
+  --cursor-angle: 0deg;
+  --cursor-angle-opposite: 180deg;
+  --edge-sensitivity: 34;
+  --color-sensitivity: calc(var(--edge-sensitivity) + 16);
+  --border-radius: 20px;
+  --glow-padding: 32px;
+  --cone-spread: 30;
+  --fill-opacity: 0.46;
+  --glow-strength: 1.02;
+  --card-bg: #172336;
+  --glow-color: hsl(42deg 88% 74%);
+  --glow-color-60: hsl(42deg 88% 74% / 54%);
+  --glow-color-50: hsl(42deg 88% 74% / 46%);
+  --glow-color-40: hsl(42deg 88% 74% / 38%);
+  --glow-color-30: hsl(42deg 88% 74% / 30%);
+  --glow-color-20: hsl(42deg 88% 74% / 22%);
+  --glow-color-10: hsl(42deg 88% 74% / 14%);
+
+  isolation: isolate;
+  transform: translate3d(0, 0, 0.01px);
+  border: 1px solid rgb(255 255 255 / 12%);
+  background: transparent;
+  box-shadow: none;
+}
+
+.cover-card-tilt-face.border-glow-card::before,
+.cover-card-tilt-face.border-glow-card::after,
+.cover-card-tilt-face.border-glow-card > .edge-light {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transition: opacity 0.25s ease-out;
+  pointer-events: none;
+}
+
+.cover-card-tilt-face.border-glow-card::before,
+.cover-card-tilt-face.border-glow-card::after {
+  z-index: 0;
+}
+
+.cover-card-tilt-face.border-glow-card::before {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--card-bg) 0 100%) padding-box,
+    linear-gradient(rgb(255 255 255 / 0%) 0% 100%) border-box,
+    radial-gradient(at 80% 55%, hsla(268, 100%, 76%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 69% 34%, hsla(349, 100%, 74%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 8% 6%, hsla(136, 100%, 78%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 41% 38%, hsla(192, 100%, 64%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 86% 85%, hsla(186, 100%, 74%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 82% 18%, hsla(52, 100%, 65%, 1) 0px, transparent 50%) border-box,
+    radial-gradient(at 51% 4%, hsla(12, 100%, 72%, 1) 0px, transparent 50%) border-box,
+    linear-gradient(#c299ff 0 100%) border-box;
+  opacity: min(1, calc(var(--glow-strength) * (var(--edge-proximity) - var(--color-sensitivity)) / (100 - var(--color-sensitivity))));
+  mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black calc(var(--cone-spread) * 1%),
+      transparent calc((var(--cone-spread) + 15) * 1%),
+      transparent calc((100 - var(--cone-spread) - 15) * 1%),
+      black calc((100 - var(--cone-spread)) * 1%)
+    ),
+    conic-gradient(
+      from var(--cursor-angle-opposite) at center,
+      black calc(var(--cone-spread) * 1%),
+      transparent calc((var(--cone-spread) + 15) * 1%),
+      transparent calc((100 - var(--cone-spread) - 15) * 1%),
+      black calc((100 - var(--cone-spread)) * 1%)
+    );
+  mask-composite: add;
+}
+
+.cover-card-tilt-face.border-glow-card::after {
+  border: 1px solid transparent;
+  background:
+    radial-gradient(at 80% 55%, hsla(268, 100%, 76%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 69% 34%, hsla(349, 100%, 74%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 8% 6%, hsla(136, 100%, 78%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 41% 38%, hsla(192, 100%, 64%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 86% 85%, hsla(186, 100%, 74%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 82% 18%, hsla(52, 100%, 65%, 1) 0px, transparent 50%) padding-box,
+    radial-gradient(at 51% 4%, hsla(12, 100%, 72%, 1) 0px, transparent 50%) padding-box,
+    linear-gradient(#c299ff 0 100%) padding-box;
+  mask-image:
+    linear-gradient(to bottom, black, black),
+    radial-gradient(ellipse at 50% 50%, black 40%, transparent 65%),
+    radial-gradient(ellipse at 66% 66%, black 5%, transparent 40%),
+    radial-gradient(ellipse at 33% 33%, black 5%, transparent 40%),
+    radial-gradient(ellipse at 66% 33%, black 5%, transparent 40%),
+    radial-gradient(ellipse at 33% 66%, black 5%, transparent 40%),
+    conic-gradient(from var(--cursor-angle) at center, transparent 5%, black 15%, black 85%, transparent 95%),
+    conic-gradient(from var(--cursor-angle-opposite) at center, transparent 5%, black 15%, black 85%, transparent 95%);
+  mask-composite: subtract, add, add, add, add, add, add;
+  opacity: min(1, calc(var(--glow-strength) * var(--fill-opacity) * (var(--edge-proximity) - var(--color-sensitivity)) / (100 - var(--color-sensitivity))));
+  mix-blend-mode: soft-light;
+}
+
+.cover-card-tilt-face.border-glow-card > .edge-light {
+  inset: calc(var(--glow-padding) * -1);
+  z-index: 2;
+  mask-image:
+    conic-gradient(
+      from var(--cursor-angle) at center,
+      black 2.5%,
+      transparent 10%,
+      transparent 90%,
+      black 97.5%
+    ),
+    conic-gradient(
+      from var(--cursor-angle-opposite) at center,
+      black 2.5%,
+      transparent 10%,
+      transparent 90%,
+      black 97.5%
+    );
+  mask-composite: add;
+  opacity: min(1, calc(var(--glow-strength) * (var(--edge-proximity) - var(--edge-sensitivity)) / (100 - var(--edge-sensitivity))));
+  mix-blend-mode: plus-lighter;
+}
+
+.cover-card-tilt-face.border-glow-card > .edge-light::before {
+  content: "";
+  position: absolute;
+  inset: var(--glow-padding);
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px var(--glow-color),
+    inset 0 0 1px 0 var(--glow-color-60),
+    inset 0 0 3px 0 var(--glow-color-50),
+    inset 0 0 6px 0 var(--glow-color-40),
+    inset 0 0 15px 0 var(--glow-color-30),
+    inset 0 0 25px 2px var(--glow-color-20),
+    inset 0 0 50px 2px var(--glow-color-10),
+    0 0 1px 0 var(--glow-color-60),
+    0 0 3px 0 var(--glow-color-50),
+    0 0 6px 0 var(--glow-color-40),
+    0 0 15px 0 var(--glow-color-30),
+    0 0 25px 2px var(--glow-color-20),
+    0 0 50px 2px var(--glow-color-10);
+}
+
+.cover-card-tilt-face.border-glow-card > .border-glow-inner {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
+  min-height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
   border: 1px solid rgba(32, 38, 68, 0.88);
-  border-radius: 20px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, transparent 28%),
-    linear-gradient(168deg, #121828 0%, #0A101C 55%, #080A14 100%);
+    linear-gradient(168deg, #121828 0%, #0a101c 55%, #080a14 100%);
   box-shadow:
     0 26px 52px rgba(0, 0, 0, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.03),
     var(--cover-card-vignette);
-  overflow: hidden;
-  transform-style: preserve-3d;
-  transition:
-    transform 180ms ease-in-out,
-    box-shadow 180ms ease-in-out;
-  pointer-events: none;
+  transition: box-shadow 180ms ease-in-out;
 }
 
-.cover-card-tilt-face .cover-card-inner,
-.cover-card-tilt-face .cover-card-proof {
-  pointer-events: auto;
-}
-
-.cover-card-tilt-face::before {
+.cover-card-tilt-face.border-glow-card > .border-glow-inner::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1.5px;
-  background:
-    linear-gradient(100deg, transparent 34%, rgba(255, 228, 165, 0.95) 50%, transparent 66%),
-    linear-gradient(
-      180deg,
-      rgba(244, 205, 128, 0.95) 0%,
-      rgba(232, 180, 90, 0.4) 20%,
-      rgba(232, 180, 90, 0.14) 58%,
-      rgba(232, 180, 90, 0.38) 100%
-    );
-  background-size: 300% 100%, 100% 100%;
-  background-position: -120% 0, 0 0;
-  animation: coverFlowGold 4.5s ease-in-out infinite;
+  background: linear-gradient(
+    180deg,
+    rgba(244, 205, 128, 0.95) 0%,
+    rgba(232, 180, 90, 0.42) 20%,
+    rgba(232, 180, 90, 0.16) 58%,
+    rgba(232, 180, 90, 0.4) 100%
+  );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);
@@ -1006,14 +1148,15 @@ body.sidebar-open .app-sidebar {
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  z-index: 3;
+  z-index: 4;
 }
 
-.cover-card-tilt-face::after {
+.cover-card-tilt-face.border-glow-card > .border-glow-inner::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
+  pointer-events: none;
   background:
     radial-gradient(
       ellipse 125% 115% at 50% 50%,
@@ -1027,9 +1170,12 @@ body.sidebar-open .app-sidebar {
       rgba(232, 180, 90, 0.1) 40%,
       transparent 72%
     );
-  pointer-events: none;
-  animation: coverFlowGlow 4.5s ease-in-out infinite;
   z-index: 0;
+}
+
+.cover-card-tilt-face .border-glow-inner .cover-card-inner,
+.cover-card-tilt-face .border-glow-inner .cover-card-proof {
+  pointer-events: auto;
 }
 
 .tr-1 { grid-area: tr-1; }
@@ -1115,27 +1261,6 @@ body.sidebar-open .app-sidebar {
   display: none;
 }
 
-@keyframes coverFlowGold {
-  0%,
-  35% {
-    background-position: -120% 0, 0 0;
-  }
-  70%,
-  100% {
-    background-position: 220% 0, 0 0;
-  }
-}
-
-@keyframes coverFlowGlow {
-  0%,
-  100% {
-    opacity: 0.65;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
 .cover-card[data-offset="-2"] {
   transform: translate3d(calc(-50% - var(--cover-card-w) * 1.02), 0, -150px) rotateY(30deg) scale(0.8);
   opacity: 0.42;
@@ -1154,7 +1279,7 @@ body.sidebar-open .app-sidebar {
   z-index: 10;
 }
 
-.cover-card.is-front[data-offset="0"] .cover-card-tilt-face {
+.cover-card.is-front[data-offset="0"] .cover-card-tilt-face.border-glow-card > .border-glow-inner {
   border-color: rgba(232, 180, 90, 0.36);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.028) 0%, transparent 30%),
@@ -1167,7 +1292,7 @@ body.sidebar-open .app-sidebar {
     var(--cover-card-vignette);
 }
 
-.cover-card.is-front[data-offset="0"] .cover-card-tilt-face::after {
+.cover-card.is-front[data-offset="0"] .cover-card-tilt-face.border-glow-card > .border-glow-inner::after {
   background:
     radial-gradient(
       ellipse 125% 115% at 50% 50%,
@@ -1592,14 +1717,10 @@ body.sidebar-open .app-sidebar {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cover-card-tilt-face::before,
-  .cover-card-tilt-face::after {
-    animation: none;
-  }
-
-  .cover-card.is-front::before,
-  .cover-card.is-front::after {
-    animation: none;
+  .cover-card-tilt-face.border-glow-card::before,
+  .cover-card-tilt-face.border-glow-card::after,
+  .cover-card-tilt-face.border-glow-card > .edge-light {
+    transition: none;
   }
 
   .tr-1:hover ~ .cover-card-tilt-face,
@@ -1646,6 +1767,11 @@ body.sidebar-open .app-sidebar {
   margin-top: 40px;
   padding-top: 32px;
   border-top: 1px solid var(--border-subtle);
+  overflow-anchor: none;
+}
+
+.entries-list-all-body {
+  min-height: 480px;
 }
 
 .entries-list-all-heading {
@@ -2334,10 +2460,47 @@ body.sidebar-open .app-sidebar {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  max-width: 280px;
+  max-width: 360px;
   margin: 24px auto 0;
   text-align: center;
   animation: emptyStateIn var(--dur-base) var(--ease-out);
+}
+
+.empty-state-personal-tip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 16px 18px;
+  border: 1px solid rgba(232, 180, 90, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(232, 180, 90, 0.06);
+  text-align: center;
+}
+
+.empty-state-personal-tip-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.empty-state-personal-tip-body {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.empty-state-personal-cta {
+  margin-top: 4px;
+  padding-inline: 12px;
 }
 
 @keyframes emptyStateIn {
@@ -2840,6 +3003,12 @@ body.layout-drawer-collapsed .studio-cockpit,
   gap: 12px;
 }
 
+.cv-palette-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .studio-rail-section-head {
   display: flex;
   align-items: baseline;
@@ -2871,6 +3040,11 @@ body.layout-drawer-collapsed .studio-cockpit,
 
 .rail-block-heading {
   border: 1px dashed var(--border-strong);
+  cursor: pointer;
+}
+
+.rail-block-heading:active {
+  cursor: grabbing;
 }
 
 .rail-block-achievement {
@@ -3495,6 +3669,26 @@ body.layout-drawer-collapsed .studio-cockpit,
 
 .cv-section-wrap.is-drag-armed {
   cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.cv-section-wrap.is-drag-armed * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.cv-pointer-drag-active,
+body.cv-pointer-drag-active .cv-preview-document,
+body.cv-pointer-drag-active .cv-preview-document * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-editing,
+body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-editing * {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .cv-section-wrap.is-dragging {
@@ -4148,11 +4342,57 @@ body.is-cv-dragging .cv-preview-document {
   margin: 0;
 }
 
-.cv-preview-entry-header {
+.cv-preview-entry-header,
+.cv-preview-cv-item-subrow {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;
+}
+
+.cv-preview-cv-item-title {
+  width: 100%;
+}
+
+.cv-preview-cv-item-subrow {
+  margin-top: calc(var(--cv-section-margin) * 0.12);
+}
+
+.cv-preview-cv-item-subtitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--cv-header-font);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--cv-accent-color);
+}
+
+.cv-preview-cv-item-location {
+  margin: calc(var(--cv-section-margin) * 0.22) 0 0;
+  font-size: var(--cv-body-font);
+  line-height: var(--cv-line-height);
+  color: var(--cv-text-color);
+}
+
+.cv-preview-cv-item-bullets {
+  margin-top: calc(var(--cv-section-margin) * 0.45);
+}
+
+.cv-section-wrap.is-cv-item-collapsed:not(:hover):not(:focus-within) .cv-cv-item-field-hidden {
+  display: none !important;
+}
+
+.cv-section-wrap.is-cv-item-collapsed:not(:hover):not(:focus-within)
+  .cv-preview-cv-item-subrow:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))) {
+  display: none;
+}
+
+.cv-preview-cv-item-subrow:has(> :only-child) {
+  justify-content: flex-start;
+}
+
+.cv-preview-cv-item-subrow:has(> .cv-preview-cv-item-date:only-child) {
+  justify-content: flex-end;
 }
 
 .cv-preview-entry-title {
@@ -4222,8 +4462,23 @@ body.is-cv-dragging .cv-preview-document {
 }
 
 .cv-preview-placeholder {
-  color: #777777;
+  color: #8a8a8a;
+  opacity: 0.92;
+}
+
+.cv-preview-placeholder:not(.cv-preview-entry-date):not(.cv-preview-contact) {
+  font-style: normal;
+}
+
+.cv-preview-entry-date.cv-preview-placeholder,
+.cv-preview-contact.cv-preview-placeholder {
   font-style: italic;
+}
+
+.cv-preview-document [contenteditable="true"].is-editing {
+  color: var(--cv-text-color, #000);
+  opacity: 1;
+  font-style: normal;
 }
 
 .export-history-panel {

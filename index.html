@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=81" />
+  <link rel="stylesheet" href="styles.css?v=93" />
 </head>
 <body>
   <header class="topbar">
@@ -61,14 +61,6 @@
     </nav>
 
     <div class="topbar-right">
-      <button
-        type="button"
-        class="btn btn-ghost topbar-logout-btn"
-        id="topbarSignOutBtn"
-        hidden
-      >
-        Log out
-      </button>
       <div class="saved-indicator" id="savedIndicator" aria-live="polite">
         <span class="saved-indicator-dot" id="savedIndicatorDot" aria-hidden="true"></span>
         <span class="saved-indicator-text" id="savedIndicatorText">Saved</span>
@@ -120,26 +112,6 @@
                 <input type="email" name="email" autocomplete="email" placeholder="you@example.com" />
               </label>
             </form>
-          </div>
-        </section>
-
-        <section class="sidebar-panel">
-          <div class="sidebar-panel-static-head">
-            <span class="sidebar-panel-icon" aria-hidden="true">☁</span>
-            <span class="sidebar-panel-label">Account</span>
-          </div>
-          <div class="sidebar-panel-body sidebar-panel-body-flush">
-            <p class="caption sidebar-account-status" id="sidebarAccountStatus">Not signed in · saved locally</p>
-            <div class="sidebar-account-actions" id="sidebarAccount">
-              <button type="button" class="btn btn-ghost sidebar-account-btn" id="saveAccountBtn">
-                <span class="sidebar-account-icon" aria-hidden="true">☁</span>
-                <span class="sidebar-account-label">Save to account</span>
-              </button>
-              <button type="button" class="btn btn-ghost sidebar-account-btn" id="signOutBtn" hidden>
-                <span class="sidebar-account-icon" aria-hidden="true">⎋</span>
-                <span class="sidebar-account-label">Log out</span>
-              </button>
-            </div>
           </div>
         </section>
 
@@ -202,6 +174,15 @@
             >
               <span class="rail-block-icon" aria-hidden="true">¶</span>
               <span class="rail-block-label">Section heading</span>
+            </div>
+            <div
+              class="rail-block rail-block-heading cv-draggable"
+              draggable="true"
+              data-block-type="cv-item"
+              data-source="palette"
+            >
+              <span class="rail-block-icon" aria-hidden="true">▸</span>
+              <span class="rail-block-label">CV item</span>
             </div>
           </div>
         </div>
@@ -470,17 +451,12 @@
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-  <script src="supabase-config.js"></script>
-  <script type="module" src="supabase-client.js"></script>
-  <script type="module" src="guest-migration.js"></script>
-  <script type="module" src="auth.js"></script>
-  <script type="module" src="sync.js"></script>
-  <script src="app.js?v=34"></script>
-  <script src="drag-preview.js?v=4"></script>
-  <script src="cv-builder.js?v=11"></script>
-  <script src="cv-preview.js?v=30"></script>
+  <script src="app.js?v=45"></script>
+  <script src="drag-preview.js?v=5"></script>
+  <script src="cv-builder.js?v=13"></script>
+  <script src="cv-preview.js?v=45"></script>
   <script src="cv-layout-panel.js?v=8"></script>
-  <script src="sidebar.js?v=2"></script>
+  <script src="sidebar.js?v=3"></script>
   <script src="workspace-tabs.js?v=7"></script>
 </body>
 </html>

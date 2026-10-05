@@ -1,6 +1,14 @@
 const STORAGE_KEY = "achievemate-data";
-const GUEST_STORAGE_KEY = "achievemate_guest_data";
 const CV_SETTINGS_STORAGE_KEY = "achievemate_cv_settings";
+const MAX_PROOF_SIZE = 5242880;
+const PROOF_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
 const CUSTOM_DEFAULTS_STORAGE_KEY = "achievemate_custom_defaults";
 
 const CUSTOM_DEFAULT_FIELDS = [
@@ -117,32 +125,10 @@ function loadCvSettings(legacySettings) {
   state.cvSettings = { ...DEFAULT_CV_SETTINGS };
 }
 
-function persistGuestSnapshot() {
-  if (window.AchieveMateAuth?.isSignedIn?.()) {
-    return;
-  }
-
-  const guestPayload = {
-    personalInfo: state.personalInfo,
-    achievements: state.achievements,
-    cvLayout: state.cvLayout,
-    cvPreviewEdits: state.cvPreviewEdits,
-    cvSettings: state.cvSettings,
-    exportHistory: state.exportHistory,
-  };
-
-  localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify(guestPayload));
-}
-
 function saveCvSettings() {
   window.AchieveMateSaveStatus?.markPending();
   localStorage.setItem(CV_SETTINGS_STORAGE_KEY, JSON.stringify(state.cvSettings));
-  persistGuestSnapshot();
-  if (window.AchieveMateSync?.queuePush) {
-    window.AchieveMateSync.queuePush();
-  } else {
-    window.AchieveMateSaveStatus?.markComplete();
-  }
+  window.AchieveMateSaveStatus?.markComplete();
 }
 
 function getCustomDefaults() {
@@ -221,15 +207,10 @@ function loadState() {
   loadCvSettings(legacyCvSettings);
 }
 
-function saveState(options = {}) {
+function saveState() {
   window.AchieveMateSaveStatus?.markPending();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  persistGuestSnapshot();
-  if (!options.skipSync && window.AchieveMateSync?.queuePush) {
-    window.AchieveMateSync.queuePush();
-  } else {
-    window.AchieveMateSaveStatus?.markComplete();
-  }
+  window.AchieveMateSaveStatus?.markComplete();
 }
 
 function stripBulletGlyphs(value) {
@@ -428,6 +409,19 @@ function readFileAsDataUrl(file) {
   });
 }
 
+function validateProofFile(file) {
+  if (!file) {
+    return false;
+  }
+
+  if (file.size > MAX_PROOF_SIZE || !PROOF_MIME_TYPES.has(file.type)) {
+    showToast("Proof must be a PDF, image, or Word file under 5 MB", { tone: "danger" });
+    return false;
+  }
+
+  return true;
+}
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -474,6 +468,18 @@ function updateSidebarIdentitySummary() {
   }
 
   summaryEl.textContent = nameText || emailText || phoneText;
+}
+
+function isPersonalInfoIncomplete() {
+  const { name, email, phone } = state.personalInfo;
+  return !name?.trim() || !email?.trim() || !phone?.trim();
+}
+
+function openPersonalInfoPanel() {
+  window.AchieveMateSidebar?.expand({ focusPanel: "personal" });
+  window.requestAnimationFrame(() => {
+    personalForm?.elements.name?.focus();
+  });
 }
 
 function isAchievementDescriptionVisible(achievement) {
@@ -724,8 +730,6 @@ function saveEditing() {
     return;
   }
 
-  const oldProofPath = achievement.proofPath || "";
-
   achievement.title = editingDraft.title.trim();
   achievement.date = editingDraft.date.trim();
   achievement.category = normalizeAchievementCategory(editingDraft.category);
@@ -736,10 +740,6 @@ function saveEditing() {
   achievement.fileData = editingDraft.fileData || "";
   achievement.proofPath = editingDraft.proofPath || "";
   achievement.showDescription = getDescriptionLines(achievement.description).length > 0;
-
-  if (oldProofPath && !achievement.proofPath && window.AchieveMateSupabase) {
-    window.AchieveMateSupabase.storage.from("proofs").remove([oldProofPath]);
-  }
 
   editingAchievementId = null;
   editingDraft = null;
@@ -766,7 +766,19 @@ function renderLogbookSkeleton() {
 function renderEmptyState() {
   const empty = document.createElement("div");
   empty.className = "empty-state";
+
+  const personalTip = isPersonalInfoIncomplete()
+    ? `
+    <div class="empty-state-personal-tip">
+      <p class="empty-state-personal-tip-title">First, add your CV header</p>
+      <p class="empty-state-personal-tip-body">Open the menu and enter your name, phone, and email. They appear at the top of your CV in Studio.</p>
+      <button type="button" class="btn btn-ghost empty-state-personal-cta">Add personal info</button>
+    </div>
+  `
+    : "";
+
   empty.innerHTML = `
+    ${personalTip}
     <div class="empty-state-glyph" aria-hidden="true">◈</div>
     <h3 class="empty-state-headline">Your logbook is empty</h3>
     <p class="empty-state-body">Every achievement you log becomes a building block for your CV.</p>
@@ -774,7 +786,9 @@ function renderEmptyState() {
       + Add achievement
     </button>
   `;
-  empty.querySelector(".empty-state-cta").addEventListener("click", addAchievement);
+
+  empty.querySelector(".empty-state-cta")?.addEventListener("click", addAchievement);
+  empty.querySelector(".empty-state-personal-cta")?.addEventListener("click", openPersonalInfoPanel);
   achievementsList.appendChild(empty);
 }
 
@@ -789,10 +803,6 @@ function createProofChip(achievement) {
   chip.textContent = `📎 ${achievement.fileName}`;
   chip.addEventListener("click", (event) => {
     event.stopPropagation();
-    if (window.AchieveMateSync?.openProof) {
-      window.AchieveMateSync.openProof(achievement);
-      return;
-    }
     if (achievement.fileData) {
       window.open(achievement.fileData, "_blank", "noopener,noreferrer");
     }
@@ -991,12 +1001,145 @@ function createCardTiltShell(innerHtml) {
   }
 
   const face = document.createElement("div");
-  face.className = "cover-card-tilt-face";
-  face.innerHTML = innerHtml;
-  canvas.appendChild(face);
+  face.className = "cover-card-tilt-face border-glow-card";
 
+  const edgeLight = document.createElement("div");
+  edgeLight.className = "edge-light";
+  edgeLight.setAttribute("aria-hidden", "true");
+
+  const inner = document.createElement("div");
+  inner.className = "border-glow-inner";
+  inner.innerHTML = innerHtml;
+
+  face.append(edgeLight, inner);
+  canvas.appendChild(face);
   tilt.appendChild(canvas);
-  return { tilt, face };
+
+  return { tilt, face, inner };
+}
+
+const COVER_CARD_GLOW_REST_PROXIMITY = 56;
+const COVER_CARD_GLOW_DRIFT_MS = 1400;
+const COVER_CARD_GLOW_REST_ANGLES = [0, 180];
+
+function nearestCoverCardRestAngle(angle) {
+  const normalized = ((angle % 360) + 360) % 360;
+  let nearest = COVER_CARD_GLOW_REST_ANGLES[0];
+  let nearestDistance = Infinity;
+
+  COVER_CARD_GLOW_REST_ANGLES.forEach((restAngle) => {
+    const delta = ((((restAngle - normalized) % 360) + 540) % 360) - 180;
+    const distance = Math.abs(delta);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = restAngle;
+    }
+  });
+
+  return nearest;
+}
+
+function getCoverCardRestGlowState({ proximity, angle, opposite }) {
+  return {
+    proximity: COVER_CARD_GLOW_REST_PROXIMITY,
+    angle: nearestCoverCardRestAngle(angle),
+    opposite: nearestCoverCardRestAngle(opposite),
+  };
+}
+
+function bindCoverCardBorderGlow(card, glowEl) {
+  let driftFrame = null;
+
+  function parseAngle(value, fallback) {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  function readGlowState() {
+    const style = getComputedStyle(glowEl);
+    return {
+      proximity:
+        Number.parseFloat(style.getPropertyValue("--edge-proximity")) || COVER_CARD_GLOW_REST_PROXIMITY,
+      angle: parseAngle(style.getPropertyValue("--cursor-angle"), 0),
+      opposite: parseAngle(style.getPropertyValue("--cursor-angle-opposite"), 180),
+    };
+  }
+
+  function applyGlowState({ proximity, angle, opposite }) {
+    glowEl.style.setProperty("--edge-proximity", String(proximity));
+    glowEl.style.setProperty("--cursor-angle", `${angle}deg`);
+    glowEl.style.setProperty("--cursor-angle-opposite", `${opposite}deg`);
+  }
+
+  function lerpAngle(from, to, amount) {
+    const delta = ((((to - from) % 360) + 540) % 360) - 180;
+    return from + delta * amount;
+  }
+
+  function cancelGlowDrift() {
+    if (driftFrame) {
+      cancelAnimationFrame(driftFrame);
+      driftFrame = null;
+    }
+  }
+
+  function driftGlowToRest() {
+    cancelGlowDrift();
+
+    const start = readGlowState();
+    const target = getCoverCardRestGlowState(start);
+
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      applyGlowState(target);
+      return;
+    }
+
+    const startTime = performance.now();
+
+    const step = (now) => {
+      const progress = Math.min(1, (now - startTime) / COVER_CARD_GLOW_DRIFT_MS);
+      const ease = 1 - (1 - progress) ** 3;
+
+      applyGlowState({
+        proximity: start.proximity + (target.proximity - start.proximity) * ease,
+        angle: lerpAngle(start.angle, target.angle, ease),
+        opposite: lerpAngle(start.opposite, target.opposite, ease),
+      });
+
+      if (progress < 1) {
+        driftFrame = requestAnimationFrame(step);
+      } else {
+        driftFrame = null;
+      }
+    };
+
+    driftFrame = requestAnimationFrame(step);
+  }
+
+  const updateGlow = (event) => {
+    cancelGlowDrift();
+
+    const rect = glowEl.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const distEdge = Math.min(x, y, rect.width - x, rect.height - y);
+    const influence = Math.min(rect.width, rect.height) * 0.38;
+    const rawProximity = ((influence - distEdge) / influence) * 100;
+    const proximity = Math.max(0, Math.min(100, rawProximity * 0.82));
+    const angle =
+      (Math.atan2(y - rect.height / 2, x - rect.width / 2) * 180) / Math.PI + 90;
+
+    applyGlowState({ proximity, angle, opposite: angle + 180 });
+  };
+
+  card.addEventListener("mousemove", updateGlow);
+  card.addEventListener("mouseleave", driftGlowToRest);
+  applyGlowState({ proximity: COVER_CARD_GLOW_REST_PROXIMITY, angle: 0, opposite: 180 });
 }
 
 function createDeckCard(achievement, offset, isFront) {
@@ -1021,6 +1164,7 @@ function createDeckCard(achievement, offset, isFront) {
   if (isFront) {
     const { tilt, face } = createCardTiltShell(getCoverFlowCardMarkup(achievement));
     card.appendChild(tilt);
+    bindCoverCardBorderGlow(card, face);
 
     const actions = face.querySelector(".cover-card-actions");
     if (actions) {
@@ -1512,33 +1656,8 @@ function createEditEntry(achievement) {
         return;
       }
 
-      if (window.AchieveMateSync?.uploadProofFile) {
-        if (window.AchieveMateSync.validateProofFile && !window.AchieveMateSync.validateProofFile(file)) {
-          fileInput.value = "";
-          return;
-        }
-
-        try {
-          const oldPath = draft.proofPath || "";
-          const uploaded = await window.AchieveMateSync.uploadProofFile(
-            file,
-            achievement.id,
-            oldPath
-          );
-          draft.fileName = uploaded.fileName;
-          draft.fileType = uploaded.fileType;
-          draft.proofPath = uploaded.proofPath;
-          draft.fileData = "";
-          syncDraft();
-          renderProofControls();
-        } catch (error) {
-          console.warn("Could not upload proof:", error);
-          if (!error.message?.includes("Invalid proof file")) {
-            showToast(error.message || "Could not upload proof file", { tone: "danger" });
-          }
-        } finally {
-          fileInput.value = "";
-        }
+      if (!validateProofFile(file)) {
+        fileInput.value = "";
         return;
       }
 
@@ -1546,6 +1665,7 @@ function createEditEntry(achievement) {
         draft.fileName = file.name;
         draft.fileType = file.type;
         draft.fileData = await readFileAsDataUrl(file);
+        draft.proofPath = "";
         syncDraft();
         renderProofControls();
       } catch (error) {
@@ -1594,6 +1714,9 @@ function renderAchievements() {
   if (!achievementsList) {
     return;
   }
+
+  const logbookView = document.getElementById("viewLogbook");
+  const preservedScrollTop = logbookView?.scrollTop ?? 0;
 
   updateEntryCount();
   achievementsList.innerHTML = "";
@@ -1649,12 +1772,24 @@ function renderAchievements() {
 
   if (visibleAchievements.length > 0) {
     listWrap.appendChild(listHeader);
+
+    const listBody = document.createElement("div");
+    listBody.className = "entries-list-all-body";
+
     if (filteredAchievements.length > 0) {
-      listWrap.appendChild(createTimelineList(filteredAchievements));
+      listBody.appendChild(createTimelineList(filteredAchievements));
     } else {
-      listWrap.appendChild(createTimelineCategoryEmpty(timelineCategoryFilter));
+      listBody.appendChild(createTimelineCategoryEmpty(timelineCategoryFilter));
     }
+
+    listWrap.appendChild(listBody);
     achievementsList.appendChild(listWrap);
+
+    window.requestAnimationFrame(() => {
+      if (logbookView) {
+        logbookView.scrollTop = preservedScrollTop;
+      }
+    });
   }
 }
 
@@ -1706,6 +1841,9 @@ function bindPersonalForm() {
     state.personalInfo[name] = value;
     updateSidebarIdentitySummary();
     saveState();
+    if (state.achievements.length === 0) {
+      renderAchievements();
+    }
     if (window.AchieveMateCvPreview) {
       window.AchieveMateCvPreview.render();
     }
@@ -1747,9 +1885,5 @@ window.AchieveMateApp = {
 };
 
 window.AchieveMateToast = { show: showToast };
-
-document.addEventListener("achievemate:authed", (event) => {
-  window.AchieveMateSync?.handleBoot?.(event.detail.user);
-});
 
 addAchievementBtn.addEventListener("click", addAchievement);
