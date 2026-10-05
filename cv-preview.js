@@ -465,6 +465,7 @@
 
     const isDraft = !cvItemHasUserContent(item);
     wrap.classList.toggle("is-cv-item-collapsed", !isDraft);
+    refreshLibrarySaveButton(item.id);
 
     CV_ITEM_FIELD_KEYS.forEach((field) => {
       const node = section.querySelector(`[data-edit-key$=".${field}"]`);
@@ -545,6 +546,12 @@
       restorePlaceholderDisplay(node);
     } else {
       syncNodePlaceholderClass(node);
+    }
+
+    const wrap = node.closest(".cv-section-wrap");
+    const layoutItemId = wrap?.dataset?.layoutItemId;
+    if (layoutItemId) {
+      refreshLibrarySaveButton(layoutItemId);
     }
   }
 
@@ -752,6 +759,7 @@
         if (isPointerOverLibrary(event.clientX, event.clientY)) {
           documentDragState.handled = true;
           saveLayoutItemToLibrary(layoutItemId);
+          refreshLibrarySaveButton(layoutItemId);
         } else if (currentIndex !== -1 && isPointerOverDocument(event.clientX, event.clientY)) {
           const index = resolveDropIndex(getPreviewBody(), event.clientY);
           documentDragState.handled = true;
@@ -1927,6 +1935,62 @@
     return source || "";
   }
 
+  function linkedLibraryEntry(item) {
+    const libraryEntryId = typeof item?.libraryEntryId === "string" ? item.libraryEntryId : "";
+    if (!libraryEntryId || !Array.isArray(state.cvLibrary)) {
+      return null;
+    }
+    return state.cvLibrary.find((entry) => entry.id === libraryEntryId) || null;
+  }
+
+  function librarySaveButtonMarkup(item) {
+    const saved = Boolean(linkedLibraryEntry(item));
+    const savable = Boolean(snapshotLayoutItem(item));
+    const unsavableClass = !savable && !saved ? " is-unsavable" : "";
+    const savedClass = saved ? " is-saved" : "";
+    const label = saved ? "Saved to library" : "Save to library";
+    const title = saved ? "Saved to library" : savable ? "Save to library" : "Add some text before saving";
+    const disabledAttr = !savable && !saved ? ' aria-disabled="true"' : "";
+    return `<button type="button" class="btn-icon cv-section-save${savedClass}${unsavableClass}" aria-label="${label}" title="${title}" aria-pressed="${saved}"${disabledAttr}>${getStarIconSvg(saved)}</button>`;
+  }
+
+  function syncLibrarySaveButton(button, item) {
+    if (!button || !item) {
+      return;
+    }
+
+    const saved = Boolean(linkedLibraryEntry(item));
+    const savable = Boolean(snapshotLayoutItem(item));
+    button.innerHTML = getStarIconSvg(saved);
+    button.classList.toggle("is-saved", saved);
+    button.classList.toggle("is-unsavable", !savable && !saved);
+    button.setAttribute("aria-pressed", String(saved));
+    button.setAttribute("aria-label", saved ? "Saved to library" : "Save to library");
+    button.title = saved ? "Saved to library" : savable ? "Save to library" : "Add some text before saving";
+    if (!savable && !saved) {
+      button.setAttribute("aria-disabled", "true");
+    } else {
+      button.removeAttribute("aria-disabled");
+    }
+  }
+
+  function refreshLibrarySaveButton(layoutItemId) {
+    if (!layoutItemId) {
+      return;
+    }
+    const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
+    const button = cvPreview?.querySelector(
+      `.cv-section-wrap[data-layout-item-id="${layoutItemId}"] .cv-section-save`
+    );
+    syncLibrarySaveButton(button, item);
+  }
+
+  function refreshLibraryStars() {
+    cvPreview?.querySelectorAll(".cv-section-wrap[data-layout-item-id]").forEach((wrap) => {
+      refreshLibrarySaveButton(wrap.dataset.layoutItemId);
+    });
+  }
+
   function saveLayoutItemToLibrary(layoutItemId) {
     commitActivePreviewEdit();
     const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
@@ -1941,7 +2005,9 @@
       return { saved: false, reason: "empty" };
     }
 
-    return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot);
+    return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot, {
+      sourceLayoutItemId: layoutItemId,
+    });
   }
 
   function acceptDocumentDropOnLibrary(layoutItemId) {
@@ -1950,29 +2016,9 @@
     }
     setLibraryDropActive(false);
     if (layoutItemId) {
-      const result = saveLayoutItemToLibrary(layoutItemId);
-      if (result?.saved) {
-        const button = cvPreview?.querySelector(
-          `.cv-section-wrap[data-layout-item-id="${layoutItemId}"] .cv-section-save`
-        );
-        flashLibrarySaveButton(button);
-      }
+      saveLayoutItemToLibrary(layoutItemId);
+      refreshLibrarySaveButton(layoutItemId);
     }
-  }
-
-  function flashLibrarySaveButton(button) {
-    if (!button) {
-      return;
-    }
-    button.classList.add("is-saved");
-    button.innerHTML = getStarIconSvg(true);
-    window.setTimeout(() => {
-      if (!button.isConnected) {
-        return;
-      }
-      button.classList.remove("is-saved");
-      button.innerHTML = getStarIconSvg(false);
-    }, 1400);
   }
 
   function parseDragPayload(event) {
@@ -2105,10 +2151,7 @@
     if (isPointerOverLibrary(event.clientX, event.clientY)) {
       pending.handled = true;
       saveLayoutItemToLibrary(pending.layoutItemId);
-      const button = cvPreview?.querySelector(
-        `.cv-section-wrap[data-layout-item-id="${pending.layoutItemId}"] .cv-section-save`
-      );
-      flashLibrarySaveButton(button);
+      refreshLibrarySaveButton(pending.layoutItemId);
       window.AchieveMateDragPreview?.end();
       return false;
     }
@@ -2310,10 +2353,8 @@
       });
       saveBtn?.addEventListener("click", (event) => {
         event.stopPropagation();
-        const result = saveLayoutItemToLibrary(layoutItemId);
-        if (result?.saved) {
-          flashLibrarySaveButton(saveBtn);
-        }
+        saveLayoutItemToLibrary(layoutItemId);
+        refreshLibrarySaveButton(layoutItemId);
       });
     });
   }
@@ -2991,9 +3032,7 @@
     }
 
     const saveButton =
-      item.type === "cv-item" || item.type === "achievement"
-        ? `<button type="button" class="btn-icon cv-section-save" aria-label="Save to library" title="Save to library">${getStarIconSvg(false)}</button>`
-        : "";
+      item.type === "cv-item" || item.type === "achievement" ? librarySaveButtonMarkup(item) : "";
 
     return `
       <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
@@ -3642,5 +3681,6 @@
     hideInsertionLine,
     renderExportHistory,
     createExportPdfDoc,
+    refreshLibraryStars,
   };
 })();

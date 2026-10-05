@@ -3872,17 +3872,22 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-section-save {
   position: absolute;
-  top: 0;
-  right: -36px;
+  top: -2px;
+  right: -40px;
   z-index: 3;
+  width: 32px;
+  height: 32px;
   color: var(--brass);
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out);
+  opacity: 0.4;
+  transition:
+    opacity var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 
 .cv-section-save svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   display: block;
 }
 
@@ -3894,6 +3899,22 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-section-save.is-saved {
   background: var(--brass-tint);
+  color: var(--brass);
+}
+
+.cv-section-save.is-unsavable {
+  color: #9a9a9a;
+  opacity: 0.22;
+}
+
+.cv-section-wrap:hover .cv-section-save.is-unsavable,
+.cv-section-wrap:focus-within .cv-section-save.is-unsavable {
+  opacity: 0.45;
+}
+
+.cv-section-save.is-unsavable:hover {
+  background: transparent;
+  color: #9a9a9a;
 }
 
 .cv-doc-empty {
