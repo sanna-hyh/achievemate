@@ -4,8 +4,9 @@
   const toggleBtn = document.getElementById("sidebarToggleBtn");
   const collapseBtn = document.getElementById("sidebarCollapseBtn");
   const openStudioBtn = document.getElementById("sidebarOpenStudioBtn");
+  const openCvMakerBtn = document.getElementById("sidebarOpenCvMakerBtn");
   const openLogbookBtn = document.getElementById("sidebarOpenLogbookBtn");
-  const panelToggles = [...document.querySelectorAll(".sidebar-panel-toggle")];
+  const panelToggles = [...document.querySelectorAll(".sidebar-panel-toggle[aria-controls]")];
 
   if (!sidebar || !toggleBtn) {
     return;
@@ -80,10 +81,13 @@
   collapseBtn?.addEventListener("click", closeSidebar);
   scrim?.addEventListener("click", closeSidebar);
 
-  openStudioBtn?.addEventListener("click", () => {
+  function goToStudio() {
     window.AchieveMateViews?.setActiveView("studio");
     closeSidebar();
-  });
+  }
+
+  openStudioBtn?.addEventListener("click", goToStudio);
+  openCvMakerBtn?.addEventListener("click", goToStudio);
 
   openLogbookBtn?.addEventListener("click", () => {
     if (window.ENABLE_LOGBOOK !== true) {

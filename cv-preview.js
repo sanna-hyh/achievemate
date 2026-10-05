@@ -31,7 +31,7 @@
   let editSaveTimer = null;
   let layoutDebounceTimer = null;
   let baseFitScale = 1;
-  let userZoom = 1;
+  let userZoom = 1.72;
   let documentDragState = null;
   let documentDragCancelled = false;
   let sectionPointer = null;
@@ -534,11 +534,15 @@
       normalizeDescriptionBulletSpacing(node);
     }
     const value = normalizeSavedEditValue(node, getNodeEditContent(node));
-    commitEditKey(node.dataset.editKey, value, { flushSave: true });
+    const changed = commitEditKey(node.dataset.editKey, value, { flushSave: true });
 
     const cvSection = node.closest(".cv-preview-cv-item");
     if (cvSection) {
       syncCvItemWrapAfterEdit(cvSection);
+      syncLibraryStars();
+      if (changed) {
+        recordCvHistory();
+      }
       return;
     }
 
@@ -547,11 +551,9 @@
     } else {
       syncNodePlaceholderClass(node);
     }
-
-    const wrap = node.closest(".cv-section-wrap");
-    const layoutItemId = wrap?.dataset?.layoutItemId;
-    if (layoutItemId) {
-      refreshLibrarySaveButton(layoutItemId);
+    syncLibraryStars();
+    if (changed) {
+      recordCvHistory();
     }
   }
 
@@ -663,6 +665,13 @@
     window.clearTimeout(editSaveTimer);
     editSaveTimer = null;
     saveState();
+  }
+
+  function recordCvHistory() {
+    if (window.AchieveMateCvHistory?.isApplying?.()) {
+      return;
+    }
+    window.AchieveMateCvHistory?.record?.();
   }
 
   function scheduleSmartLayoutDebounced() {
@@ -887,9 +896,18 @@
       }
     });
   }
+  const DEFAULT_USER_ZOOM = 1.72;
   const MIN_USER_ZOOM = 1;
   const MAX_USER_ZOOM = 3;
   const ZOOM_STEP = 0.12;
+
+  function displayZoomPercent() {
+    return Math.round((userZoom / DEFAULT_USER_ZOOM) * 100);
+  }
+
+  function isAtDefaultZoomLevel() {
+    return Math.abs(userZoom - DEFAULT_USER_ZOOM) <= 0.001;
+  }
 
   function resetPreviewTransform() {
     if (!cvPreview || !cvPreviewScaler) {
@@ -932,24 +950,87 @@
     };
   }
 
-  function updatePreviewZoomUi() {
-    const zoomValue = document.getElementById("previewZoomValue");
-    const zoomOutBtn = document.getElementById("previewZoomOutBtn");
-    const zoomInBtn = document.getElementById("previewZoomInBtn");
-    const zoomFitBtn = document.getElementById("previewZoomFitBtn");
-    const percent = Math.round(userZoom * 100);
+  let zoomChipHideTimer = null;
+  const ZOOM_CHIP_IDLE_MS = 1500;
 
+  function syncZoomChipLabel() {
+    const zoomValue = document.getElementById("previewZoomValue");
     if (zoomValue) {
-      zoomValue.textContent = `${percent}%`;
+      zoomValue.textContent = `${displayZoomPercent()}%`;
     }
-    if (zoomOutBtn) {
-      zoomOutBtn.disabled = userZoom <= MIN_USER_ZOOM + 0.001;
+  }
+
+  function hideZoomChip({ immediate = false } = {}) {
+    const chip = document.getElementById("previewZoomChip");
+    if (!chip) {
+      return;
     }
-    if (zoomInBtn) {
-      zoomInBtn.disabled = userZoom >= MAX_USER_ZOOM - 0.001;
+
+    window.clearTimeout(zoomChipHideTimer);
+    zoomChipHideTimer = null;
+    chip.classList.remove("is-visible");
+
+    if (immediate) {
+      chip.hidden = true;
+      return;
     }
-    if (zoomFitBtn) {
-      zoomFitBtn.disabled = userZoom <= MIN_USER_ZOOM + 0.001;
+
+    const finishHide = () => {
+      if (!chip.classList.contains("is-visible")) {
+        chip.hidden = true;
+      }
+    };
+
+    chip.addEventListener("transitionend", finishHide, { once: true });
+    window.setTimeout(finishHide, 560);
+  }
+
+  function scheduleZoomChipHide() {
+    const chip = document.getElementById("previewZoomChip");
+    if (!chip) {
+      return;
+    }
+
+    window.clearTimeout(zoomChipHideTimer);
+    zoomChipHideTimer = window.setTimeout(() => {
+      zoomChipHideTimer = null;
+      if (chip.matches(":hover")) {
+        scheduleZoomChipHide();
+        return;
+      }
+      hideZoomChip();
+    }, ZOOM_CHIP_IDLE_MS);
+  }
+
+  function revealZoomChip() {
+    const chip = document.getElementById("previewZoomChip");
+    if (!chip) {
+      return;
+    }
+
+    syncZoomChipLabel();
+
+    if (isAtDefaultZoomLevel()) {
+      hideZoomChip({ immediate: true });
+      return;
+    }
+
+    chip.hidden = false;
+    chip.offsetWidth;
+    chip.classList.add("is-visible");
+    scheduleZoomChipHide();
+  }
+
+  function updatePreviewZoomChip({ reveal = false } = {}) {
+    syncZoomChipLabel();
+
+    if (isAtDefaultZoomLevel()) {
+      hideZoomChip({ immediate: true });
+      return;
+    }
+
+    if (reveal) {
+      revealZoomChip();
     }
   }
 
@@ -975,22 +1056,28 @@
     const isZoomed = userZoom > MIN_USER_ZOOM + 0.001;
     wrap.classList.toggle("is-zoomed", isZoomed);
 
-    if (!isZoomed) {
+    if (isAtDefaultZoomLevel() || userZoom <= MIN_USER_ZOOM + 0.001) {
       wrap.scrollTop = 0;
       wrap.scrollLeft = 0;
     }
 
-    updatePreviewZoomUi();
+    if (isAtDefaultZoomLevel()) {
+      updatePreviewZoomChip();
+    } else {
+      syncZoomChipLabel();
+    }
+
     return true;
   }
 
   function setUserZoom(nextZoom) {
     userZoom = Math.max(MIN_USER_ZOOM, Math.min(MAX_USER_ZOOM, nextZoom));
     applyPreviewZoom();
+    updatePreviewZoomChip({ reveal: true });
   }
 
   function fitPreviewToScreen() {
-    userZoom = MIN_USER_ZOOM;
+    userZoom = DEFAULT_USER_ZOOM;
     applyPreviewZoom();
   }
 
@@ -1036,68 +1123,108 @@
       observer.observe(drawer);
     }
 
+    const appSidebar = document.getElementById("appSidebar");
+    if (appSidebar) {
+      observer.observe(appSidebar);
+    }
+
+    const studioRail = document.getElementById("studioRail");
+    if (studioRail) {
+      observer.observe(studioRail);
+    }
+
     window.addEventListener("resize", scheduleFitPreview);
   }
 
+  function isStudioViewActive() {
+    return document.getElementById("viewStudio")?.classList.contains("is-active");
+  }
+
+  function pointerOverPreviewZoomTarget(clientX, clientY) {
+    const well = document.querySelector(".studio-well");
+    if (!well || !isStudioViewActive()) {
+      return false;
+    }
+    const rect = well.getBoundingClientRect();
+    return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+  }
+
   function bindPreviewZoomControls() {
-    const wrap = getPreviewWrap();
-    const zoomInBtn = document.getElementById("previewZoomInBtn");
-    const zoomOutBtn = document.getElementById("previewZoomOutBtn");
     const zoomFitBtn = document.getElementById("previewZoomFitBtn");
-
-    zoomInBtn?.addEventListener("click", () => {
-      setUserZoom(userZoom + ZOOM_STEP);
-    });
-
-    zoomOutBtn?.addEventListener("click", () => {
-      setUserZoom(userZoom - ZOOM_STEP);
-    });
+    const chip = document.getElementById("previewZoomChip");
 
     zoomFitBtn?.addEventListener("click", () => {
       fitPreviewToScreen();
     });
 
-    wrap?.addEventListener(
+    chip?.addEventListener("mouseenter", () => {
+      window.clearTimeout(zoomChipHideTimer);
+      zoomChipHideTimer = null;
+    });
+
+    chip?.addEventListener("mouseleave", () => {
+      if (!isAtDefaultZoomLevel() && !chip.hidden) {
+        scheduleZoomChipHide();
+      }
+    });
+
+    document.addEventListener(
       "wheel",
       (event) => {
         if (!(event.ctrlKey || event.metaKey)) {
           return;
         }
+        if (!pointerOverPreviewZoomTarget(event.clientX, event.clientY)) {
+          return;
+        }
 
+        // Block browser page zoom; zoom only the CV sheet.
         event.preventDefault();
+        if (!isStudioViewActive()) {
+          return;
+        }
+
         const direction = event.deltaY > 0 ? -1 : 1;
         setUserZoom(userZoom + direction * ZOOM_STEP);
       },
-      { passive: false }
+      { passive: false, capture: true }
     );
+
+    document.addEventListener("keydown", (event) => {
+      if (!isStudioViewActive()) {
+        return;
+      }
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+
+      const key = event.key;
+      if (key === "=" || key === "+") {
+        event.preventDefault();
+        setUserZoom(userZoom + ZOOM_STEP);
+      } else if (key === "-" || key === "_") {
+        event.preventDefault();
+        setUserZoom(userZoom - ZOOM_STEP);
+      } else if (key === "0") {
+        event.preventDefault();
+        fitPreviewToScreen();
+      }
+    });
   }
 
   function bindLayoutDrawerToggle() {
     const toggleBtn = document.getElementById("toggleLayoutDrawerBtn");
     const cockpit = document.getElementById("studioCockpit");
+    const drawer = document.getElementById("cvLayoutDrawer");
     const drawerScrim = document.getElementById("drawerScrim");
     if (!toggleBtn || !cockpit) {
       return;
     }
 
-    let collapsedInOverlay = false;
-
-    function isDrawerOverlayMode() {
-      return window.matchMedia("(max-width: 1100px)").matches;
-    }
-
-    function syncDrawerScrim() {
-      if (!drawerScrim) {
-        return;
-      }
-
-      const overlayMode = isDrawerOverlayMode();
-      const isOpen = !cockpit.classList.contains("is-drawer-collapsed");
-      const showScrim = overlayMode && isOpen;
-
-      drawerScrim.hidden = !showScrim;
-      drawerScrim.classList.toggle("is-visible", showScrim);
-      drawerScrim.setAttribute("aria-hidden", String(!showScrim));
+    if (drawerScrim) {
+      drawerScrim.hidden = true;
+      drawerScrim.classList.remove("is-visible");
+      drawerScrim.setAttribute("aria-hidden", "true");
     }
 
     function setDrawerOpen(isOpen) {
@@ -1105,136 +1232,39 @@
       document.body.classList.toggle("layout-drawer-collapsed", !isOpen);
       toggleBtn.setAttribute("aria-expanded", String(isOpen));
       toggleBtn.classList.toggle("is-active", isOpen);
-
-      if (!isOpen && isDrawerOverlayMode()) {
-        collapsedInOverlay = true;
-      } else if (isOpen) {
-        collapsedInOverlay = false;
-      }
-
-      syncDrawerScrim();
-      window.setTimeout(scheduleFitPreview, 300);
+      scheduleFitPreview();
+      window.setTimeout(scheduleFitPreview, 320);
     }
 
-    function syncDrawerLayout() {
-      syncDrawerScrim();
-
-      if (!isDrawerOverlayMode() && collapsedInOverlay) {
-        setDrawerOpen(true);
-        collapsedInOverlay = false;
-      }
+    function isDrawerOpen() {
+      return !cockpit.classList.contains("is-drawer-collapsed");
     }
 
-    toggleBtn.addEventListener("click", () => {
-      const isCollapsed = cockpit.classList.contains("is-drawer-collapsed");
-      setDrawerOpen(!isCollapsed);
+    toggleBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setDrawerOpen(!isDrawerOpen());
     });
 
-    drawerScrim?.addEventListener("click", () => {
+    document.addEventListener("pointerdown", (event) => {
+      if (!isDrawerOpen()) {
+        return;
+      }
+
+      const target = event.target;
+      if (drawer?.contains(target) || toggleBtn.contains(target)) {
+        return;
+      }
+
       setDrawerOpen(false);
     });
 
-    window.addEventListener("resize", syncDrawerLayout);
     document.addEventListener("keydown", (event) => {
-      if (
-        event.key === "Escape" &&
-        isDrawerOverlayMode() &&
-        !cockpit.classList.contains("is-drawer-collapsed")
-      ) {
+      if (event.key === "Escape" && isDrawerOpen()) {
         setDrawerOpen(false);
       }
     });
 
-    syncDrawerLayout();
-  }
-
-  function bindHistoryPopover() {
-    const historyBtn = document.getElementById("historyBtn");
-    const popover = document.getElementById("historyPopover");
-    if (!historyBtn || !popover) {
-      return;
-    }
-
-    function setOpen(isOpen) {
-      popover.hidden = !isOpen;
-      historyBtn.setAttribute("aria-expanded", String(isOpen));
-
-      if (isOpen) {
-        const firstFocusable = popover.querySelector("button, a, [tabindex='0']");
-        if (firstFocusable) {
-          firstFocusable.focus();
-        } else {
-          popover.focus();
-        }
-      } else {
-        historyBtn.focus();
-      }
-    }
-
-    popover.tabIndex = -1;
-
-    historyBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      setOpen(popover.hidden);
-    });
-
-    document.addEventListener("click", (event) => {
-      if (!popover.hidden && !popover.contains(event.target) && event.target !== historyBtn) {
-        setOpen(false);
-      }
-    });
-
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !popover.hidden) {
-        setOpen(false);
-      }
-    });
-  }
-
-  function updateDensityGauge({ ratio = null, bodyFontPt = null, mode = "auto", overflow = false } = {}) {
-    const gauge = document.getElementById("densityGauge");
-    const fill = document.getElementById("densityGaugeFill");
-    const readout = document.getElementById("densityGaugeReadout");
-    const track = gauge?.querySelector(".density-gauge-track");
-    if (!gauge || !fill || !readout) {
-      return;
-    }
-
-    gauge.classList.toggle("is-overflow", overflow);
-
-    if (mode === "manual") {
-      fill.style.width = "0";
-      readout.textContent = "manual";
-      if (track) {
-        track.title = "";
-      }
-      return;
-    }
-
-    if (mode === "empty") {
-      fill.style.width = "0";
-      readout.textContent = "—";
-      if (track) {
-        track.title = "";
-      }
-      return;
-    }
-
-    if (overflow) {
-      fill.style.width = "100%";
-      readout.textContent = "overflows";
-      if (track) {
-        track.title = "Content exceeds one page — remove items or reduce sizes.";
-      }
-      return;
-    }
-
-    const safeRatio = Math.max(0, Math.min(1, ratio ?? 0));
-    fill.style.width = `${safeRatio * 100}%`;
-    readout.textContent = bodyFontPt != null ? `${bodyFontPt}pt` : "—";
-    if (track) {
-      track.title = "";
-    }
+    setDrawerOpen(false);
   }
 
   const LAYOUT = {
@@ -1716,7 +1746,6 @@
       cvPreview.dataset.layoutDensity = "";
       cvPreview.dataset.contentChars = "";
       cvPreview.dataset.contentItems = "";
-      updateDensityGauge({ mode: "empty" });
       finishLayout();
       return;
     }
@@ -1724,7 +1753,6 @@
     if (getLayoutStyles().autoFit !== true) {
       cvPreview.classList.add("cv-preview-single-page");
       cvPreview.dataset.layoutDensity = "manual";
-      updateDensityGauge({ mode: "manual" });
       finishLayout();
       return;
     }
@@ -1751,7 +1779,6 @@
     const cssParams = layoutParamsFromRatio(low);
     applyLayoutParams(cssParams);
 
-    let fittedBody = cssParams.bodyFontPt;
     let overflow = measurePageOverflow();
     if (overflow) {
       applyLayoutParams({
@@ -1759,7 +1786,6 @@
         singlePage: true,
         density: "compact",
       });
-      fittedBody = layoutParamsFromRatio(0).bodyFontPt;
     }
 
     if (window.AchieveMatePdf?.shrinkPdfModelToOnePage) {
@@ -1773,21 +1799,7 @@
       if (!fitted.fitChanged) {
         applyLayoutParams(overflow ? { ...layoutParamsFromRatio(0), singlePage: true, density: "compact" } : cssParams);
       }
-      fittedBody = fitted.bodyPt;
-      overflow = Boolean(fitted.fitOverflow) || measurePageOverflow();
     }
-
-    const gaugeRatio =
-      fittedBody >= LAYOUT.minBodyPt
-        ? Math.max(0, Math.min(1, (fittedBody - LAYOUT.minBodyPt) / (LAYOUT.maxBodyPt - LAYOUT.minBodyPt)))
-        : 0;
-
-    updateDensityGauge({
-      ratio: gaugeRatio,
-      bodyFontPt: Math.round(fittedBody * 10) / 10,
-      mode: "auto",
-      overflow,
-    });
 
     finishLayout();
   }
@@ -1935,79 +1947,100 @@
     return source || "";
   }
 
-  function linkedLibraryEntry(item) {
-    const libraryEntryId = typeof item?.libraryEntryId === "string" ? item.libraryEntryId : "";
-    if (!libraryEntryId || !Array.isArray(state.cvLibrary)) {
-      return null;
-    }
-    return state.cvLibrary.find((entry) => entry.id === libraryEntryId) || null;
-  }
-
-  function librarySaveButtonMarkup(item) {
-    const saved = Boolean(linkedLibraryEntry(item));
-    const savable = Boolean(snapshotLayoutItem(item));
-    const unsavableClass = !savable && !saved ? " is-unsavable" : "";
-    const savedClass = saved ? " is-saved" : "";
-    const label = saved ? "Saved to library" : "Save to library";
-    const title = saved ? "Saved to library" : savable ? "Save to library" : "Add some text before saving";
-    const disabledAttr = !savable && !saved ? ' aria-disabled="true"' : "";
-    return `<button type="button" class="btn-icon cv-section-save${savedClass}${unsavableClass}" aria-label="${label}" title="${title}" aria-pressed="${saved}"${disabledAttr}>${getStarIconSvg(saved)}</button>`;
-  }
-
-  function syncLibrarySaveButton(button, item) {
-    if (!button || !item) {
-      return;
+  function getLayoutItemLibrarySnapshot(layoutItemId, { commit = false } = {}) {
+    if (commit) {
+      commitActivePreviewEdit();
     }
 
-    const saved = Boolean(linkedLibraryEntry(item));
-    const savable = Boolean(snapshotLayoutItem(item));
-    button.innerHTML = getStarIconSvg(saved);
-    button.classList.toggle("is-saved", saved);
-    button.classList.toggle("is-unsavable", !savable && !saved);
-    button.setAttribute("aria-pressed", String(saved));
-    button.setAttribute("aria-label", saved ? "Saved to library" : "Save to library");
-    button.title = saved ? "Saved to library" : savable ? "Save to library" : "Add some text before saving";
-    if (!savable && !saved) {
-      button.setAttribute("aria-disabled", "true");
-    } else {
-      button.removeAttribute("aria-disabled");
-    }
-  }
-
-  function refreshLibrarySaveButton(layoutItemId) {
-    if (!layoutItemId) {
-      return;
-    }
     const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
-    const button = cvPreview?.querySelector(
-      `.cv-section-wrap[data-layout-item-id="${layoutItemId}"] .cv-section-save`
-    );
-    syncLibrarySaveButton(button, item);
+    if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
+      return { snapshot: null, reason: "unsupported" };
+    }
+
+    const snapshot = snapshotLayoutItem(item);
+    if (!snapshot) {
+      return { snapshot: null, reason: "empty" };
+    }
+
+    return { snapshot, reason: null };
   }
 
-  function refreshLibraryStars() {
-    cvPreview?.querySelectorAll(".cv-section-wrap[data-layout-item-id]").forEach((wrap) => {
-      refreshLibrarySaveButton(wrap.dataset.layoutItemId);
+  function isLayoutItemInLibrary(layoutItemId) {
+    const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
+    if (!item?.libraryEntryId) {
+      return false;
+    }
+    return (state.cvLibrary || []).some((entry) => entry.id === item.libraryEntryId);
+  }
+
+  function libraryStarButtonMarkup(inLibrary) {
+    const label = inLibrary ? "Remove from library" : "Save to library";
+    return `<button type="button" class="btn-icon cv-section-save${
+      inLibrary ? " is-in-library" : ""
+    }" aria-label="${label}" title="${label}" aria-pressed="${String(inLibrary)}">
+      <span class="cv-section-save-icon cv-section-save-icon-hollow" aria-hidden="true">${getStarIconSvg(false)}</span>
+      <span class="cv-section-save-icon cv-section-save-icon-filled" aria-hidden="true">${getStarIconSvg(true)}</span>
+    </button>`;
+  }
+
+  function setLibraryStarButtonState(button, inLibrary) {
+    if (!button) {
+      return;
+    }
+
+    button.classList.toggle("is-in-library", inLibrary);
+    button.setAttribute("aria-pressed", String(inLibrary));
+    const label = inLibrary ? "Remove from library" : "Save to library";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  }
+
+  function syncLibraryStars() {
+    if (!cvPreview) {
+      return;
+    }
+
+    cvPreview.querySelectorAll(".cv-section-wrap[data-layout-item-id]").forEach((wrap) => {
+      const button = wrap.querySelector(".cv-section-save");
+      if (!button) {
+        return;
+      }
+      setLibraryStarButtonState(button, isLayoutItemInLibrary(wrap.dataset.layoutItemId));
     });
   }
 
   function saveLayoutItemToLibrary(layoutItemId) {
-    commitActivePreviewEdit();
+    if (isLayoutItemInLibrary(layoutItemId)) {
+      const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
+      return { saved: false, reason: "duplicate", entry: { id: item?.libraryEntryId } };
+    }
+
+    const { snapshot, reason } = getLayoutItemLibrarySnapshot(layoutItemId, { commit: true });
+    if (reason === "unsupported") {
+      window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
+      return { saved: false, reason: "unsupported" };
+    }
+    if (reason === "empty" || !snapshot) {
+      window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
+      return { saved: false, reason: "empty" };
+    }
+
+    return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot, { sourceLayoutItemId: layoutItemId, layoutItemId });
+  }
+
+  function toggleLayoutItemInLibrary(layoutItemId) {
     const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
     if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
       window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
       return { saved: false, reason: "unsupported" };
     }
 
-    const snapshot = snapshotLayoutItem(item);
-    if (!snapshot) {
-      window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
-      return { saved: false, reason: "empty" };
+    if (isLayoutItemInLibrary(layoutItemId)) {
+      window.AchieveMateCvBuilder?.removeLibraryEntry?.(item.libraryEntryId);
+      return { saved: false, removed: true };
     }
 
-    return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot, {
-      sourceLayoutItemId: layoutItemId,
-    });
+    return saveLayoutItemToLibrary(layoutItemId);
   }
 
   function acceptDocumentDropOnLibrary(layoutItemId) {
@@ -2017,7 +2050,7 @@
     setLibraryDropActive(false);
     if (layoutItemId) {
       saveLayoutItemToLibrary(layoutItemId);
-      refreshLibrarySaveButton(layoutItemId);
+      syncLibraryStars();
     }
   }
 
@@ -2128,12 +2161,17 @@
     window.AchieveMateToast?.show("Removed from CV", {
       actionLabel: "Undo",
       onAction: () => {
+        if (window.AchieveMateCvHistory?.canUndo?.()) {
+          window.AchieveMateCvHistory.undo();
+          return;
+        }
         const next = [...state.cvLayout];
         next.splice(result.index, 0, result.removed);
         state.cvLayout = next;
         saveState();
         builder.render();
         renderPreview({ flashItemId: result.removed.id });
+        recordCvHistory();
       },
     });
   }
@@ -2151,7 +2189,7 @@
     if (isPointerOverLibrary(event.clientX, event.clientY)) {
       pending.handled = true;
       saveLayoutItemToLibrary(pending.layoutItemId);
-      refreshLibrarySaveButton(pending.layoutItemId);
+      syncLibraryStars();
       window.AchieveMateDragPreview?.end();
       return false;
     }
@@ -2342,6 +2380,10 @@
         window.AchieveMateCvBuilder?.moveLayoutItem(currentIndex, nextIndex);
       });
 
+      removeBtn?.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
       removeBtn?.addEventListener("click", (event) => {
         event.stopPropagation();
         removeSectionFromCv(layoutItemId);
@@ -2349,12 +2391,16 @@
 
       const saveBtn = wrap.querySelector(".cv-section-save");
       saveBtn?.addEventListener("mousedown", (event) => {
+        // Keep click from focusing the star so :focus-within doesn't pin chrome open.
+        event.preventDefault();
         event.stopPropagation();
       });
       saveBtn?.addEventListener("click", (event) => {
         event.stopPropagation();
-        saveLayoutItemToLibrary(layoutItemId);
-        refreshLibrarySaveButton(layoutItemId);
+        event.preventDefault();
+        toggleLayoutItemInLibrary(layoutItemId);
+        setLibraryStarButtonState(saveBtn, isLayoutItemInLibrary(layoutItemId));
+        saveBtn.blur();
       });
     });
   }
@@ -3032,7 +3078,9 @@
     }
 
     const saveButton =
-      item.type === "cv-item" || item.type === "achievement" ? librarySaveButtonMarkup(item) : "";
+      item.type === "cv-item" || item.type === "achievement"
+        ? libraryStarButtonMarkup(isLayoutItemInLibrary(item.id))
+        : "";
 
     return `
       <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
@@ -3120,11 +3168,6 @@
   }
 
   function getExportDensityLabel() {
-    const readout = document.getElementById("densityGaugeReadout")?.textContent?.trim();
-    if (readout && readout !== "manual" && readout !== "—" && readout !== "overflows") {
-      return readout;
-    }
-
     const base = getLayoutStyles().baseFontSize;
     return base != null ? `${base}pt` : "—";
   }
@@ -3383,6 +3426,8 @@
     } else {
       renderPreview();
     }
+
+    window.AchieveMateCvHistory?.seed?.();
   }
 
   function buildExportHistoryItem(entry) {
@@ -3664,7 +3709,6 @@
   bindPreviewResizeObserver();
   bindExportModal();
   bindLayoutDrawerToggle();
-  bindHistoryPopover();
   bindPreviewZoomControls();
   bindDocumentDragDrop();
   bindPreviewPointerInteraction();
@@ -3681,6 +3725,7 @@
     hideInsertionLine,
     renderExportHistory,
     createExportPdfDoc,
-    refreshLibraryStars,
+    syncLibraryStars,
+    refreshLibraryStars: syncLibraryStars,
   };
 })();

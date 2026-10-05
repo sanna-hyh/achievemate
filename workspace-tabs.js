@@ -16,6 +16,7 @@
   const tabs = tablist ? [...tablist.querySelectorAll("[data-view]")] : [];
   const track = tablist?.querySelector(".view-switcher-track") ?? null;
   const indicator = tablist?.querySelector(".view-switcher-indicator") ?? null;
+  const cvMakerMenuBtn = document.getElementById("sidebarOpenCvMakerBtn");
   const logbookMenuBtn = document.getElementById("sidebarOpenLogbookBtn");
   const STORAGE_KEY = "achievemate-active-tab";
   let activeView = HOME_VIEW;
@@ -128,6 +129,14 @@
       }
     }
 
+    if (cvMakerMenuBtn) {
+      if (viewId === HOME_VIEW) {
+        cvMakerMenuBtn.setAttribute("aria-current", "page");
+      } else {
+        cvMakerMenuBtn.removeAttribute("aria-current");
+      }
+    }
+
     if (logbookMenuBtn) {
       if (viewId === LOGBOOK_VIEW) {
         logbookMenuBtn.setAttribute("aria-current", "page");
@@ -136,6 +145,7 @@
       }
     }
 
+    document.body.classList.toggle("is-studio-view", viewId === HOME_VIEW);
     syncSwitcherIndicator();
   }
 

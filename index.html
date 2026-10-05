@@ -11,13 +11,13 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=98" />
+  <link rel="stylesheet" href="styles.css?v=111" />
   <script src="features.js?v=2"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
   </script>
 </head>
-<body>
+<body class="layout-drawer-collapsed is-studio-view">
   <header class="topbar">
     <button
       type="button"
@@ -31,14 +31,55 @@
     </button>
 
     <a class="topbar-wordmark" id="homeLink" href="#/">
-      <img src="logo.png?v=5" alt="" class="topbar-logo" width="32" height="32" />
+      <img src="logo.png?v=5" alt="" class="topbar-logo" width="28" height="28" />
       <span class="topbar-title">AchieveMate</span>
     </a>
+
+    <div class="topbar-cv-history" id="topbarCvHistory" role="group" aria-label="CV history">
+      <button type="button" class="btn-icon topbar-history-btn" id="cvUndoBtn" aria-label="Undo" title="Undo" disabled>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <path
+            d="M6.2 3.2 3 6.4l3.2 3.2M3.2 6.4h6.1a3.7 3.7 0 1 1 0 7.4H7.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <button type="button" class="btn-icon topbar-history-btn" id="cvRedoBtn" aria-label="Redo" title="Redo" disabled>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+          <path
+            d="M9.8 3.2 13 6.4 9.8 9.6M12.8 6.4H6.7a3.7 3.7 0 1 0 0 7.4h2.1"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+    </div>
 
     <div class="topbar-right">
       <div class="saved-indicator" id="savedIndicator" aria-live="polite">
         <span class="saved-indicator-dot" id="savedIndicatorDot" aria-hidden="true"></span>
         <span class="saved-indicator-text" id="savedIndicatorText">Saved</span>
+      </div>
+
+      <div class="topbar-studio-actions" id="topbarStudioActions">
+        <button
+          type="button"
+          class="btn btn-ghost topbar-design-btn"
+          id="toggleLayoutDrawerBtn"
+          aria-controls="cvLayoutDrawer"
+          aria-expanded="false"
+          aria-label="Design"
+        >
+          Design
+        </button>
+        <button type="button" class="btn btn-primary btn-toolbar-export" id="exportPdfBtn">Export</button>
       </div>
     </div>
   </header>
@@ -60,7 +101,17 @@
 
         <button
           type="button"
-          class="sidebar-panel-toggle sidebar-logbook-link"
+          class="sidebar-panel-toggle sidebar-nav-link"
+          id="sidebarOpenCvMakerBtn"
+          data-view="studio"
+        >
+          <span class="sidebar-panel-icon" aria-hidden="true">¶</span>
+          <span class="sidebar-panel-label">CV maker</span>
+        </button>
+
+        <button
+          type="button"
+          class="sidebar-panel-toggle sidebar-nav-link sidebar-logbook-link"
           id="sidebarOpenLogbookBtn"
           data-view="logbook"
         >
@@ -81,7 +132,7 @@
             <span class="sidebar-panel-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="sidebar-panel-body" id="sidebarSettingsBody" hidden>
-            <p class="caption sidebar-panel-hint">Typography, layout, and export history are on the main page.</p>
+            <p class="caption sidebar-panel-hint">Open Design on the main page for typography, layout, and export history.</p>
             <button type="button" class="btn btn-ghost sidebar-open-studio-btn" id="sidebarOpenStudioBtn">
               Back to main page
             </button>
@@ -113,7 +164,7 @@
   </main>
 
   <main class="view view-studio is-active" id="viewStudio" aria-label="AchieveMate" aria-hidden="false">
-    <div class="studio-cockpit" id="studioCockpit">
+    <div class="studio-cockpit is-drawer-collapsed" id="studioCockpit">
       <aside class="studio-rail" id="studioRail" aria-label="Blocks and library">
         <div class="studio-rail-scroll">
         <div class="studio-rail-section">
@@ -161,67 +212,15 @@
         </div>
       </aside>
 
-      <header class="studio-toolbar">
-        <div class="studio-toolbar-left">
-          <div class="zoom-cluster" role="group" aria-label="Preview zoom">
-            <button type="button" class="btn-icon zoom-cluster-btn" id="previewZoomOutBtn" aria-label="Zoom out">−</button>
-            <output class="zoom-cluster-value" id="previewZoomValue" for="previewZoomInBtn previewZoomOutBtn">100%</output>
-            <button type="button" class="btn-icon zoom-cluster-btn" id="previewZoomInBtn" aria-label="Zoom in">+</button>
-            <button type="button" class="btn btn-ghost zoom-cluster-fit" id="previewZoomFitBtn">Fit</button>
-          </div>
-
-          <div class="density-gauge" id="densityGauge">
-            <span class="label density-gauge-label">Density</span>
-            <div class="density-gauge-track" title="">
-              <div class="density-gauge-fill" id="densityGaugeFill"></div>
-            </div>
-            <span class="density-gauge-readout" id="densityGaugeReadout">—</span>
-          </div>
-        </div>
-
-        <div class="studio-toolbar-right">
-          <div class="history-anchor">
-            <button
-              type="button"
-              class="btn-icon"
-              id="historyBtn"
-              aria-label="Export history"
-              aria-expanded="false"
-              aria-controls="historyPopover"
-            >
-              <span aria-hidden="true">◷</span>
-            </button>
-            <div
-              class="history-popover"
-              id="historyPopover"
-              role="dialog"
-              aria-label="Export history"
-              hidden
-            >
-              <ul class="export-history-list" id="exportHistoryList"></ul>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            class="btn-icon studio-drawer-toggle is-active"
-            id="toggleLayoutDrawerBtn"
-            aria-controls="cvLayoutDrawer"
-            aria-expanded="true"
-            aria-label="Toggle style drawer"
-          >
-            <span aria-hidden="true">⧗</span>
-          </button>
-
-          <button type="button" class="btn btn-primary btn-toolbar-export" id="exportPdfBtn">Export PDF</button>
-        </div>
-      </header>
-
       <div class="studio-well">
         <div class="cv-preview-wrap" id="cvPreviewWrap">
           <div class="cv-preview-scaler" id="cvPreviewScaler">
             <article class="cv-preview-document" id="cvPreview" aria-live="polite"></article>
           </div>
+        </div>
+        <div class="preview-zoom-chip" id="previewZoomChip" hidden>
+          <span class="preview-zoom-chip-value" id="previewZoomValue">100%</span>
+          <button type="button" class="btn btn-ghost preview-zoom-chip-fit" id="previewZoomFitBtn">Fit</button>
         </div>
       </div>
 
@@ -229,7 +228,7 @@
 
       <aside class="studio-drawer" id="cvLayoutDrawer" aria-labelledby="cv-layout-heading">
         <div class="studio-drawer-inner">
-          <h2 class="studio-drawer-title" id="cv-layout-heading">Style</h2>
+          <h2 class="studio-drawer-title" id="cv-layout-heading">Design</h2>
 
           <form class="cv-layout-form" id="cvLayoutForm" novalidate>
             <section class="drawer-group">
@@ -347,7 +346,7 @@
                 <label class="drawer-switch">
                   <input type="checkbox" name="autoFit" id="layoutAutoFit" class="drawer-switch-input" />
                   <span class="drawer-switch-track" aria-hidden="true"><span class="drawer-switch-knob"></span></span>
-                  <span class="drawer-switch-label">Auto-fit to one page</span>
+                  <span class="drawer-switch-label">Auto-fit density to one page</span>
                 </label>
               </div>
             </section>
@@ -405,12 +404,13 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js?v=48"></script>
+  <script src="cv-history.js?v=2"></script>
   <script src="drag-preview.js?v=6"></script>
-  <script src="cv-builder.js?v=17"></script>
+  <script src="cv-builder.js?v=21"></script>
   <script src="cv-pdf.js?v=2"></script>
-  <script src="cv-preview.js?v=50"></script>
+  <script src="cv-preview.js?v=65"></script>
   <script src="cv-layout-panel.js?v=9"></script>
-  <script src="sidebar.js?v=5"></script>
-  <script src="workspace-tabs.js?v=10"></script>
+  <script src="sidebar.js?v=6"></script>
+  <script src="workspace-tabs.js?v=12"></script>
 </body>
 </html>

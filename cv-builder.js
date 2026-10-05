@@ -56,15 +56,21 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render();
+    window.AchieveMateCvHistory?.record?.();
 
     window.AchieveMateToast?.show("CV cleared — start fresh", {
       actionLabel: "Undo",
       onAction: () => {
+        if (window.AchieveMateCvHistory?.canUndo?.()) {
+          window.AchieveMateCvHistory.undo();
+          return;
+        }
         state.cvLayout = previousLayout;
         state.cvPreviewEdits.items = previousItemEdits;
         saveState();
         renderRail();
         window.AchieveMateCvPreview?.render();
+        window.AchieveMateCvHistory?.record?.();
       },
     });
   }
@@ -103,9 +109,9 @@
   }
 
   function librarySnapshotKey(entry) {
-    return (LIBRARY_FIELDS || ["title", "subtitle", "date", "location", "description"])
-      .map((field) => String(entry?.[field] || "").replace(/\s+/g, " ").trim())
-      .join("\u0001");
+    return (LIBRARY_FIELDS || ['title', 'subtitle', 'date', 'location', 'description'])
+      .map((field) => String(entry?.[field] || '').replace(/\s+/g, ' ').trim())
+      .join('\u0001');
   }
 
   function linkLayoutItemToLibrary(layoutItem, libraryEntryId) {
@@ -116,29 +122,42 @@
     state.cvLayout = [...state.cvLayout];
   }
 
+  function findLibraryEntryBySnapshot(snapshot) {
+    const entry = normalizeLibraryEntry?.({ ...snapshot, id: 'tmp', savedAt: 0 });
+    if (!entry || !Array.isArray(state.cvLibrary)) {
+      return null;
+    }
+    const key = librarySnapshotKey(entry);
+    return state.cvLibrary.find((item) => librarySnapshotKey(item) === key) || null;
+  }
+
   function saveLibrarySnapshot(snapshot, options = {}) {
     const sourceLayoutItemId =
-      typeof options.sourceLayoutItemId === "string" ? options.sourceLayoutItemId : "";
+      typeof options.sourceLayoutItemId === 'string'
+        ? options.sourceLayoutItemId
+        : typeof options.layoutItemId === 'string'
+          ? options.layoutItemId
+          : '';
     const layoutItem = sourceLayoutItemId
       ? state.cvLayout.find((item) => item.id === sourceLayoutItemId)
       : null;
 
     const draft = normalizeLibraryEntry?.({
       ...snapshot,
-      id: createId("lib"),
+      id: createId('lib'),
       savedAt: Date.now(),
       sourceLayoutItemId: sourceLayoutItemId || undefined,
     });
     if (!draft) {
-      window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
-      return { saved: false, reason: "empty" };
+      window.AchieveMateToast?.show('Add some text before saving this item.', { tone: 'neutral' });
+      return { saved: false, reason: 'empty' };
     }
 
     if (!Array.isArray(state.cvLibrary)) {
       state.cvLibrary = [];
     }
 
-    const linkedId = typeof layoutItem?.libraryEntryId === "string" ? layoutItem.libraryEntryId : "";
+    const linkedId = typeof layoutItem?.libraryEntryId === 'string' ? layoutItem.libraryEntryId : '';
     if (linkedId) {
       const linkedIndex = state.cvLibrary.findIndex((item) => item.id === linkedId);
       if (linkedIndex !== -1) {
@@ -146,8 +165,9 @@
         if (librarySnapshotKey(linked) === librarySnapshotKey(draft)) {
           linkLayoutItemToLibrary(layoutItem, linked.id);
           saveState();
-          window.AchieveMateToast?.show("Already in your library", { tone: "neutral" });
-          return { saved: false, reason: "duplicate", entry: linked };
+          window.AchieveMateCvPreview?.syncLibraryStars?.();
+          window.AchieveMateToast?.show('Already in your library', { tone: 'neutral' });
+          return { saved: false, reason: 'duplicate', entry: linked };
         }
 
         const updated = normalizeLibraryEntry({
@@ -162,18 +182,23 @@
         linkLayoutItemToLibrary(layoutItem, updated.id);
         saveState();
         renderRail();
-        window.AchieveMateToast?.show("Updated in library");
+        window.AchieveMateCvPreview?.syncLibraryStars?.();
+        window.AchieveMateCvHistory?.record?.();
+        window.AchieveMateToast?.show('Updated in library');
         return { saved: true, updated: true, entry: updated };
       }
     }
 
-    const key = librarySnapshotKey(draft);
-    const existing = state.cvLibrary.find((item) => librarySnapshotKey(item) === key);
+    const existing = findLibraryEntryBySnapshot(draft);
     if (existing) {
-      linkLayoutItemToLibrary(layoutItem, existing.id);
-      saveState();
-      window.AchieveMateToast?.show("Already in your library", { tone: "neutral" });
-      return { saved: false, reason: "duplicate", entry: existing };
+      if (layoutItem && layoutItem.libraryEntryId !== existing.id) {
+        linkLayoutItemToLibrary(layoutItem, existing.id);
+        saveState();
+        window.AchieveMateCvPreview?.syncLibraryStars?.();
+        window.AchieveMateCvHistory?.record?.();
+      }
+      window.AchieveMateToast?.show('Already in your library', { tone: 'neutral' });
+      return { saved: false, reason: 'duplicate', entry: existing };
     }
 
     const entry = draft;
@@ -181,21 +206,49 @@
     linkLayoutItemToLibrary(layoutItem, entry.id);
     saveState();
     renderRail();
-    window.AchieveMateToast?.show("Saved to library");
+    window.AchieveMateCvPreview?.syncLibraryStars?.();
+    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateToast?.show('Saved to library');
     return { saved: true, entry };
   }
 
+  function toggleLibrarySnapshot(snapshot, options = {}) {
+    const sourceLayoutItemId =
+      typeof options.sourceLayoutItemId === 'string'
+        ? options.sourceLayoutItemId
+        : typeof options.layoutItemId === 'string'
+          ? options.layoutItemId
+          : '';
+    if (sourceLayoutItemId) {
+      const layoutItem = state.cvLayout.find((item) => item.id === sourceLayoutItemId);
+      if (layoutItem?.libraryEntryId) {
+        const linked = state.cvLibrary.find((item) => item.id === layoutItem.libraryEntryId);
+        if (linked) {
+          removeLibraryEntry(linked.id);
+          return { saved: false, removed: true, entry: linked };
+        }
+      }
+    }
+
+    const existing = findLibraryEntryBySnapshot(snapshot);
+    if (existing) {
+      removeLibraryEntry(existing.id);
+      return { saved: false, removed: true, entry: existing };
+    }
+    return saveLibrarySnapshot(snapshot, options);
+  }
+
   function seedLayoutItemFromLibrary(entry) {
-    const item = createLayoutItem("cv-item");
+    const item = createLayoutItem('cv-item');
     item.libraryEntryId = entry.id;
     const bucket = {};
-    (LIBRARY_FIELDS || ["title", "subtitle", "date", "location", "description"]).forEach((field) => {
-      if (String(entry[field] || "").trim()) {
+    (LIBRARY_FIELDS || ['title', 'subtitle', 'date', 'location', 'description']).forEach((field) => {
+      if (String(entry[field] || '').trim()) {
         bucket[field] = entry[field];
       }
     });
 
-    if (!state.cvPreviewEdits.items || typeof state.cvPreviewEdits.items !== "object") {
+    if (!state.cvPreviewEdits.items || typeof state.cvPreviewEdits.items !== 'object') {
       state.cvPreviewEdits.items = {};
     }
     state.cvPreviewEdits.items[item.id] = bucket;
@@ -214,9 +267,11 @@
   }
 
   function clearLibraryLinks(libraryId) {
+    const linkedIds = [];
     let changed = false;
     state.cvLayout.forEach((item) => {
-      if (item.libraryEntryId === libraryId) {
+      if (item?.libraryEntryId === libraryId) {
+        linkedIds.push(item.id);
         delete item.libraryEntryId;
         changed = true;
       }
@@ -224,7 +279,7 @@
     if (changed) {
       state.cvLayout = [...state.cvLayout];
     }
-    return changed;
+    return linkedIds;
   }
 
   function restoreLibraryLinks(libraryId, layoutItemIds) {
@@ -250,26 +305,29 @@
       return null;
     }
 
-    const linkedLayoutItemIds = state.cvLayout
-      .filter((item) => item.libraryEntryId === libraryId)
-      .map((item) => item.id);
     const [removed] = state.cvLibrary.splice(index, 1);
     state.cvLibrary = [...state.cvLibrary];
-    clearLibraryLinks(libraryId);
+    const linkedIds = clearLibraryLinks(libraryId);
     saveState();
     renderRail();
-    window.AchieveMateCvPreview?.refreshLibraryStars?.();
+    window.AchieveMateCvPreview?.syncLibraryStars?.();
+    window.AchieveMateCvHistory?.record?.();
 
-    window.AchieveMateToast?.show("Removed from library", {
-      actionLabel: "Undo",
+    window.AchieveMateToast?.show('Removed from library', {
+      actionLabel: 'Undo',
       onAction: () => {
+        if (window.AchieveMateCvHistory?.canUndo?.()) {
+          window.AchieveMateCvHistory.undo();
+          return;
+        }
         const next = [...state.cvLibrary];
         next.splice(index, 0, removed);
         state.cvLibrary = next;
-        restoreLibraryLinks(libraryId, linkedLayoutItemIds);
+        restoreLibraryLinks(removed.id, linkedIds);
         saveState();
         renderRail();
-        window.AchieveMateCvPreview?.refreshLibraryStars?.();
+        window.AchieveMateCvPreview?.syncLibraryStars?.();
+        window.AchieveMateCvHistory?.record?.();
       },
     });
 
@@ -312,6 +370,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render({ flashItemId: item.id });
+    window.AchieveMateCvHistory?.record?.();
     return item.id;
   }
 
@@ -328,6 +387,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render({ flashItemId: moved.id });
+    window.AchieveMateCvHistory?.record?.();
     return moved.id;
   }
 
@@ -342,6 +402,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render();
+    window.AchieveMateCvHistory?.record?.();
     return { removed, index };
   }
 
@@ -564,6 +625,8 @@
     getAchievement,
     isOnCv,
     saveLibrarySnapshot,
+    toggleLibrarySnapshot,
+    findLibraryEntryBySnapshot,
     insertLibraryEntry,
     removeLibraryEntry,
   };
