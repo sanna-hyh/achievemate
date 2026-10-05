@@ -3609,6 +3609,10 @@ body.layout-drawer-collapsed .studio-cockpit,
   overflow: visible;
 }
 
+.cv-preview-wrap:not(.is-preview-fit) .cv-preview-scaler {
+  visibility: hidden;
+}
+
 .cv-preview-body {
   position: relative;
 }
