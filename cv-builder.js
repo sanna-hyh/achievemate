@@ -4,10 +4,10 @@
     return;
   }
 
-  const { state, saveState, createId, escapeHtml, sortAchievementsForStudio } = app;
+  const { state, saveState, createId, escapeHtml, normalizeLibraryEntry, LIBRARY_FIELDS } = app;
 
   const cvPalette = document.getElementById("cvPalette");
-  const cvAchievementPalette = document.getElementById("cvAchievementPalette");
+  const cvLibraryList = document.getElementById("cvLibraryList");
   const studioRailCount = document.getElementById("studioRailCount");
   const studioClearCvBtn = document.getElementById("studioClearCvBtn");
 
@@ -98,8 +98,91 @@
 
   function updateRailCount() {
     if (studioRailCount) {
-      studioRailCount.textContent = String(state.achievements.length);
+      studioRailCount.textContent = String(state.cvLibrary?.length || 0);
     }
+  }
+
+  function librarySnapshotKey(entry) {
+    return (LIBRARY_FIELDS || ["title", "subtitle", "date", "location", "description"])
+      .map((field) => String(entry?.[field] || "").replace(/\s+/g, " ").trim())
+      .join("\u0001");
+  }
+
+  function saveLibrarySnapshot(snapshot) {
+    const entry = normalizeLibraryEntry?.({ ...snapshot, id: createId("lib"), savedAt: Date.now() });
+    if (!entry) {
+      window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
+      return { saved: false, reason: "empty" };
+    }
+
+    if (!Array.isArray(state.cvLibrary)) {
+      state.cvLibrary = [];
+    }
+
+    const key = librarySnapshotKey(entry);
+    const existing = state.cvLibrary.find((item) => librarySnapshotKey(item) === key);
+    if (existing) {
+      window.AchieveMateToast?.show("Already in your library", { tone: "neutral" });
+      return { saved: false, reason: "duplicate", entry: existing };
+    }
+
+    state.cvLibrary = [entry, ...state.cvLibrary];
+    saveState();
+    renderRail();
+    window.AchieveMateToast?.show("Saved to library");
+    return { saved: true, entry };
+  }
+
+  function seedLayoutItemFromLibrary(entry) {
+    const item = createLayoutItem("cv-item");
+    const bucket = {};
+    (LIBRARY_FIELDS || ["title", "subtitle", "date", "location", "description"]).forEach((field) => {
+      if (String(entry[field] || "").trim()) {
+        bucket[field] = entry[field];
+      }
+    });
+
+    if (!state.cvPreviewEdits.items || typeof state.cvPreviewEdits.items !== "object") {
+      state.cvPreviewEdits.items = {};
+    }
+    state.cvPreviewEdits.items[item.id] = bucket;
+    return item;
+  }
+
+  function insertLibraryEntry(libraryId, index = null) {
+    const entry = state.cvLibrary?.find((item) => item.id === libraryId);
+    if (!entry) {
+      return null;
+    }
+
+    const item = seedLayoutItemFromLibrary(entry);
+    insertLayoutItem(item, index);
+    return item.id;
+  }
+
+  function removeLibraryEntry(libraryId) {
+    const index = state.cvLibrary.findIndex((item) => item.id === libraryId);
+    if (index === -1) {
+      return null;
+    }
+
+    const [removed] = state.cvLibrary.splice(index, 1);
+    state.cvLibrary = [...state.cvLibrary];
+    saveState();
+    renderRail();
+
+    window.AchieveMateToast?.show("Removed from library", {
+      actionLabel: "Undo",
+      onAction: () => {
+        const next = [...state.cvLibrary];
+        next.splice(index, 0, removed);
+        state.cvLibrary = next;
+        saveState();
+        renderRail();
+      },
+    });
+
+    return removed;
   }
 
   function createLayoutItem(type, achievementId) {
@@ -173,7 +256,7 @@
 
   function setDragPayload(event, payload) {
     window.AchieveMateDrag.payload = payload;
-    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.effectAllowed = payload.type === "library" ? "copy" : "copyMove";
     event.dataTransfer.setData("application/json", JSON.stringify(payload));
     event.dataTransfer.setData("text/plain", payload.type || "block");
   }
@@ -250,75 +333,129 @@
     });
   }
 
-  function renderRailEmpty() {
-    const empty = document.createElement("div");
-    empty.className = "empty-state is-compact";
-    empty.innerHTML = `
-      <div class="empty-state-glyph" aria-hidden="true">⚓</div>
-      <h3 class="empty-state-headline">No achievements yet</h3>
-      <p class="empty-state-body">Add a section heading or CV item to start your page.</p>
-    `;
-    cvAchievementPalette.appendChild(empty);
+  function libraryCardLabel(entry) {
+    const title = entry.title?.trim();
+    if (title) {
+      return title;
+    }
+    const subtitle = entry.subtitle?.trim();
+    if (subtitle) {
+      return subtitle;
+    }
+    const description = String(entry.description || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .find(Boolean);
+    return description || "Saved item";
   }
 
-  function renderAchievementPalette() {
-    if (!cvAchievementPalette) {
+  function libraryCardMeta(entry) {
+    return [entry.date, entry.subtitle, entry.location]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .filter((value, index, list) => list.indexOf(value) === index)
+      .slice(0, 2)
+      .join(" · ");
+  }
+
+  function renderLibraryEmpty() {
+    const empty = document.createElement("p");
+    empty.className = "library-empty";
+    empty.textContent = "Star an item on the CV to save it here.";
+    cvLibraryList.appendChild(empty);
+  }
+
+  function bindLibraryBlock(block, entry) {
+    let suppressClick = false;
+
+    block.setAttribute("title", "Click to add at end, or drag to place on CV");
+    block.setAttribute("aria-label", `Insert ${libraryCardLabel(entry)}`);
+    block.tabIndex = 0;
+
+    block.addEventListener("dragstart", (event) => {
+      if (event.target.closest(".rail-block-remove")) {
+        event.preventDefault();
+        return;
+      }
+      suppressClick = true;
+      const payload = { source: "rail", type: "library", libraryId: entry.id };
+      setDragPayload(event, payload);
+      beginDragPreview(event, block, payload);
+      block.classList.add("is-dragging");
+    });
+
+    block.addEventListener("dragend", () => {
+      block.classList.remove("is-dragging");
+      window.AchieveMateDrag.payload = null;
+      window.AchieveMateDragPreview?.end();
+      window.AchieveMateCvPreview?.hideInsertionLine();
+      window.setTimeout(() => {
+        suppressClick = false;
+      }, 0);
+    });
+
+    block.addEventListener("click", (event) => {
+      if (suppressClick || event.target.closest(".rail-block-remove")) {
+        return;
+      }
+      insertLibraryEntry(entry.id);
+    });
+
+    block.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      event.preventDefault();
+      insertLibraryEntry(entry.id);
+    });
+
+    block.querySelector(".rail-block-remove")?.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+    });
+
+    block.querySelector(".rail-block-remove")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      removeLibraryEntry(entry.id);
+    });
+  }
+
+  function renderLibrary() {
+    if (!cvLibraryList) {
       return;
     }
 
-    cvAchievementPalette.innerHTML = "";
+    cvLibraryList.innerHTML = "";
     updateRailCount();
 
-    if (state.achievements.length === 0) {
-      renderRailEmpty();
+    if (!Array.isArray(state.cvLibrary) || state.cvLibrary.length === 0) {
+      renderLibraryEmpty();
       return;
     }
 
-    sortAchievementsForStudio(state.achievements).forEach((achievement) => {
-      const onCv = isOnCv(achievement.id);
+    state.cvLibrary.forEach((entry) => {
       const block = document.createElement("div");
-      block.className = `rail-block rail-block-achievement cv-draggable${onCv ? " is-on-cv" : ""}`;
+      block.className = "rail-block rail-block-achievement rail-block-library cv-draggable";
       block.draggable = true;
-      block.dataset.blockType = "achievement";
-      block.dataset.achievementId = achievement.id;
+      block.dataset.blockType = "library";
+      block.dataset.libraryId = entry.id;
       block.dataset.source = "palette";
 
-      const title = achievement.title?.trim() || "Untitled achievement";
-      const date = achievement.date?.trim() || "No date";
-
+      const meta = libraryCardMeta(entry);
       block.innerHTML = `
-        ${onCv ? '<span class="rail-block-oncv">On CV</span>' : ""}
-        <span class="rail-block-label">${escapeHtml(title)}</span>
-        <span class="rail-block-meta">${escapeHtml(date)}</span>
+        <span class="rail-block-label">${escapeHtml(libraryCardLabel(entry))}</span>
+        ${meta ? `<span class="rail-block-meta">${escapeHtml(meta)}</span>` : ""}
+        <button type="button" class="rail-block-remove" aria-label="Remove from library" draggable="false">×</button>
       `;
 
-      block.addEventListener("dragstart", (event) => {
-        setDragPayload(event, {
-          source: "rail",
-          type: "achievement",
-          achievementId: achievement.id,
-        });
-        beginDragPreview(event, block, {
-          source: "rail",
-          type: "achievement",
-          achievementId: achievement.id,
-        });
-        block.classList.add("is-dragging");
-      });
-
-      block.addEventListener("dragend", () => {
-        block.classList.remove("is-dragging");
-        window.AchieveMateDrag.payload = null;
-        window.AchieveMateDragPreview?.end();
-        window.AchieveMateCvPreview?.hideInsertionLine();
-      });
-
-      cvAchievementPalette.appendChild(block);
+      bindLibraryBlock(block, entry);
+      cvLibraryList.appendChild(block);
     });
   }
 
   function renderRail() {
-    renderAchievementPalette();
+    renderLibrary();
     updateClearCvButton();
   }
 
@@ -335,5 +472,8 @@
     clearAllCvItems,
     getAchievement,
     isOnCv,
+    saveLibrarySnapshot,
+    insertLibraryEntry,
+    removeLibraryEntry,
   };
 })();

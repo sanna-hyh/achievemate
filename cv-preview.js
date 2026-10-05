@@ -4,7 +4,7 @@
     return;
   }
 
-  const { state, saveState, createId, escapeHtml } = app;
+  const { state, saveState, createId, escapeHtml, getStarIconSvg } = app;
 
   const cvPreview = document.getElementById("cvPreview");
   const cvPreviewScaler = document.getElementById("cvPreviewScaler");
@@ -26,6 +26,7 @@
   let armedRestoreTimer = null;
   let armedRestoreButton = null;
   let layoutFrame = null;
+  let pdfFitOverride = null;
   let fitPreviewFrame = null;
   let editSaveTimer = null;
   let layoutDebounceTimer = null;
@@ -676,7 +677,7 @@
       layoutItemId,
       layoutIndex,
     };
-    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.effectAllowed = "copyMove";
     event.dataTransfer.setData("application/json", JSON.stringify(window.AchieveMateDrag.payload));
     documentDragState = { layoutItemId, handled: false };
     documentDragCancelled = false;
@@ -690,6 +691,7 @@
     );
     wrap?.classList.remove("is-dragging");
     hideInsertionLine();
+    setLibraryDropActive(false);
     removeDraggedSectionIfDroppedOutside(event);
     documentDragState = null;
     documentDragCancelled = false;
@@ -728,7 +730,9 @@
 
     const onMove = (event) => {
       window.AchieveMateDragPreview?.movePointer(event.clientX, event.clientY);
-      if (isPointerOverDocument(event.clientX, event.clientY)) {
+      const overLibrary = isPointerOverLibrary(event.clientX, event.clientY);
+      setLibraryDropActive(overLibrary);
+      if (!overLibrary && isPointerOverDocument(event.clientX, event.clientY)) {
         showInsertionLine(resolveDropIndex(getPreviewBody(), event.clientY));
       } else {
         hideInsertionLine();
@@ -745,7 +749,10 @@
       if (builder && documentDragState && !documentDragCancelled) {
         const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
 
-        if (currentIndex !== -1 && isPointerOverDocument(event.clientX, event.clientY)) {
+        if (isPointerOverLibrary(event.clientX, event.clientY)) {
+          documentDragState.handled = true;
+          saveLayoutItemToLibrary(layoutItemId);
+        } else if (currentIndex !== -1 && isPointerOverDocument(event.clientX, event.clientY)) {
           const index = resolveDropIndex(getPreviewBody(), event.clientY);
           documentDragState.handled = true;
           builder.moveLayoutItem(currentIndex, index);
@@ -755,6 +762,7 @@
         }
       }
 
+      setLibraryDropActive(false);
       wrap.classList.remove("is-dragging");
       sectionDragSession = null;
       documentDragState = null;
@@ -777,7 +785,7 @@
       if (event.button !== 0) {
         return;
       }
-      if (event.target.closest(".cv-section-remove, .cv-section-handle")) {
+      if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save")) {
         return;
       }
       if (event.target.closest('[contenteditable="true"].is-editing')) {
@@ -1529,6 +1537,11 @@
       cvPreview.style.setProperty("--cv-line-height", String(styles.lineHeight ?? 1.3));
       cvPreview.style.setProperty("--cv-section-gap", `${styles.sectionGap ?? 12}px`);
       cvPreview.style.setProperty("--cv-section-margin", `${styles.sectionGap ?? 12}px`);
+      pdfFitOverride = null;
+    }
+
+    if (styles.autoFit === true && pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
     }
   }
 
@@ -1632,6 +1645,42 @@
     } else {
       cvPreview.classList.remove("cv-preview-single-page");
     }
+
+    if (getLayoutStyles().autoFit === true && pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
+    }
+  }
+
+  function ptToCssPx(pt) {
+    return Math.round((Number(pt) / 0.75) * 1000) / 1000;
+  }
+
+  function writeFittedTypography(fit) {
+    if (!fit || !cvPreview) {
+      return;
+    }
+
+    cvPreview.style.setProperty("--cv-body-font", `${fit.bodyPt}pt`);
+    cvPreview.style.setProperty("--cv-header-font", `${fit.titlePt}pt`);
+    cvPreview.style.setProperty("--cv-name-font", `${fit.namePt}pt`);
+    cvPreview.style.setProperty("--cv-section-heading-font", `${fit.headingPt}pt`);
+    if (Number.isFinite(Number(fit.lineHeight))) {
+      cvPreview.style.setProperty("--cv-line-height", String(fit.lineHeight));
+    }
+    cvPreview.style.setProperty("--cv-section-gap", `${ptToCssPx(fit.sectionGapPt)}px`);
+    cvPreview.style.setProperty("--cv-section-margin", `${ptToCssPx(fit.sectionMarginPt)}px`);
+    cvPreview.style.setProperty("--cv-item-gap", `${ptToCssPx(fit.itemGapPt)}px`);
+    if (Number.isFinite(Number(fit.marginPt))) {
+      cvPreview.style.setProperty("--cv-page-padding", `${fit.marginPt}pt`);
+    }
+    cvPreview.classList.add("cv-preview-single-page");
+  }
+
+  function rememberPdfFit(fit) {
+    pdfFitOverride = fit?.fitChanged ? fit : null;
+    if (pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
+    }
   }
 
   function measurePageOverflow() {
@@ -1643,6 +1692,7 @@
   }
 
   function applySmartLayout(options = {}) {
+    pdfFitOverride = null;
     applyLayoutStyles();
 
     const finishLayout = () => {
@@ -1690,22 +1740,43 @@
       }
     }
 
-    applyLayoutParams(layoutParamsFromRatio(low));
+    const cssParams = layoutParamsFromRatio(low);
+    applyLayoutParams(cssParams);
 
-    let overflow = false;
-    if (measurePageOverflow()) {
-      overflow = true;
+    let fittedBody = cssParams.bodyFontPt;
+    let overflow = measurePageOverflow();
+    if (overflow) {
       applyLayoutParams({
         ...layoutParamsFromRatio(0),
-        singlePage: false,
+        singlePage: true,
         density: "compact",
       });
+      fittedBody = layoutParamsFromRatio(0).bodyFontPt;
     }
 
-    const finalParams = layoutParamsFromRatio(low);
+    if (window.AchieveMatePdf?.shrinkPdfModelToOnePage) {
+      const fitted = window.AchieveMatePdf.shrinkPdfModelToOnePage(buildPdfModel(), {
+        alsoFits(candidate) {
+          writeFittedTypography(candidate);
+          return !measurePageOverflow();
+        },
+      });
+      rememberPdfFit(fitted);
+      if (!fitted.fitChanged) {
+        applyLayoutParams(overflow ? { ...layoutParamsFromRatio(0), singlePage: true, density: "compact" } : cssParams);
+      }
+      fittedBody = fitted.bodyPt;
+      overflow = Boolean(fitted.fitOverflow) || measurePageOverflow();
+    }
+
+    const gaugeRatio =
+      fittedBody >= LAYOUT.minBodyPt
+        ? Math.max(0, Math.min(1, (fittedBody - LAYOUT.minBodyPt) / (LAYOUT.maxBodyPt - LAYOUT.minBodyPt)))
+        : 0;
+
     updateDensityGauge({
-      ratio: low,
-      bodyFontPt: finalParams.bodyFontPt,
+      ratio: gaugeRatio,
+      bodyFontPt: Math.round(fittedBody * 10) / 10,
       mode: "auto",
       overflow,
     });
@@ -1749,6 +1820,159 @@
 
   function isAchievementDescriptionVisible(achievement) {
     return app.isAchievementDescriptionVisible(achievement);
+  }
+
+  function getLibraryDropTarget() {
+    return document.getElementById("studioRail");
+  }
+
+  function isPointerOverLibrary(clientX, clientY) {
+    const target = getLibraryDropTarget();
+    if (!target || (clientX === 0 && clientY === 0)) {
+      return false;
+    }
+    const rect = target.getBoundingClientRect();
+    const pageRect = cvPreview?.getBoundingClientRect();
+    const rightEdge = pageRect ? Math.max(rect.right, Math.min(pageRect.left, rect.right + 96)) : rect.right + 32;
+    return (
+      clientX >= rect.left - 12 &&
+      clientX <= rightEdge &&
+      clientY >= rect.top - 12 &&
+      clientY <= rect.bottom + 12
+    );
+  }
+
+  function setLibraryDropActive(active) {
+    document.getElementById("cvLibrarySection")?.classList.toggle("is-drop-active", Boolean(active));
+    getLibraryDropTarget()?.classList.toggle("is-library-drop-active", Boolean(active));
+  }
+
+  function commitActivePreviewEdit() {
+    const active = document.activeElement;
+    if (active && cvPreview?.contains(active) && active.matches("[data-edit-key]")) {
+      finishFieldEdit(active);
+    }
+  }
+
+  function meaningfulFieldText(value, placeholder, field) {
+    const text = String(value ?? "");
+    if (!text.trim()) {
+      return "";
+    }
+    if (field === "description" && placeholder && descriptionsMatchPlaceholder(text, placeholder)) {
+      return "";
+    }
+    if (placeholder && normalizePlaceholderCompare(text) === normalizePlaceholderCompare(placeholder)) {
+      return "";
+    }
+    return text;
+  }
+
+  function snapshotLayoutItem(item) {
+    if (!item) {
+      return null;
+    }
+
+    if (item.type === "cv-item") {
+      const snapshot = {};
+      let hasContent = false;
+      CV_ITEM_FIELD_KEYS.forEach((field) => {
+        const content = getCvItemFieldContent(item, field);
+        if (isCvItemFieldFilled(content, field)) {
+          snapshot[field] = content;
+          hasContent = true;
+        } else {
+          snapshot[field] = "";
+        }
+      });
+      return hasContent ? snapshot : null;
+    }
+
+    if (item.type === "achievement") {
+      const achievement = getAchievement(item.achievementId);
+      const title = meaningfulFieldText(
+        preferStoredField(`items.${item.id}.title`, achievement?.title || ""),
+        "Untitled achievement",
+        "title"
+      );
+      const date = meaningfulFieldText(
+        preferStoredField(`items.${item.id}.date`, achievement?.date || ""),
+        "Date",
+        "date"
+      );
+      const descriptionSource = isAchievementDescriptionVisible(achievement)
+        ? preferStoredField(`items.${item.id}.description`, achievement?.description || "")
+        : "";
+      const description = meaningfulFieldText(descriptionSource, "", "description");
+      if (!title && !date && !description.trim()) {
+        return null;
+      }
+      return {
+        title,
+        subtitle: "",
+        date,
+        location: "",
+        description,
+      };
+    }
+
+    return null;
+  }
+
+  function preferStoredField(editKey, source) {
+    const raw = getRawEdit(editKey);
+    if (raw != null && String(raw).trim() !== "") {
+      return String(raw);
+    }
+    return source || "";
+  }
+
+  function saveLayoutItemToLibrary(layoutItemId) {
+    commitActivePreviewEdit();
+    const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
+    if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
+      window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
+      return { saved: false, reason: "unsupported" };
+    }
+
+    const snapshot = snapshotLayoutItem(item);
+    if (!snapshot) {
+      window.AchieveMateToast?.show("Add some text before saving this item.", { tone: "neutral" });
+      return { saved: false, reason: "empty" };
+    }
+
+    return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot);
+  }
+
+  function acceptDocumentDropOnLibrary(layoutItemId) {
+    if (documentDragState) {
+      documentDragState.handled = true;
+    }
+    setLibraryDropActive(false);
+    if (layoutItemId) {
+      const result = saveLayoutItemToLibrary(layoutItemId);
+      if (result?.saved) {
+        const button = cvPreview?.querySelector(
+          `.cv-section-wrap[data-layout-item-id="${layoutItemId}"] .cv-section-save`
+        );
+        flashLibrarySaveButton(button);
+      }
+    }
+  }
+
+  function flashLibrarySaveButton(button) {
+    if (!button) {
+      return;
+    }
+    button.classList.add("is-saved");
+    button.innerHTML = getStarIconSvg(true);
+    window.setTimeout(() => {
+      if (!button.isConnected) {
+        return;
+      }
+      button.classList.remove("is-saved");
+      button.innerHTML = getStarIconSvg(false);
+    }, 1400);
   }
 
   function parseDragPayload(event) {
@@ -1878,6 +2102,17 @@
       return false;
     }
 
+    if (isPointerOverLibrary(event.clientX, event.clientY)) {
+      pending.handled = true;
+      saveLayoutItemToLibrary(pending.layoutItemId);
+      const button = cvPreview?.querySelector(
+        `.cv-section-wrap[data-layout-item-id="${pending.layoutItemId}"] .cv-section-save`
+      );
+      flashLibrarySaveButton(button);
+      window.AchieveMateDragPreview?.end();
+      return false;
+    }
+
     if (isPointerOverDocument(event.clientX, event.clientY)) {
       return false;
     }
@@ -1910,7 +2145,8 @@
       }
 
       event.preventDefault();
-      event.dataTransfer.dropEffect = "move";
+      const dropPayload = window.AchieveMateDrag?.payload;
+      event.dataTransfer.dropEffect = dropPayload?.type === "library" ? "copy" : "move";
       const index = resolveDropIndex(getPreviewBody(), event.clientY);
       showInsertionLine(index);
     });
@@ -1941,6 +2177,11 @@
       const index = resolveDropIndex(getPreviewBody(), event.clientY);
 
       if (payload.source === "rail") {
+        if (payload.type === "library") {
+          builder.insertLibraryEntry(payload.libraryId, index);
+          window.AchieveMateDragPreview?.end();
+          return;
+        }
         if (payload.type === "achievement" && !builder.getAchievement(payload.achievementId)) {
           return;
         }
@@ -1976,8 +2217,36 @@
       }
     });
 
+    const studioRail = getLibraryDropTarget();
+    studioRail?.addEventListener("dragover", (event) => {
+      const payload = window.AchieveMateDrag?.payload;
+      if (payload?.source !== "document") {
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      setLibraryDropActive(true);
+    });
+
+    studioRail?.addEventListener("dragleave", (event) => {
+      if (!studioRail.contains(event.relatedTarget)) {
+        setLibraryDropActive(false);
+      }
+    });
+
+    studioRail?.addEventListener("drop", (event) => {
+      const payload = parseDragPayload(event);
+      if (payload?.source !== "document") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      acceptDocumentDropOnLibrary(payload.layoutItemId);
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        setLibraryDropActive(false);
         if (sectionDragSession) {
           documentDragCancelled = true;
           hideInsertionLine();
@@ -2033,6 +2302,18 @@
       removeBtn?.addEventListener("click", (event) => {
         event.stopPropagation();
         removeSectionFromCv(layoutItemId);
+      });
+
+      const saveBtn = wrap.querySelector(".cv-section-save");
+      saveBtn?.addEventListener("mousedown", (event) => {
+        event.stopPropagation();
+      });
+      saveBtn?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const result = saveLayoutItemToLibrary(layoutItemId);
+        if (result?.saved) {
+          flashLibrarySaveButton(saveBtn);
+        }
       });
     });
   }
@@ -2709,12 +2990,18 @@
       `;
     }
 
+    const saveButton =
+      item.type === "cv-item" || item.type === "achievement"
+        ? `<button type="button" class="btn-icon cv-section-save" aria-label="Save to library" title="Save to library">${getStarIconSvg(false)}</button>`
+        : "";
+
     return `
       <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
         <div class="cv-section-handles">
           <button type="button" class="btn-icon cv-section-handle" draggable="true" aria-label="Drag to reorder section">⠿</button>
           <button type="button" class="btn-icon cv-section-remove" aria-label="Remove section from CV">×</button>
         </div>
+        ${saveButton}
         ${inner}
       </div>
     `;
@@ -2724,15 +3011,24 @@
     return `
       <div class="cv-doc-empty">
         <div class="cv-doc-empty-glyph" aria-hidden="true">¶</div>
-        <p class="cv-doc-empty-headline">Drag achievements here</p>
-        <p class="cv-doc-empty-body">Pull from the rail on the left to compose your CV.</p>
+        <p class="cv-doc-empty-headline">Start your CV</p>
+        <p class="cv-doc-empty-body">Add a CV item, or drag a saved one from the library.</p>
       </div>
     `;
   }
 
   function renderPreview(options = {}) {
     if (isEditingPreview) {
-      return;
+      const active = document.activeElement;
+      const stillEditing =
+        active &&
+        cvPreview.contains(active) &&
+        active.matches("[data-edit-key]") &&
+        active.getAttribute("contenteditable") === "true";
+      if (stillEditing) {
+        return;
+      }
+      isEditingPreview = false;
     }
 
     if (!options.publish) {
@@ -3234,8 +3530,9 @@
     });
 
     const lineHeightRaw = parseFloat(cvPreview?.style.getPropertyValue("--cv-line-height"));
+    const autoFit = styles.autoFit === true;
 
-    return {
+    const model = {
       documentTitle: nameLines.length ? editPlainText(nameValue) : "CV",
       fontFamily: styles.fontFamily,
       textColor: parsePdfColor(styles.textColor),
@@ -3253,7 +3550,22 @@
       name: nameLines,
       contact: exportFieldLines(contactValue, "Phone | Email"),
       blocks,
+      autoFit,
     };
+
+    if (autoFit && pdfFitOverride) {
+      model.marginPt = pdfFitOverride.marginPt;
+      model.namePt = pdfFitOverride.namePt;
+      model.headingPt = pdfFitOverride.headingPt;
+      model.titlePt = pdfFitOverride.titlePt;
+      model.bodyPt = pdfFitOverride.bodyPt;
+      model.lineHeight = pdfFitOverride.lineHeight;
+      model.sectionGapPt = pdfFitOverride.sectionGapPt;
+      model.sectionMarginPt = pdfFitOverride.sectionMarginPt;
+      model.itemGapPt = pdfFitOverride.itemGapPt;
+    }
+
+    return model;
   }
 
   async function createExportPdfDoc() {
@@ -3262,9 +3574,16 @@
     if (getLayoutStyles().autoFit === true) {
       applySmartLayout();
     } else {
+      pdfFitOverride = null;
       applyLayoutStyles();
     }
-    return window.AchieveMatePdf.createCvPdf(buildPdfModel());
+    const model = buildPdfModel();
+    const doc = await window.AchieveMatePdf.createCvPdf(model);
+    const fit = window.AchieveMatePdf.getCvPdfFit?.(doc);
+    if (model.autoFit && fit?.fitChanged) {
+      rememberPdfFit(fit);
+    }
+    return doc;
   }
 
   async function performPdfExport() {
