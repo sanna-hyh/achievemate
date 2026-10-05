@@ -6,16 +6,17 @@
     studio: document.getElementById("viewStudio"),
   };
 
-  if (!tablist || !views.logbook || !views.studio) {
+  if (!views.logbook || !views.studio) {
     return;
   }
 
   const HOME_VIEW = "studio";
   const LOGBOOK_VIEW = "logbook";
   const logbookEnabled = window.ENABLE_LOGBOOK === true;
-  const tabs = [...tablist.querySelectorAll("[data-view]")];
-  const track = tablist.querySelector(".view-switcher-track");
-  const indicator = tablist.querySelector(".view-switcher-indicator");
+  const tabs = tablist ? [...tablist.querySelectorAll("[data-view]")] : [];
+  const track = tablist?.querySelector(".view-switcher-track") ?? null;
+  const indicator = tablist?.querySelector(".view-switcher-indicator") ?? null;
+  const logbookMenuBtn = document.getElementById("sidebarOpenLogbookBtn");
   const STORAGE_KEY = "achievemate-active-tab";
   let activeView = HOME_VIEW;
   let switchTimer = null;
@@ -127,6 +128,14 @@
       }
     }
 
+    if (logbookMenuBtn) {
+      if (viewId === LOGBOOK_VIEW) {
+        logbookMenuBtn.setAttribute("aria-current", "page");
+      } else {
+        logbookMenuBtn.removeAttribute("aria-current");
+      }
+    }
+
     syncSwitcherIndicator();
   }
 
@@ -204,7 +213,7 @@
     }
   }
 
-  tablist.addEventListener("click", (event) => {
+  tablist?.addEventListener("click", (event) => {
     const tab = event.target.closest("[data-view]");
     if (!tab || !tablist.contains(tab)) {
       return;

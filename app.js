@@ -771,8 +771,8 @@ function renderEmptyState() {
     ? `
     <div class="empty-state-personal-tip">
       <p class="empty-state-personal-tip-title">First, add your CV header</p>
-      <p class="empty-state-personal-tip-body">Open the menu and enter your name, phone, and email. They appear at the top of your CV.</p>
-      <button type="button" class="btn btn-ghost empty-state-personal-cta">Add personal info</button>
+      <p class="empty-state-personal-tip-body">Your name, phone, and email are edited at the top of your CV.</p>
+      <button type="button" class="btn btn-ghost empty-state-personal-cta">Edit on CV</button>
     </div>
   `
     : "";
@@ -788,7 +788,9 @@ function renderEmptyState() {
   `;
 
   empty.querySelector(".empty-state-cta")?.addEventListener("click", addAchievement);
-  empty.querySelector(".empty-state-personal-cta")?.addEventListener("click", openPersonalInfoPanel);
+  empty.querySelector(".empty-state-personal-cta")?.addEventListener("click", () => {
+    window.AchieveMateViews?.setActiveView("studio");
+  });
   achievementsList.appendChild(empty);
 }
 
