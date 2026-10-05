@@ -253,13 +253,20 @@
   function renderRailEmpty() {
     const empty = document.createElement("div");
     empty.className = "empty-state is-compact";
-    empty.innerHTML = `
+    const logbookOn = window.ENABLE_LOGBOOK === true;
+    empty.innerHTML = logbookOn
+      ? `
       <div class="empty-state-glyph" aria-hidden="true">⚓</div>
       <h3 class="empty-state-headline">No achievements yet</h3>
       <p class="empty-state-body">Log entries in the Logbook to compose your CV.</p>
       <button type="button" class="btn btn-ghost">Open Logbook</button>
+    `
+      : `
+      <div class="empty-state-glyph" aria-hidden="true">⚓</div>
+      <h3 class="empty-state-headline">No achievements yet</h3>
+      <p class="empty-state-body">Add a section heading or CV item to start your page.</p>
     `;
-    empty.querySelector("button").addEventListener("click", () => {
+    empty.querySelector("button")?.addEventListener("click", () => {
       window.AchieveMateViews?.setActiveView("logbook");
     });
     cvAchievementPalette.appendChild(empty);

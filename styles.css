@@ -210,6 +210,10 @@ a.topbar-wordmark:visited {
   transform: translateX(-50%);
 }
 
+html:not(.logbook-enabled) .view-switcher {
+  display: none;
+}
+
 .view-switcher-track {
   position: relative;
   display: inline-flex;

@@ -12,6 +12,7 @@
 
   const HOME_VIEW = "studio";
   const LOGBOOK_VIEW = "logbook";
+  const logbookEnabled = window.ENABLE_LOGBOOK === true;
   const tabs = [...tablist.querySelectorAll("[data-view]")];
   const track = tablist.querySelector(".view-switcher-track");
   const indicator = tablist.querySelector(".view-switcher-indicator");
@@ -34,16 +35,25 @@
     return viewId === LOGBOOK_VIEW ? "#logbook" : "#/";
   }
 
-  // Bare `/` is the CV canvas. Explicit `#logbook` stays on the logbook.
-  // Older names that used to mean "open the app" or "open the CV" land on the canvas.
-  // Profile/achievements were folded into the logbook, so those links still open it.
+  function isLogbookToken(token) {
+    return (
+      token === "logbook" ||
+      token === "viewlogbook" ||
+      token === "profile" ||
+      token === "achievements"
+    );
+  }
+
+  // Bare `/` is the CV canvas. With Logbook enabled, `#logbook` opens it and
+  // older profile/achievements links rewrite there. With the flag off, those
+  // links return to the CV home instead of a hidden view.
   function resolveRoute(hash) {
     const token = tokenFromHash(hash);
-    if (token === "logbook" || token === "viewlogbook") {
-      return { viewId: LOGBOOK_VIEW, redirect: false };
-    }
-    if (token === "profile" || token === "achievements") {
-      return { viewId: LOGBOOK_VIEW, redirect: true };
+    if (isLogbookToken(token)) {
+      if (!logbookEnabled) {
+        return { viewId: HOME_VIEW, redirect: true };
+      }
+      return { viewId: LOGBOOK_VIEW, redirect: token !== "logbook" };
     }
     if (!token) {
       return { viewId: HOME_VIEW, redirect: false };
@@ -172,6 +182,12 @@
   }
 
   function setActiveView(viewId, { focusTab = false, fromRoute = false, replaceHistory = false } = {}) {
+    if (!logbookEnabled && viewId === LOGBOOK_VIEW) {
+      viewId = HOME_VIEW;
+      replaceHistory = true;
+      fromRoute = false;
+    }
+
     if (!views[viewId]) {
       return;
     }

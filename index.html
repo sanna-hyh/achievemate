@@ -11,7 +11,11 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=94" />
+  <link rel="stylesheet" href="styles.css?v=95" />
+  <script src="features.js?v=1"></script>
+  <script>
+    document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
+  </script>
 </head>
 <body>
   <header class="topbar">
@@ -433,11 +437,11 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js?v=46"></script>
   <script src="drag-preview.js?v=5"></script>
-  <script src="cv-builder.js?v=14"></script>
+  <script src="cv-builder.js?v=15"></script>
   <script src="cv-pdf.js?v=1"></script>
   <script src="cv-preview.js?v=46"></script>
   <script src="cv-layout-panel.js?v=8"></script>
   <script src="sidebar.js?v=4"></script>
-  <script src="workspace-tabs.js?v=8"></script>
+  <script src="workspace-tabs.js?v=9"></script>
 </body>
 </html>
