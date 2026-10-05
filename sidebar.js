@@ -4,6 +4,7 @@
   const toggleBtn = document.getElementById("sidebarToggleBtn");
   const collapseBtn = document.getElementById("sidebarCollapseBtn");
   const openStudioBtn = document.getElementById("sidebarOpenStudioBtn");
+  const openLogbookBtn = document.getElementById("sidebarOpenLogbookBtn");
   const panelToggles = [...document.querySelectorAll(".sidebar-panel-toggle")];
 
   if (!sidebar || !toggleBtn) {
@@ -45,10 +46,6 @@
 
   function openPanel(panelId) {
     const panelMap = {
-      personal: {
-        toggle: document.getElementById("sidebarPersonalToggle"),
-        body: document.getElementById("sidebarPersonalBody"),
-      },
       settings: {
         toggle: document.getElementById("sidebarSettingsToggle"),
         body: document.getElementById("sidebarSettingsBody"),
@@ -84,7 +81,15 @@
   scrim?.addEventListener("click", closeSidebar);
 
   openStudioBtn?.addEventListener("click", () => {
-    document.querySelector('[data-view="studio"]')?.click();
+    window.AchieveMateViews?.setActiveView("studio");
+    closeSidebar();
+  });
+
+  openLogbookBtn?.addEventListener("click", () => {
+    if (window.ENABLE_LOGBOOK !== true) {
+      return;
+    }
+    window.AchieveMateViews?.setActiveView("logbook");
     closeSidebar();
   });
 

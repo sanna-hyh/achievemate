@@ -948,7 +948,7 @@
   function applyPreviewZoom() {
     const metrics = measurePreviewFit();
     if (!metrics || !cvPreviewScaler || !cvPreview) {
-      return;
+      return false;
     }
 
     const { wrap, docW, docH, baseFitScale: nextBaseFitScale } = metrics;
@@ -962,6 +962,7 @@
     cvPreviewScaler.style.height = `${docH * scale}px`;
     wrap.dataset.previewScale = scale.toFixed(3);
     wrap.dataset.userZoom = userZoom.toFixed(3);
+    wrap.classList.add("is-preview-fit");
 
     const isZoomed = userZoom > MIN_USER_ZOOM + 0.001;
     wrap.classList.toggle("is-zoomed", isZoomed);
@@ -972,6 +973,7 @@
     }
 
     updatePreviewZoomUi();
+    return true;
   }
 
   function setUserZoom(nextZoom) {
@@ -984,6 +986,8 @@
     applyPreviewZoom();
   }
 
+  let fitRevealAttempts = 0;
+
   function scheduleFitPreview() {
     if (fitPreviewFrame) {
       cancelAnimationFrame(fitPreviewFrame);
@@ -991,7 +995,20 @@
 
     fitPreviewFrame = requestAnimationFrame(() => {
       fitPreviewFrame = null;
-      applyPreviewZoom();
+      if (applyPreviewZoom()) {
+        fitRevealAttempts = 0;
+        return;
+      }
+
+      const studioView = document.getElementById("viewStudio");
+      if (!studioView?.classList.contains("is-active")) {
+        return;
+      }
+
+      fitRevealAttempts += 1;
+      if (fitRevealAttempts < 30) {
+        scheduleFitPreview();
+      }
     });
   }
 
@@ -3128,7 +3145,7 @@
     const topbar = document.querySelector(".topbar");
     const logbook = document.getElementById("viewLogbook");
     const studio = document.getElementById("viewStudio");
-    const activeView = window.AchieveMateViews?.getActiveView?.() || "logbook";
+    const activeView = window.AchieveMateViews?.getActiveView?.() || "studio";
 
     if (hidden) {
       topbar?.setAttribute("aria-hidden", "true");
@@ -3612,6 +3629,7 @@
   bindPreviewZoomControls();
   bindDocumentDragDrop();
   bindPreviewPointerInteraction();
+  applyPreviewZoom();
   scheduleFitPreview();
 
   window.AchieveMateCvPreview = {
