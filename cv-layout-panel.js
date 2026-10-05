@@ -160,12 +160,10 @@
     updateOutputs();
     syncAllSliderFills();
 
-    if (window.AchieveMateCvPreview?.applyLayoutStyles) {
-      window.AchieveMateCvPreview.applyLayoutStyles();
-    }
-
-    if (state.cvSettings.autoFit && window.AchieveMateCvPreview?.scheduleSmartLayout) {
+    if (window.AchieveMateCvPreview?.scheduleSmartLayout) {
       window.AchieveMateCvPreview.scheduleSmartLayout();
+    } else if (window.AchieveMateCvPreview?.applyLayoutStyles) {
+      window.AchieveMateCvPreview.applyLayoutStyles();
     }
   }
 
@@ -223,12 +221,10 @@
   function refreshPreviewAfterReset() {
     syncFormFromState();
 
-    if (window.AchieveMateCvPreview?.applyLayoutStyles) {
-      window.AchieveMateCvPreview.applyLayoutStyles();
-    }
-
-    if (state.cvSettings.autoFit && window.AchieveMateCvPreview?.scheduleSmartLayout) {
+    if (window.AchieveMateCvPreview?.scheduleSmartLayout) {
       window.AchieveMateCvPreview.scheduleSmartLayout();
+    } else if (window.AchieveMateCvPreview?.applyLayoutStyles) {
+      window.AchieveMateCvPreview.applyLayoutStyles();
     }
   }
 

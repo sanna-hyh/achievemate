@@ -164,29 +164,32 @@
     return Array.isArray(line) && line.some((run) => String(run?.text || "").trim());
   }
 
-  async function createCvPdf(model) {
+  function finitePt(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+  }
+
+  function positivePt(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : fallback;
+  }
+
+  function createPdfDocument() {
     const JsPDF = root.jspdf?.jsPDF;
     if (!JsPDF) {
       throw new Error("jsPDF failed to load");
     }
 
-    let unicodeFont = null;
-    if (modelNeedsUnicode(model)) {
-      try {
-        unicodeFont = await loadUnicodeFonts();
-      } catch (error) {
-        console.warn("Unicode font failed to load; non-Latin characters were omitted.", error);
-      }
-    }
-
-    const doc = new JsPDF({
+    return new JsPDF({
       unit: "pt",
       format: "a4",
       orientation: "portrait",
       compress: true,
       putOnlyUsedFonts: true,
     });
+  }
 
+  function renderCvPdf(doc, model, unicodeFont) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = Math.max(36, Number(model.marginPt) || 54);
@@ -202,14 +205,14 @@
     }
     const textColor = model.textColor || [0, 0, 0];
     const accentColor = model.accentColor || [0, 0, 0];
-    const bodySize = Number(model.bodyPt) || 11;
-    const titleSize = Number(model.titlePt) || bodySize;
-    const nameSize = Number(model.namePt) || 20;
-    const headingSize = Number(model.headingPt) || 13;
-    const lineHeight = Number(model.lineHeight) || 1.3;
-    const sectionGap = Number(model.sectionGapPt) || 9;
-    const sectionMargin = Number(model.sectionMarginPt) || sectionGap;
-    const itemGap = Number(model.itemGapPt) || 3;
+    const bodySize = positivePt(model.bodyPt, 11);
+    const titleSize = positivePt(model.titlePt, bodySize);
+    const nameSize = positivePt(model.namePt, 20);
+    const headingSize = positivePt(model.headingPt, 13);
+    const lineHeight = positivePt(model.lineHeight, 1.3);
+    const sectionGap = finitePt(model.sectionGapPt, 9);
+    const sectionMargin = finitePt(model.sectionMarginPt, sectionGap);
+    const itemGap = finitePt(model.itemGapPt, 3);
     const divider = ["solid", "dotted", "none"].includes(model.headingDivider)
       ? model.headingDivider
       : "solid";
@@ -238,6 +241,7 @@
       textSegments(text).forEach((segment) => {
         const face = faceFor(style, segment.unicode);
         if (!face) {
+          width += Array.from(segment.text).length * size;
           return;
         }
         doc.setFont(face.family, face.style);
@@ -638,12 +642,119 @@
         creator: "AchieveMate",
       });
     }
+  }
 
+  const fitByDoc = new WeakMap();
+
+  function countCvPdfPages(model, unicodeFont) {
+    const doc = createPdfDocument();
+    renderCvPdf(doc, model, unicodeFont || null);
+    return doc.getNumberOfPages();
+  }
+
+  function roundPt(value) {
+    return Math.round((Number(value) || 0) * 100) / 100;
+  }
+
+  function scaleFittedModel(model, scale, mode) {
+    const factor = Math.round(scale * 10000) / 10000;
+    const next = {
+      ...model,
+      bodyPt: roundPt(model.bodyPt * factor),
+      titlePt: roundPt(model.titlePt * factor),
+      sectionGapPt: roundPt(model.sectionGapPt * factor),
+      sectionMarginPt: roundPt(model.sectionMarginPt * factor),
+      itemGapPt: roundPt(model.itemGapPt * factor),
+      fitScale: factor,
+      fitChanged: factor < 0.999,
+      fitOverflow: false,
+    };
+
+    if (mode === "all") {
+      next.namePt = roundPt(model.namePt * factor);
+      next.headingPt = roundPt(model.headingPt * factor);
+      next.marginPt = roundPt(Math.max(28, (Number(model.marginPt) || 54) * (0.7 + 0.3 * factor)));
+    }
+
+    return next;
+  }
+
+  function shrinkPdfModelToOnePage(model, options = {}) {
+    const unicodeFont = options.unicodeFont || null;
+    const alsoFits = typeof options.alsoFits === "function" ? options.alsoFits : null;
+    const minScale = 0.08;
+
+    const fits = (candidate) => {
+      if (countCvPdfPages(candidate, unicodeFont) > 1) {
+        return false;
+      }
+      if (alsoFits && !alsoFits(candidate)) {
+        return false;
+      }
+      return true;
+    };
+
+    const search = (base, mode) => {
+      if (fits(base)) {
+        return { ...base, fitScale: 1, fitChanged: false, fitOverflow: false };
+      }
+
+      const smallest = scaleFittedModel(base, minScale, mode);
+      if (!fits(smallest)) {
+        return { ...smallest, fitChanged: true, fitOverflow: true };
+      }
+
+      let low = minScale;
+      let high = 1;
+      let best = minScale;
+      for (let step = 0; step < 12; step += 1) {
+        const mid = (low + high) / 2;
+        if (fits(scaleFittedModel(base, mid, mode))) {
+          best = mid;
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+
+      return scaleFittedModel(base, best, mode);
+    };
+
+    const bodyFit = search(model, "body");
+    if (!bodyFit.fitOverflow) {
+      return bodyFit;
+    }
+    return search(model, "all");
+  }
+
+  async function createCvPdf(model) {
+    let unicodeFont = null;
+    if (modelNeedsUnicode(model)) {
+      try {
+        unicodeFont = await loadUnicodeFonts();
+      } catch (error) {
+        console.warn("Unicode font failed to load; non-Latin characters were omitted.", error);
+      }
+    }
+
+    const paintModel = model?.autoFit
+      ? shrinkPdfModelToOnePage(model, { unicodeFont })
+      : model;
+    const doc = createPdfDocument();
+    renderCvPdf(doc, paintModel, unicodeFont);
+    fitByDoc.set(doc, paintModel);
     return doc;
+  }
+
+  function getCvPdfFit(doc) {
+    return fitByDoc.get(doc) || null;
   }
 
   root.AchieveMatePdf = {
     createCvPdf,
+    countCvPdfPages,
+    shrinkPdfModelToOnePage,
+    getCvPdfFit,
     pdfFontName,
     sanitizeText,
   };
