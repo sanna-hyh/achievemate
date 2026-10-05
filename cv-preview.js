@@ -26,6 +26,7 @@
   let armedRestoreTimer = null;
   let armedRestoreButton = null;
   let layoutFrame = null;
+  let pdfFitOverride = null;
   let fitPreviewFrame = null;
   let editSaveTimer = null;
   let layoutDebounceTimer = null;
@@ -1512,6 +1513,11 @@
       cvPreview.style.setProperty("--cv-line-height", String(styles.lineHeight ?? 1.3));
       cvPreview.style.setProperty("--cv-section-gap", `${styles.sectionGap ?? 12}px`);
       cvPreview.style.setProperty("--cv-section-margin", `${styles.sectionGap ?? 12}px`);
+      pdfFitOverride = null;
+    }
+
+    if (styles.autoFit === true && pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
     }
   }
 
@@ -1615,6 +1621,42 @@
     } else {
       cvPreview.classList.remove("cv-preview-single-page");
     }
+
+    if (getLayoutStyles().autoFit === true && pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
+    }
+  }
+
+  function ptToCssPx(pt) {
+    return Math.round((Number(pt) / 0.75) * 1000) / 1000;
+  }
+
+  function writeFittedTypography(fit) {
+    if (!fit || !cvPreview) {
+      return;
+    }
+
+    cvPreview.style.setProperty("--cv-body-font", `${fit.bodyPt}pt`);
+    cvPreview.style.setProperty("--cv-header-font", `${fit.titlePt}pt`);
+    cvPreview.style.setProperty("--cv-name-font", `${fit.namePt}pt`);
+    cvPreview.style.setProperty("--cv-section-heading-font", `${fit.headingPt}pt`);
+    if (Number.isFinite(Number(fit.lineHeight))) {
+      cvPreview.style.setProperty("--cv-line-height", String(fit.lineHeight));
+    }
+    cvPreview.style.setProperty("--cv-section-gap", `${ptToCssPx(fit.sectionGapPt)}px`);
+    cvPreview.style.setProperty("--cv-section-margin", `${ptToCssPx(fit.sectionMarginPt)}px`);
+    cvPreview.style.setProperty("--cv-item-gap", `${ptToCssPx(fit.itemGapPt)}px`);
+    if (Number.isFinite(Number(fit.marginPt))) {
+      cvPreview.style.setProperty("--cv-page-padding", `${fit.marginPt}pt`);
+    }
+    cvPreview.classList.add("cv-preview-single-page");
+  }
+
+  function rememberPdfFit(fit) {
+    pdfFitOverride = fit?.fitChanged ? fit : null;
+    if (pdfFitOverride) {
+      writeFittedTypography(pdfFitOverride);
+    }
   }
 
   function measurePageOverflow() {
@@ -1626,6 +1668,7 @@
   }
 
   function applySmartLayout(options = {}) {
+    pdfFitOverride = null;
     applyLayoutStyles();
 
     const finishLayout = () => {
@@ -1673,22 +1716,43 @@
       }
     }
 
-    applyLayoutParams(layoutParamsFromRatio(low));
+    const cssParams = layoutParamsFromRatio(low);
+    applyLayoutParams(cssParams);
 
-    let overflow = false;
-    if (measurePageOverflow()) {
-      overflow = true;
+    let fittedBody = cssParams.bodyFontPt;
+    let overflow = measurePageOverflow();
+    if (overflow) {
       applyLayoutParams({
         ...layoutParamsFromRatio(0),
-        singlePage: false,
+        singlePage: true,
         density: "compact",
       });
+      fittedBody = layoutParamsFromRatio(0).bodyFontPt;
     }
 
-    const finalParams = layoutParamsFromRatio(low);
+    if (window.AchieveMatePdf?.shrinkPdfModelToOnePage) {
+      const fitted = window.AchieveMatePdf.shrinkPdfModelToOnePage(buildPdfModel(), {
+        alsoFits(candidate) {
+          writeFittedTypography(candidate);
+          return !measurePageOverflow();
+        },
+      });
+      rememberPdfFit(fitted);
+      if (!fitted.fitChanged) {
+        applyLayoutParams(overflow ? { ...layoutParamsFromRatio(0), singlePage: true, density: "compact" } : cssParams);
+      }
+      fittedBody = fitted.bodyPt;
+      overflow = Boolean(fitted.fitOverflow) || measurePageOverflow();
+    }
+
+    const gaugeRatio =
+      fittedBody >= LAYOUT.minBodyPt
+        ? Math.max(0, Math.min(1, (fittedBody - LAYOUT.minBodyPt) / (LAYOUT.maxBodyPt - LAYOUT.minBodyPt)))
+        : 0;
+
     updateDensityGauge({
-      ratio: low,
-      bodyFontPt: finalParams.bodyFontPt,
+      ratio: gaugeRatio,
+      bodyFontPt: Math.round(fittedBody * 10) / 10,
       mode: "auto",
       overflow,
     });
@@ -3217,8 +3281,9 @@
     });
 
     const lineHeightRaw = parseFloat(cvPreview?.style.getPropertyValue("--cv-line-height"));
+    const autoFit = styles.autoFit === true;
 
-    return {
+    const model = {
       documentTitle: nameLines.length ? editPlainText(nameValue) : "CV",
       fontFamily: styles.fontFamily,
       textColor: parsePdfColor(styles.textColor),
@@ -3236,7 +3301,22 @@
       name: nameLines,
       contact: exportFieldLines(contactValue, "Phone | Email"),
       blocks,
+      autoFit,
     };
+
+    if (autoFit && pdfFitOverride) {
+      model.marginPt = pdfFitOverride.marginPt;
+      model.namePt = pdfFitOverride.namePt;
+      model.headingPt = pdfFitOverride.headingPt;
+      model.titlePt = pdfFitOverride.titlePt;
+      model.bodyPt = pdfFitOverride.bodyPt;
+      model.lineHeight = pdfFitOverride.lineHeight;
+      model.sectionGapPt = pdfFitOverride.sectionGapPt;
+      model.sectionMarginPt = pdfFitOverride.sectionMarginPt;
+      model.itemGapPt = pdfFitOverride.itemGapPt;
+    }
+
+    return model;
   }
 
   async function createExportPdfDoc() {
@@ -3245,9 +3325,16 @@
     if (getLayoutStyles().autoFit === true) {
       applySmartLayout();
     } else {
+      pdfFitOverride = null;
       applyLayoutStyles();
     }
-    return window.AchieveMatePdf.createCvPdf(buildPdfModel());
+    const model = buildPdfModel();
+    const doc = await window.AchieveMatePdf.createCvPdf(model);
+    const fit = window.AchieveMatePdf.getCvPdfFit?.(doc);
+    if (model.autoFit && fit?.fitChanged) {
+      rememberPdfFit(fit);
+    }
+    return doc;
   }
 
   async function performPdfExport() {

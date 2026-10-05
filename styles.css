@@ -4309,10 +4309,6 @@ body.is-cv-dragging .cv-preview-document {
   gap: var(--cv-section-gap);
 }
 
-.cv-preview-single-page:not(.cv-preview-manual-layout) .cv-preview-body {
-  justify-content: space-between;
-}
-
 .cv-preview-section-heading {
   margin-top: var(--cv-section-margin);
   margin-bottom: calc(var(--cv-section-margin) * 0.4);
