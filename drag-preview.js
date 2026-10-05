@@ -124,6 +124,37 @@
     return article;
   }
 
+  function buildLibraryContent(entry) {
+    const article = document.createElement("article");
+    article.className = "cv-preview-entry cv-preview-cv-item";
+
+    const title = document.createElement("h3");
+    title.className = "cv-preview-entry-title";
+    title.textContent = entry.title?.trim() || entry.subtitle?.trim() || "Saved item";
+    article.appendChild(title);
+
+    const meta = [entry.subtitle, entry.date, entry.location].map((value) => String(value || "").trim()).filter(Boolean);
+    if (meta.length > 0) {
+      const line = document.createElement("p");
+      line.className = "cv-preview-entry-date";
+      line.textContent = meta.join(" · ");
+      article.appendChild(line);
+    }
+
+    const lines = String(entry.description || "")
+      .split("\n")
+      .map((line) => line.replace(/^[•\-*]\s*/, "").trim())
+      .filter(Boolean);
+    if (lines.length > 0) {
+      const body = document.createElement("div");
+      body.className = "cv-preview-entry-body";
+      body.textContent = lines.map((line) => `• ${line}`).join("\n");
+      article.appendChild(body);
+    }
+
+    return article;
+  }
+
   function buildAchievementContent(achievement) {
     const app = getApp();
     const article = document.createElement("article");
@@ -191,6 +222,14 @@
     if (payload?.type === "cv-item") {
       shell.appendChild(buildCvItemContent());
       return shell;
+    }
+
+    if (payload?.type === "library" && payload.libraryId) {
+      const entry = getApp()?.state?.cvLibrary?.find((item) => item.id === payload.libraryId);
+      if (entry) {
+        shell.appendChild(buildLibraryContent(entry));
+        return shell;
+      }
     }
 
     if (sourceEl.dataset.blockType === "cv-item") {
