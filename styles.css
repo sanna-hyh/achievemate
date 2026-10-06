@@ -3054,42 +3054,70 @@ body.layout-drawer-collapsed .studio-cockpit,
 }
 
 .studio-rail-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0;
   flex-shrink: 0;
+  padding: 2px 0 0;
 }
 
 .studio-rail-tab {
+  position: relative;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 10px;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-height: 0;
+  padding: 0 0 7px;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: transparent;
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0.01em;
+  line-height: 1.35;
   cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.studio-rail-tab:not(:first-child)::before {
+  content: "|";
+  margin: 0 0.55rem 0 0;
+  color: var(--border-strong);
+  font-weight: 400;
+  pointer-events: none;
 }
 
 .studio-rail-tab:hover {
-  color: var(--text);
-  background: var(--surface-2);
+  color: var(--text-secondary);
+  background: transparent;
 }
 
 .studio-rail-tab[aria-selected="true"] {
-  color: var(--text);
-  background: var(--surface-2);
+  color: var(--text-primary);
+  background: transparent;
+}
+
+.studio-rail-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--brass);
+  border-radius: 1px;
 }
 
 .studio-rail-tab .studio-rail-count {
   margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.85;
 }
 
 .studio-rail-scroll {
