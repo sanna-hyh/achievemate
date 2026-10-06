@@ -362,18 +362,85 @@
     };
   }
 
-  function insertLayoutItem(item, index) {
+  function historyLabelForItem(item) {
+    if (item?.type === "heading") {
+      const title = String(item.title || "").trim();
+      return title ? `Add ${title}` : "Add heading";
+    }
+    if (item?.type === "cv-item") {
+      return item.libraryEntryId ? "Add from library" : "Add CV item";
+    }
+    return "Add item";
+  }
+
+  function insertLayoutItem(item, index, options = {}) {
     const next = [...state.cvLayout];
     const safeIndex = index == null ? next.length : Math.max(0, Math.min(index, next.length));
     next.splice(safeIndex, 0, item);
     state.cvLayout = next;
     saveState();
     renderRail();
-    window.AchieveMateCvPreview?.render({ flashItemId: item.id });
-    window.AchieveMateCvHistory?.record?.(
-      item.type === "heading" ? "Add heading" : item.type === "cv-item" ? "Add CV item" : "Add item"
-    );
+    window.AchieveMateCvPreview?.render({
+      flashItemId: item.id,
+      focusFirstField: Boolean(options.focusFirstField),
+    });
+    window.AchieveMateCvHistory?.record?.(options.historyLabel || historyLabelForItem(item));
     return item.id;
+  }
+
+  function headingTitleMatches(item, title) {
+    if (!item || item.type !== "heading") {
+      return false;
+    }
+    const stored = state.cvPreviewEdits?.items?.[item.id]?.title;
+    const current = String(stored != null ? stored : item.title || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+    return current === String(title || "").trim().toLowerCase();
+  }
+
+  function findSectionHeading(title) {
+    return state.cvLayout.find((item) => headingTitleMatches(item, title)) || null;
+  }
+
+  const ADD_KINDS = {
+    experience: { sectionTitle: "Experience", historyLabel: "Add Experience" },
+    education: { sectionTitle: "Education", historyLabel: "Add Education" },
+    skills: { sectionTitle: "Skills", historyLabel: "Add Skills" },
+    "free-text": { sectionTitle: null, historyLabel: "Add CV item" },
+  };
+
+  function addBlockKind(kind, index = null) {
+    const config = ADD_KINDS[kind] || ADD_KINDS["free-text"];
+    const next = [...state.cvLayout];
+    let insertAt = index == null ? next.length : Math.max(0, Math.min(index, next.length));
+    let focusId = null;
+
+    if (config.sectionTitle && !findSectionHeading(config.sectionTitle)) {
+      const heading = createLayoutItem("heading");
+      heading.title = config.sectionTitle;
+      next.splice(insertAt, 0, heading);
+      insertAt += 1;
+    }
+
+    const item = createLayoutItem("cv-item");
+    if (kind === "experience" || kind === "education") {
+      item.itemKind = kind;
+    }
+    next.splice(insertAt, 0, item);
+    focusId = item.id;
+
+    state.cvLayout = next;
+    saveState();
+    renderRail();
+    window.AchieveMateCvPreview?.render({
+      flashItemId: focusId,
+      focusFirstField: true,
+    });
+    window.AchieveMateCvHistory?.record?.(config.historyLabel);
+    return focusId;
   }
 
   function moveLayoutItem(fromIndex, toIndex) {
@@ -421,17 +488,7 @@
     window.AchieveMateDragPreview?.begin(event, sourceEl, { variant: "rail", payload });
   }
 
-  function addHeadingToCv(index = null) {
-    const item = createLayoutItem("heading");
-    insertLayoutItem(item, index);
-  }
-
-  function addCvItemToCv(index = null) {
-    const item = createLayoutItem("cv-item");
-    insertLayoutItem(item, index);
-  }
-
-  function bindPaletteRailBlock(block, { type, addToCv, titleHint }) {
+  function bindPaletteRailBlock(block, { type, addToCv, titleHint, addKind = null }) {
     if (!block) {
       return;
     }
@@ -440,11 +497,15 @@
 
     block.setAttribute("title", titleHint);
     block.setAttribute("role", "button");
-    block.tabIndex = 0;
+    if (!block.hasAttribute("tabindex")) {
+      block.tabIndex = 0;
+    }
 
     block.addEventListener("dragstart", (event) => {
       suppressClick = true;
-      const payload = { source: "rail", type };
+      const payload = addKind
+        ? { source: "rail", type: "add", addKind }
+        : { source: "rail", type };
       setDragPayload(event, payload);
       beginDragPreview(event, block, payload);
       block.classList.add("is-dragging");
@@ -477,16 +538,41 @@
   }
 
   function bindPaletteHeading() {
-    bindPaletteRailBlock(cvPalette?.querySelector('[data-block-type="heading"]'), {
-      type: "heading",
-      addToCv: addHeadingToCv,
-      titleHint: "Click to add at end, or drag to place on CV",
+    cvPalette?.querySelectorAll("[data-add-kind]").forEach((block) => {
+      const addKind = block.dataset.addKind;
+      if (!ADD_KINDS[addKind]) {
+        return;
+      }
+      bindPaletteRailBlock(block, {
+        type: addKind === "free-text" ? "cv-item" : "add",
+        addKind,
+        addToCv: () => addBlockKind(addKind),
+        titleHint: "Click to add at end, or drag to place on CV",
+      });
     });
-    bindPaletteRailBlock(cvPalette?.querySelector('[data-block-type="cv-item"]'), {
-      type: "cv-item",
-      addToCv: addCvItemToCv,
-      titleHint: "Click to add at end, or drag to place on CV",
-    });
+  }
+
+  function setRailTab(tab) {
+    const addTab = document.getElementById("railTabAdd");
+    const libraryTab = document.getElementById("railTabLibrary");
+    const addPanel = document.getElementById("railAddPanel");
+    const libraryPanel = document.getElementById("cvLibrarySection");
+    const showLibrary = tab === "library";
+
+    addTab?.setAttribute("aria-selected", showLibrary ? "false" : "true");
+    libraryTab?.setAttribute("aria-selected", showLibrary ? "true" : "false");
+    if (addPanel) {
+      addPanel.hidden = showLibrary;
+    }
+    if (libraryPanel) {
+      libraryPanel.hidden = !showLibrary;
+    }
+  }
+
+  function bindRailTabs() {
+    document.getElementById("railTabAdd")?.addEventListener("click", () => setRailTab("add"));
+    document.getElementById("railTabLibrary")?.addEventListener("click", () => setRailTab("library"));
+    setRailTab("add");
   }
 
   function libraryCardLabel(entry) {
@@ -616,6 +702,7 @@
   }
 
   bindPaletteHeading();
+  bindRailTabs();
   studioClearCvBtn?.addEventListener("click", handleClearCvClick);
   renderRail();
 
@@ -623,6 +710,7 @@
     render: renderRail,
     createLayoutItem,
     insertLayoutItem,
+    addBlockKind,
     moveLayoutItem,
     removeLayoutItem,
     clearAllCvItems,

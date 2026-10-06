@@ -165,37 +165,88 @@
 
   <main class="view view-studio is-active" id="viewStudio" aria-label="AchieveMate" aria-hidden="false">
     <div class="studio-cockpit is-drawer-collapsed" id="studioCockpit">
-      <aside class="studio-rail" id="studioRail" aria-label="Blocks and library">
+      <aside class="studio-rail" id="studioRail" aria-label="Add blocks and library">
+        <div class="studio-rail-tabs" role="tablist" aria-label="Sidebar panels">
+          <button
+            type="button"
+            class="studio-rail-tab"
+            role="tab"
+            id="railTabAdd"
+            aria-selected="true"
+            aria-controls="railAddPanel"
+            data-rail-tab="add"
+          >
+            Add
+          </button>
+          <button
+            type="button"
+            class="studio-rail-tab"
+            role="tab"
+            id="railTabLibrary"
+            aria-selected="false"
+            aria-controls="cvLibrarySection"
+            data-rail-tab="library"
+          >
+            Library
+            <span class="studio-rail-count" id="studioRailCount">0</span>
+          </button>
+        </div>
         <div class="studio-rail-scroll">
-        <div class="studio-rail-section">
-          <span class="label">Blocks</span>
-          <div class="cv-palette-list" id="cvPalette">
-            <div
-              class="rail-block rail-block-heading cv-draggable"
+        <div
+          class="studio-rail-section studio-rail-panel"
+          id="railAddPanel"
+          role="tabpanel"
+          aria-labelledby="railTabAdd"
+        >
+          <div class="cv-palette-list" id="cvPalette" aria-label="Add to CV">
+            <button
+              type="button"
+              class="rail-block rail-block-add cv-draggable"
               draggable="true"
-              data-block-type="heading"
+              data-add-kind="free-text"
               data-source="palette"
-            >
-              <span class="rail-block-icon" aria-hidden="true">¶</span>
-              <span class="rail-block-label">Section heading</span>
-            </div>
-            <div
-              class="rail-block rail-block-heading cv-draggable"
-              draggable="true"
-              data-block-type="cv-item"
-              data-source="palette"
+              title="Free text / custom CV item"
             >
               <span class="rail-block-icon" aria-hidden="true">▸</span>
-              <span class="rail-block-label">CV item</span>
-            </div>
+              <span class="rail-block-label">+ CV item</span>
+            </button>
+            <button
+              type="button"
+              class="rail-block rail-block-add cv-draggable"
+              draggable="true"
+              data-add-kind="experience"
+              data-source="palette"
+            >
+              <span class="rail-block-label">Experience</span>
+            </button>
+            <button
+              type="button"
+              class="rail-block rail-block-add cv-draggable"
+              draggable="true"
+              data-add-kind="education"
+              data-source="palette"
+            >
+              <span class="rail-block-label">Education</span>
+            </button>
+            <button
+              type="button"
+              class="rail-block rail-block-add cv-draggable"
+              draggable="true"
+              data-add-kind="skills"
+              data-source="palette"
+            >
+              <span class="rail-block-label">Skills</span>
+            </button>
           </div>
         </div>
 
-        <div class="studio-rail-section cv-library-section" id="cvLibrarySection">
-          <div class="studio-rail-section-head">
-            <span class="label">Library</span>
-            <span class="studio-rail-count" id="studioRailCount">0</span>
-          </div>
+        <div
+          class="studio-rail-section cv-library-section studio-rail-panel"
+          id="cvLibrarySection"
+          role="tabpanel"
+          aria-labelledby="railTabLibrary"
+          hidden
+        >
           <div class="cv-palette-achievements" id="cvLibraryList" aria-label="Saved CV items"></div>
         </div>
         </div>
@@ -409,10 +460,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js?v=50"></script>
   <script src="cv-history.js?v=3"></script>
-  <script src="drag-preview.js?v=6"></script>
-  <script src="cv-builder.js?v=22"></script>
+  <script src="drag-preview.js?v=7"></script>
+  <script src="cv-builder.js?v=25"></script>
   <script src="cv-pdf.js?v=4"></script>
-  <script src="cv-preview.js?v=74"></script>
+  <script src="cv-preview.js?v=75"></script>
   <script src="cv-layout-panel.js?v=11"></script>
   <script src="sidebar.js?v=6"></script>
   <script src="workspace-tabs.js?v=12"></script>

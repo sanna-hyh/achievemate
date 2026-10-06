@@ -3046,11 +3046,50 @@ body.layout-drawer-collapsed .studio-cockpit,
   grid-area: rail;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 20px 16px;
+  gap: 12px;
+  padding: 12px 16px 20px;
   background: var(--surface-1);
   border-right: 1px solid var(--border-subtle);
   overflow: hidden;
+}
+
+.studio-rail-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.studio-rail-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+}
+
+.studio-rail-tab:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.studio-rail-tab[aria-selected="true"] {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.studio-rail-tab .studio-rail-count {
+  margin: 0;
 }
 
 .studio-rail-scroll {
@@ -3060,6 +3099,10 @@ body.layout-drawer-collapsed .studio-cockpit,
   flex-direction: column;
   gap: 20px;
   overflow-y: auto;
+}
+
+.studio-rail-panel[hidden] {
+  display: none !important;
 }
 
 .studio-rail-footer {
@@ -3130,12 +3173,23 @@ body.layout-drawer-collapsed .studio-cockpit,
     box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.rail-block-heading {
+.rail-block-heading,
+.rail-block-add {
   border: 1px dashed var(--border-strong);
   cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
 }
 
-.rail-block-heading:active {
+.rail-block-add {
+  height: 36px;
+  padding: 0 12px;
+}
+
+.rail-block-heading:active,
+.rail-block-add:active {
   cursor: grabbing;
 }
 
@@ -3428,13 +3482,25 @@ body.layout-drawer-collapsed .studio-cockpit,
   .studio-rail {
     flex-direction: row;
     align-items: stretch;
-    gap: 16px;
+    gap: 12px;
     height: 88px;
     padding: 10px 16px;
     overflow-x: auto;
     overflow-y: hidden;
     border-right: none;
     border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .studio-rail-tabs {
+    grid-template-columns: 1fr;
+    width: 72px;
+    flex-shrink: 0;
+    align-self: center;
+  }
+
+  .studio-rail-tab {
+    min-height: 28px;
+    font-size: 0.75rem;
   }
 
   .studio-rail-scroll {
@@ -3492,6 +3558,7 @@ body.layout-drawer-collapsed .studio-cockpit,
   }
 
   .rail-block-heading,
+  .rail-block-add,
   .rail-block-achievement,
   .rail-block-library {
     width: 176px;
