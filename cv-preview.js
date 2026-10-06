@@ -677,8 +677,30 @@
     );
   }
 
+  function placeCaretAtStart(node) {
+    if (!node) {
+      return;
+    }
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    range.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
   function activateEdit(node, event) {
     if (!node) {
+      return;
+    }
+
+    // Layout/focus can settle after the user already started typing — never
+    // re-select or wipe an in-progress edit session.
+    if (
+      node.classList.contains("is-editing") &&
+      node.getAttribute("contenteditable") === "true" &&
+      document.activeElement === node
+    ) {
       return;
     }
 
@@ -695,7 +717,10 @@
       if (node.classList.contains("cv-preview-description")) {
         activateDescriptionEdit(node, event);
       } else {
-        selectAllInNode(node);
+        // Clear placeholder and leave an empty caret — selectAll eats early keystrokes
+        // when focus is re-applied after layout settle.
+        node.textContent = "";
+        placeCaretAtStart(node);
       }
       return;
     }
