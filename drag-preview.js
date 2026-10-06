@@ -219,7 +219,7 @@
       return shell;
     }
 
-    if (payload?.type === "cv-item") {
+    if (payload?.type === "cv-item" || payload?.type === "add") {
       shell.appendChild(buildCvItemContent());
       return shell;
     }

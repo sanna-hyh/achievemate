@@ -2219,6 +2219,26 @@
     handle.focus({ preventScroll: true });
   }
 
+  function focusFirstFieldOfItem(layoutItemId) {
+    if (!layoutItemId || !cvPreview) {
+      return;
+    }
+
+    const wrap = cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    if (!wrap) {
+      return;
+    }
+
+    wrap.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    const firstField = wrap.querySelector("[data-edit-key]");
+    if (firstField) {
+      activateEdit(firstField);
+      return;
+    }
+
+    focusSectionHandle(layoutItemId);
+  }
+
   function removeSectionFromCv(layoutItemId) {
     const builder = window.AchieveMateCvBuilder;
     if (!builder) {
@@ -2332,6 +2352,11 @@
       if (payload.source === "rail") {
         if (payload.type === "library") {
           builder.insertLibraryEntry(payload.libraryId, index);
+          window.AchieveMateDragPreview?.end();
+          return;
+        }
+        if (payload.type === "add" && payload.addKind) {
+          builder.addBlockKind?.(payload.addKind, index);
           window.AchieveMateDragPreview?.end();
           return;
         }
@@ -3187,7 +3212,7 @@
       <div class="cv-doc-empty">
         <div class="cv-doc-empty-glyph" aria-hidden="true">¶</div>
         <p class="cv-doc-empty-headline">Start your CV</p>
-        <p class="cv-doc-empty-body">Add a CV item, or drag a saved one from the library.</p>
+        <p class="cv-doc-empty-body">Add Experience, Education, Skills, or Free text — or drag a saved item from Library.</p>
       </div>
     `;
   }
@@ -3234,7 +3259,9 @@
     scheduleSmartLayout({
       onComplete: () => {
         restorePreviewScroll(preservedScroll);
-        if (focusItemId) {
+        if (focusItemId && options.focusFirstField) {
+          focusFirstFieldOfItem(focusItemId);
+        } else if (focusItemId) {
           focusSectionHandle(focusItemId);
         }
         if (options.flashItemId) {
@@ -3242,7 +3269,14 @@
         }
         // Scaler size can settle one frame later; re-apply in case scroll was clamped.
         window.requestAnimationFrame(() => {
-          restorePreviewScroll(preservedScroll);
+          if (focusItemId && options.focusFirstField) {
+            const wrap = cvPreview.querySelector(
+              `.cv-section-wrap[data-layout-item-id="${focusItemId}"]`
+            );
+            wrap?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+          } else {
+            restorePreviewScroll(preservedScroll);
+          }
         });
       },
     });
