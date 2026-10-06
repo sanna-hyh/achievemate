@@ -656,11 +656,16 @@
     return Math.round((Number(value) || 0) * 100) / 100;
   }
 
+  function getMinBodyPt() {
+    return Number(window.AchieveMateApp?.CV_TYPOGRAPHY?.minBodyPt) || 10;
+  }
+
   function scaleFittedModel(model, scale, mode) {
     const factor = Math.round(scale * 10000) / 10000;
+    const minBodyPt = getMinBodyPt();
     const next = {
       ...model,
-      bodyPt: roundPt(model.bodyPt * factor),
+      bodyPt: roundPt(Math.max(minBodyPt, model.bodyPt * factor)),
       titlePt: roundPt(model.titlePt * factor),
       sectionGapPt: roundPt(model.sectionGapPt * factor),
       sectionMarginPt: roundPt(model.sectionMarginPt * factor),
@@ -682,7 +687,10 @@
   function shrinkPdfModelToOnePage(model, options = {}) {
     const unicodeFont = options.unicodeFont || null;
     const alsoFits = typeof options.alsoFits === "function" ? options.alsoFits : null;
-    const minScale = 0.08;
+    const minBodyPt = getMinBodyPt();
+    const baseBody = Math.max(Number(model.bodyPt) || minBodyPt, minBodyPt);
+    // Never shrink body below the shared 10pt floor.
+    const minScale = Math.min(1, minBodyPt / baseBody);
 
     const fits = (candidate) => {
       if (countCvPdfPages(candidate, unicodeFont) > 1) {
@@ -701,7 +709,8 @@
 
       const smallest = scaleFittedModel(base, minScale, mode);
       if (!fits(smallest)) {
-        return { ...smallest, fitChanged: true, fitOverflow: true };
+        // At the hard floor and still overflowing — allow multi-page PDF.
+        return { ...smallest, fitChanged: minScale < 0.999, fitOverflow: true };
       }
 
       let low = minScale;

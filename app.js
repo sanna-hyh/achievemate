@@ -41,6 +41,18 @@ const DEFAULT_CV_SETTINGS = {
   autoFit: false,
 };
 
+/** Shared Auto-fit / Design / PDF typography floor — keep canvas, Design, and PDF agreed. */
+const CV_TYPOGRAPHY = {
+  minBodyPt: 10,
+  maxBodyPt: 12,
+  minHeaderPt: 10.5,
+  maxHeaderPt: 12,
+  minLineHeight: 1.1,
+  maxLineHeight: 1.5,
+  minSpacingPx: 0,
+  maxSpacingPx: 24,
+};
+
 const ACHIEVEMENT_CATEGORIES = [
   { id: "education", label: "Education" },
   { id: "leadership", label: "Leadership" },
@@ -2090,6 +2102,7 @@ window.AchieveMateApp = {
   saveCustomDefaults,
   getCustomDefaults,
   DEFAULT_CV_SETTINGS,
+  CV_TYPOGRAPHY,
   createId,
   escapeHtml,
   getStarIconSvg,
