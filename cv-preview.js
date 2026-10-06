@@ -2662,8 +2662,8 @@
     }
 
     if (editKey === "personal.name") {
-      const displayName =
-        next == null ? "" : editPlainText(next).replace(/\s+/g, " ").trim();
+      // next == null also means the typed text matches the fallback, not only a cleared field.
+      const displayName = plainPersonalName(rawValue);
       if ((state.personalInfo.name || "") !== displayName) {
         state.personalInfo.name = displayName;
         window.AchieveMateApp?.refreshPersonalForm?.();
@@ -3261,9 +3261,8 @@
     return String(value || "").trim().replace(/\.pdf$/i, "");
   }
 
-  function getCanvasDisplayName() {
-    const raw = getEdit("personal.name", state.personalInfo.name || "");
-    const plain = editPlainText(raw).replace(/\s+/g, " ").trim();
+  function plainPersonalName(rawValue) {
+    const plain = editPlainText(rawValue).replace(/\s+/g, " ").trim();
     if (
       !plain ||
       normalizePlaceholderCompare(plain) === normalizePlaceholderCompare("Your Name")
@@ -3271,6 +3270,15 @@
       return "";
     }
     return plain;
+  }
+
+  function getCanvasDisplayName() {
+    const node = cvPreview?.querySelector('[data-edit-key="personal.name"]');
+    const domName = node ? plainPersonalName(getNodeEditContent(node)) : "";
+    if (domName) {
+      return domName;
+    }
+    return plainPersonalName(getEdit("personal.name", state.personalInfo.name || ""));
   }
 
   function getDefaultExportBaseName() {
@@ -3282,7 +3290,14 @@
   }
 
   function getExportDensityLabel() {
-    const base = getLayoutStyles().baseFontSize;
+    const styles = getLayoutStyles();
+    if (styles.autoFit === true) {
+      const liveBody = getLiveTypography()?.bodyFontPt;
+      if (liveBody != null && Number.isFinite(Number(liveBody))) {
+        return `${liveBody}pt`;
+      }
+    }
+    const base = styles.baseFontSize;
     return base != null ? `${base}pt` : "—";
   }
 
@@ -3312,6 +3327,7 @@
       return;
     }
 
+    captureEditsFromDom();
     exportModalCaption.textContent = getExportModalCaption();
     exportFileNameInput.value = getDefaultExportBaseName();
     exportModal.hidden = false;
