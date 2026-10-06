@@ -3055,24 +3055,28 @@ body.layout-drawer-collapsed .studio-cockpit,
 
 .studio-rail-tabs {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  justify-content: stretch;
   align-items: flex-end;
-  gap: 20px;
+  gap: 0;
   flex-shrink: 0;
   margin: 0;
   padding: 2px 0 0;
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 0;
 }
 
 .studio-rail-tab {
   position: relative;
   display: inline-flex;
+  flex: 1 1 0;
   align-items: baseline;
+  justify-content: center;
   gap: 0.4rem;
+  min-width: 0;
   min-height: 0;
   padding: 4px 0 10px;
   border: 0;
+  border-bottom: 1px solid var(--border-subtle);
   border-radius: 0;
   background: transparent;
   color: var(--text-muted);
@@ -3082,7 +3086,9 @@ body.layout-drawer-collapsed .studio-cockpit,
   letter-spacing: 0.02em;
   line-height: 1.35;
   cursor: pointer;
-  transition: color var(--dur-fast) var(--ease-out);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
 
 .studio-rail-tab-label {
@@ -3098,17 +3104,7 @@ body.layout-drawer-collapsed .studio-cockpit,
 .studio-rail-tab[aria-selected="true"] {
   color: var(--brass);
   background: transparent;
-}
-
-.studio-rail-tab[aria-selected="true"] .studio-rail-tab-label::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -4px;
-  height: 2px;
-  background: var(--brass);
-  border-radius: 1px;
+  border-bottom-color: var(--brass);
 }
 
 .studio-rail-tab .studio-rail-count {
@@ -3541,19 +3537,15 @@ body.layout-drawer-collapsed .studio-cockpit,
   .studio-rail-tabs {
     flex-shrink: 0;
     align-self: stretch;
-    justify-content: center;
+    justify-content: stretch;
     margin: 0;
     padding: 0;
-    border-bottom: 1px solid var(--border-subtle);
+    border-bottom: 0;
   }
 
   .studio-rail-tab {
     font-size: 0.75rem;
     padding-bottom: 8px;
-  }
-
-  .studio-rail-tab[aria-selected="true"] .studio-rail-tab-label::after {
-    bottom: -3px;
   }
 
   .studio-rail-scroll {
