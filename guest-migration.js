@@ -340,7 +340,7 @@ export async function migrateGuestDataToSupabase(user, { silent = false } = {}) 
     applyPayloadToApp(payload);
 
     if (!silent) {
-      window.AchieveMateToast?.show("Your logbook is now synced to your account", { tone: "success" });
+      window.AchieveMateToast?.show("Your library is now synced to your account", { tone: "success" });
       if (skippedProofs.length > 0) {
         window.AchieveMateToast?.show(
           `${skippedProofs.length} proof file(s) were too large to sync and stayed on this device`,

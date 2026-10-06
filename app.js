@@ -104,16 +104,6 @@ let armedDeleteId = null;
 let armedDeleteTimer = null;
 let logbookLoading = true;
 let deckFrontIndex = 0;
-let timelineCategoryFilter = "all";
-
-const CATEGORY_EMPTY_MESSAGES = {
-  education: "Log a course, degree, or learning milestone — this chapter is waiting for you.",
-  leadership: "Led a team or initiative? Your leadership moments belong here.",
-  competition: "Competed or placed in something? Add it when you're ready.",
-  internship: "Every internship counts. Yours could be the next entry.",
-  volunteering: "Give-back moments matter. Capture one when you can.",
-  others: "Anything that shaped you fits here. Add your next story.",
-};
 
 function createId(prefix = "ach") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -976,14 +966,10 @@ function renderEmptyState() {
   empty.innerHTML = `
     ${personalTip}
     <div class="empty-state-glyph" aria-hidden="true">◈</div>
-    <h3 class="empty-state-headline">Your logbook is empty</h3>
+    <h3 class="empty-state-headline">Your library is empty</h3>
     <p class="empty-state-body">Every achievement you log becomes a building block for your CV.</p>
-    <button type="button" class="btn btn-primary empty-state-cta">
-      + Add achievement
-    </button>
   `;
 
-  empty.querySelector(".empty-state-cta")?.addEventListener("click", addAchievement);
   empty.querySelector(".empty-state-personal-cta")?.addEventListener("click", () => {
     window.AchieveMateViews?.setActiveView("studio");
   });
@@ -1558,65 +1544,6 @@ function createTimelineGroup(yearLabel, achievements, { showYear = true } = {}) 
   return group;
 }
 
-function filterAchievementsByCategory(achievements, filterId) {
-  if (filterId === "all") {
-    return achievements;
-  }
-
-  return achievements.filter(
-    (achievement) => normalizeAchievementCategory(achievement.category) === filterId
-  );
-}
-
-function createTimelineCategoryFilter(activeFilter, onChange) {
-  const bar = document.createElement("div");
-  bar.className = "timeline-category-filter";
-  bar.setAttribute("role", "tablist");
-  bar.setAttribute("aria-label", "Filter achievements by category");
-
-  const allBtn = document.createElement("button");
-  allBtn.type = "button";
-  allBtn.className = `timeline-category-filter-item${activeFilter === "all" ? " is-active" : ""}`;
-  allBtn.setAttribute("role", "tab");
-  allBtn.setAttribute("aria-selected", String(activeFilter === "all"));
-  allBtn.textContent = "All";
-  allBtn.addEventListener("click", () => onChange("all"));
-  bar.appendChild(allBtn);
-
-  ACHIEVEMENT_CATEGORIES.forEach((category) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = `timeline-category-filter-item timeline-category-filter-item-icon${
-      activeFilter === category.id ? " is-active" : ""
-    }`;
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-label", category.label);
-    btn.setAttribute("aria-selected", String(activeFilter === category.id));
-    btn.innerHTML = getCategoryIconMarkup(category.id, "timeline-category-filter-icon");
-    btn.addEventListener("click", () => onChange(category.id));
-    bar.appendChild(btn);
-  });
-
-  return bar;
-}
-
-function createTimelineCategoryEmpty(categoryId) {
-  const empty = document.createElement("div");
-  empty.className = "timeline-category-empty";
-  const category = getAchievementCategory(categoryId);
-  const message =
-    CATEGORY_EMPTY_MESSAGES[categoryId] ||
-    `No ${category.label.toLowerCase()} achievements yet. Add one to get started.`;
-
-  empty.innerHTML = `
-    <p class="timeline-category-empty-text">${escapeHtml(message)}</p>
-    <button type="button" class="btn btn-ghost timeline-category-empty-cta">+ Add achievement</button>
-  `;
-
-  empty.querySelector(".timeline-category-empty-cta").addEventListener("click", addAchievement);
-  return empty;
-}
-
 function createTimelineList(achievements) {
   const timeline = document.createElement("div");
   timeline.className = "entries-timeline";
@@ -1991,30 +1918,14 @@ function renderAchievements() {
     (achievement) => achievement.id !== editingAchievementId
   );
 
-  listHeader.append(
-    listHeading,
-    createTimelineCategoryFilter(timelineCategoryFilter, (filterId) => {
-      timelineCategoryFilter = filterId;
-      renderAchievements();
-    })
-  );
-
-  const filteredAchievements = filterAchievementsByCategory(
-    visibleAchievements,
-    timelineCategoryFilter
-  );
+  listHeader.append(listHeading);
 
   if (visibleAchievements.length > 0) {
     listWrap.appendChild(listHeader);
 
     const listBody = document.createElement("div");
     listBody.className = "entries-list-all-body";
-
-    if (filteredAchievements.length > 0) {
-      listBody.appendChild(createTimelineList(filteredAchievements));
-    } else {
-      listBody.appendChild(createTimelineCategoryEmpty(timelineCategoryFilter));
-    }
+    listBody.appendChild(createTimelineList(visibleAchievements));
 
     listWrap.appendChild(listBody);
     achievementsList.appendChild(listWrap);
@@ -2124,4 +2035,4 @@ window.AchieveMateApp = {
 
 window.AchieveMateToast = { show: showToast };
 
-addAchievementBtn.addEventListener("click", addAchievement);
+addAchievementBtn?.addEventListener("click", addAchievement);

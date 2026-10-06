@@ -3,5 +3,9 @@
   "buildCommand": "",
   "installCommand": "",
   "framework": null,
-  "outputDirectory": "."
+  "outputDirectory": ".",
+  "rewrites": [
+    { "source": "/logbook", "destination": "/index.html" },
+    { "source": "/library", "destination": "/index.html" }
+  ]
 }

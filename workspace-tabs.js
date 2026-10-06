@@ -34,11 +34,12 @@
   }
 
   function hashForView(viewId) {
-    return viewId === LOGBOOK_VIEW ? "#logbook" : "#/";
+    return viewId === LOGBOOK_VIEW ? "#library" : "#/";
   }
 
-  function isLogbookToken(token) {
+  function isLibraryToken(token) {
     return (
+      token === "library" ||
       token === "logbook" ||
       token === "viewlogbook" ||
       token === "profile" ||
@@ -46,16 +47,26 @@
     );
   }
 
-  // Bare `/` is the CV canvas. With Logbook enabled, `#logbook` opens it and
-  // older profile/achievements links rewrite there. With the flag off, those
-  // links return to the CV home instead of a hidden view.
+  function isLibraryPathAlias() {
+    return /\/(?:logbook|library)\/?$/i.test(location.pathname);
+  }
+
+  function canonicalPathname() {
+    const next = location.pathname.replace(/\/(?:logbook|library)\/?$/i, "/");
+    return next || "/";
+  }
+
+  // Bare `/` is the CV canvas. Library opens from #library; #logbook, /logbook,
+  // and the older profile/achievements links land on that same page. With the
+  // flag off, those links return to the CV home instead of a hidden view.
   function resolveRoute(hash) {
     const token = tokenFromHash(hash);
-    if (isLogbookToken(token)) {
+    const pathAlias = isLibraryPathAlias();
+    if (pathAlias || isLibraryToken(token)) {
       if (!logbookEnabled) {
         return { viewId: HOME_VIEW, redirect: true };
       }
-      return { viewId: LOGBOOK_VIEW, redirect: token !== "logbook" };
+      return { viewId: LOGBOOK_VIEW, redirect: pathAlias || token !== "library" };
     }
     if (!token) {
       return { viewId: HOME_VIEW, redirect: false };
@@ -73,15 +84,20 @@
 
   function syncRoute(viewId, { replace = false } = {}) {
     const nextHash = hashForView(viewId);
+    const nextPath = canonicalPathname();
     const current = location.hash;
+    const samePath = nextPath === location.pathname;
     const alreadyHome =
-      viewId === HOME_VIEW && (current === "" || current === "#" || current === "#/");
-    if (current === nextHash || alreadyHome) {
+      viewId === HOME_VIEW &&
+      samePath &&
+      (current === "" || current === "#" || current === "#/");
+    if ((current === nextHash || alreadyHome) && samePath) {
       return;
     }
 
-    if (replace) {
+    if (replace || !samePath) {
       const url = new URL(location.href);
+      url.pathname = nextPath;
       url.hash = nextHash;
       history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
       return;

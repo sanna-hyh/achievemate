@@ -12,7 +12,7 @@
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
   <link rel="stylesheet" href="styles.css?v=136" />
-  <script src="features.js?v=2"></script>
+  <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
   </script>
@@ -116,7 +116,7 @@
           data-view="logbook"
         >
           <span class="sidebar-panel-icon" aria-hidden="true">▤</span>
-          <span class="sidebar-panel-label">Logbook</span>
+          <span class="sidebar-panel-label">Library</span>
         </button>
 
         <section class="sidebar-panel">
@@ -144,18 +144,12 @@
     <div class="app-sidebar-scrim" id="sidebarScrim" hidden aria-hidden="true"></div>
 
     <div class="app-main">
-  <main class="view view-logbook" id="viewLogbook" aria-label="Logbook" aria-hidden="true">
+  <main class="view view-logbook" id="viewLogbook" aria-label="Library" aria-hidden="true">
     <div class="logbook-column">
       <header class="logbook-header">
         <div class="logbook-header-main">
-          <h1 class="logbook-title">Logbook</h1>
+          <h1 class="logbook-title">Library</h1>
           <p class="logbook-subtitle">Your achievements. Your story. <span class="logbook-count" id="logbookEntryCount">0 achievements</span></p>
-        </div>
-        <div class="logbook-add-action">
-          <img src="import_data_icon.png" alt="" class="logbook-add-icon" aria-hidden="true" />
-          <button type="button" class="btn btn-primary" id="addAchievementBtn">
-            + Add achievement
-          </button>
         </div>
       </header>
 
@@ -457,7 +451,7 @@
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="app.js?v=50"></script>
+  <script src="app.js?v=51"></script>
   <script src="cv-history.js?v=3"></script>
   <script src="drag-preview.js?v=7"></script>
   <script src="cv-builder.js?v=28"></script>
@@ -465,6 +459,6 @@
   <script src="cv-preview.js?v=80"></script>
   <script src="cv-layout-panel.js?v=11"></script>
   <script src="sidebar.js?v=6"></script>
-  <script src="workspace-tabs.js?v=12"></script>
+  <script src="workspace-tabs.js?v=13"></script>
 </body>
 </html>
