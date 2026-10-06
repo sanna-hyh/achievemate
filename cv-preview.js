@@ -127,18 +127,8 @@
       return [];
     }
 
-    const stored = getCvItemStoredField(item, "skills");
-    const source = stored !== undefined ? stored : item.skills;
-    if (Array.isArray(source)) {
-      return source.map(normalizeSkillLabel).filter(Boolean);
-    }
-    if (typeof source === "string" && source.trim()) {
-      return source
-        .split(/\n|,/)
-        .map(normalizeSkillLabel)
-        .filter(Boolean);
-    }
-    return [];
+    const source = Array.isArray(item.skills) ? item.skills : [];
+    return source.map(normalizeSkillLabel).filter(Boolean);
   }
 
   function writeSkillsList(item, skills) {
