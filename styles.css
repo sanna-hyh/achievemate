@@ -3788,6 +3788,13 @@ body.layout-drawer-collapsed .studio-cockpit,
   cursor: default;
 }
 
+.cv-section-wrap:hover,
+.cv-section-wrap:has([data-edit-key]:focus),
+.cv-section-wrap:has(.cv-skill-input:focus),
+.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible) {
+  z-index: 2;
+}
+
 .cv-section-wrap.is-drag-armed {
   cursor: grab;
   user-select: none;
