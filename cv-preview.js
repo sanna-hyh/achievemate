@@ -1667,6 +1667,21 @@
     };
   }
 
+  function setPreviewPageMode({ singlePage }) {
+    if (!cvPreview) {
+      return;
+    }
+
+    if (singlePage) {
+      cvPreview.classList.add("cv-preview-single-page");
+      cvPreview.classList.remove("cv-preview-multipage");
+      return;
+    }
+
+    cvPreview.classList.remove("cv-preview-single-page");
+    cvPreview.classList.add("cv-preview-multipage");
+  }
+
   function applyLayoutParams(params) {
     applyLayoutStyles();
 
@@ -1679,12 +1694,7 @@
     }
 
     cvPreview.dataset.layoutDensity = params.density;
-
-    if (params.singlePage) {
-      cvPreview.classList.add("cv-preview-single-page");
-    } else {
-      cvPreview.classList.remove("cv-preview-single-page");
-    }
+    setPreviewPageMode({ singlePage: params.singlePage !== false });
 
     if (getLayoutStyles().autoFit === true && pdfFitOverride) {
       writeFittedTypography(pdfFitOverride);
@@ -1719,12 +1729,8 @@
     }
 
     // Same overflow rule as PDF: clip to one page only while content still fits;
-    // at the 10pt floor, allow the sheet to grow (multi-page).
-    if (fit.fitOverflow) {
-      cvPreview.classList.remove("cv-preview-single-page");
-    } else {
-      cvPreview.classList.add("cv-preview-single-page");
-    }
+    // at the 10pt floor, allow the sheet to grow (multi-page) with page seams.
+    setPreviewPageMode({ singlePage: !fit.fitOverflow });
   }
 
   function rememberPdfFit(fit) {
@@ -1778,7 +1784,7 @@
     };
 
     if (state.cvLayout.length === 0) {
-      cvPreview.classList.remove("cv-preview-single-page");
+      cvPreview.classList.remove("cv-preview-single-page", "cv-preview-multipage");
       cvPreview.dataset.layoutDensity = "";
       cvPreview.dataset.contentChars = "";
       cvPreview.dataset.contentItems = "";
@@ -1787,7 +1793,7 @@
     }
 
     if (getLayoutStyles().autoFit !== true) {
-      cvPreview.classList.add("cv-preview-single-page");
+      setPreviewPageMode({ singlePage: true });
       cvPreview.dataset.layoutDensity = "manual";
       finishLayout();
       return;
@@ -1842,7 +1848,7 @@
           singlePage: !overflow,
         });
       } else if (fitted.fitOverflow) {
-        cvPreview.classList.remove("cv-preview-single-page");
+        setPreviewPageMode({ singlePage: false });
       }
     }
 

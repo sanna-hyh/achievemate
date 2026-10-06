@@ -4334,6 +4334,22 @@ body.is-cv-dragging .cv-preview-document {
   overflow: hidden;
 }
 
+/* Auto-fit floor overflow: grow like a multi-page PDF (no clip). */
+.cv-preview-document.cv-preview-multipage {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  /* Page seams every A4 height — matches PDF addPage breaks. */
+  background-color: #ffffff;
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(297mm - 1px),
+    rgba(15, 23, 42, 0.16) calc(297mm - 1px),
+    rgba(15, 23, 42, 0.16) 297mm
+  );
+}
+
 .cv-preview-layout {
   display: flex;
   flex-direction: column;
@@ -4341,6 +4357,12 @@ body.is-cv-dragging .cv-preview-document {
   min-height: 0;
   height: 100%;
   gap: var(--cv-section-gap);
+}
+
+.cv-preview-document.cv-preview-multipage .cv-preview-layout {
+  flex: none;
+  min-height: 0;
+  height: auto;
 }
 
 .cv-preview-document.is-exporting [contenteditable="true"] {
@@ -4373,6 +4395,12 @@ body.is-cv-dragging .cv-preview-document {
 
 .cv-preview-document.is-exporting.cv-preview-single-page {
   height: 297mm !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.cv-preview-document.is-exporting.cv-preview-multipage {
+  height: auto !important;
   max-height: none !important;
   overflow: visible !important;
 }
