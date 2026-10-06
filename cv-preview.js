@@ -2185,6 +2185,16 @@
     button.title = label;
   }
 
+  function refreshLibrarySaveButton(layoutItemId) {
+    if (!layoutItemId || !cvPreview) {
+      return;
+    }
+
+    const wrap = cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    const button = wrap?.querySelector(".cv-section-save");
+    setLibraryStarButtonState(button, isLayoutItemInLibrary(layoutItemId));
+  }
+
   function syncLibraryStars() {
     if (!cvPreview) {
       return;
