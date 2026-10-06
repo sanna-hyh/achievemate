@@ -426,6 +426,9 @@
     }
 
     const item = createLayoutItem("cv-item");
+    if (kind === "experience" || kind === "education") {
+      item.itemKind = kind;
+    }
     next.splice(insertAt, 0, item);
     focusId = item.id;
 

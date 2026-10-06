@@ -66,7 +66,54 @@
     location: "Location",
     description: "Bullet 1\nBullet 2\nBullet 3",
   };
+  const CV_ITEM_FIELD_KEYS = ["title", "date", "subtitle", "location", "description"];
+  const CV_ITEM_SCHEMAS = {
+    default: {
+      fields: CV_ITEM_FIELD_KEYS,
+      placeholders: CV_ITEM_PLACEHOLDERS,
+      optional: [],
+    },
+    experience: {
+      fields: ["title", "subtitle", "date", "description"],
+      placeholders: {
+        title: "Job title",
+        subtitle: "Company",
+        date: "Start – End",
+        description: "What you achieved",
+      },
+      optional: [],
+    },
+    education: {
+      fields: ["title", "subtitle", "date", "description"],
+      placeholders: {
+        title: "Degree or program",
+        subtitle: "School",
+        date: "Start – End",
+        description: "Honors or coursework",
+      },
+      optional: ["description"],
+    },
+  };
   const CV_BULLET_PREFIX = "• ";
+
+  function getCvItemKind(item) {
+    if (item?.itemKind === "experience" || item?.itemKind === "education") {
+      return item.itemKind;
+    }
+    return "default";
+  }
+
+  function getCvItemSchema(item) {
+    return CV_ITEM_SCHEMAS[getCvItemKind(item)] || CV_ITEM_SCHEMAS.default;
+  }
+
+  function getCvItemPlaceholders(item) {
+    return getCvItemSchema(item).placeholders;
+  }
+
+  function getCvItemFieldKeys(item) {
+    return getCvItemSchema(item).fields;
+  }
 
   function clearSectionPointer() {
     if (sectionPointer?.wrap) {
@@ -331,8 +378,6 @@
     return normalizePlaceholderCompare(value) === "";
   }
 
-  const CV_ITEM_FIELD_KEYS = ["title", "date", "subtitle", "location", "description"];
-
   function getCvItemStoredField(item, field) {
     const bucket = state.cvPreviewEdits?.items?.[item.id];
     if (!bucket || !Object.prototype.hasOwnProperty.call(bucket, field)) {
@@ -347,7 +392,7 @@
       return "";
     }
 
-    const placeholder = CV_ITEM_PLACEHOLDERS[field];
+    const placeholder = getCvItemPlaceholders(item)[field];
     if (placeholder && field === "description" && descriptionsMatchPlaceholder(stored, placeholder)) {
       return "";
     }
@@ -362,12 +407,14 @@
     return stored;
   }
 
-  function isCvItemFieldFilled(value, field) {
+  function isCvItemFieldFilled(value, field, item = null) {
     if (value == null) {
       return false;
     }
 
-    const placeholder = CV_ITEM_PLACEHOLDERS[field];
+    const placeholder = item
+      ? getCvItemPlaceholders(item)[field]
+      : CV_ITEM_PLACEHOLDERS[field];
     if (field === "description") {
       if (placeholder && descriptionsMatchPlaceholder(value, placeholder)) {
         return false;
@@ -383,9 +430,9 @@
   }
 
   function cvItemHasUserContent(item) {
-    return CV_ITEM_FIELD_KEYS.some((field) => {
+    return getCvItemFieldKeys(item).some((field) => {
       const stored = getCvItemStoredField(item, field);
-      return stored !== undefined && isCvItemFieldFilled(stored, field);
+      return stored !== undefined && isCvItemFieldFilled(stored, field, item);
     });
   }
 
@@ -402,12 +449,13 @@
 
     const itemId = suffix.slice(0, dot);
     const field = suffix.slice(dot + 1);
-    if (!CV_ITEM_FIELD_KEYS.includes(field)) {
+    const knownFields = ["title", "subtitle", "date", "location", "description"];
+    if (!knownFields.includes(field)) {
       return null;
     }
 
     const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "cv-item");
-    if (!item) {
+    if (!item || !getCvItemFieldKeys(item).includes(field)) {
       return null;
     }
 
@@ -421,7 +469,7 @@
     }
 
     const content = getCvItemFieldContent(parsed.item, parsed.field);
-    return !isCvItemFieldFilled(content, parsed.field);
+    return !isCvItemFieldFilled(content, parsed.field, parsed.item);
   }
 
   function syncCvItemWrapAfterEdit(section) {
@@ -436,14 +484,14 @@
     wrap.classList.toggle("is-cv-item-collapsed", !isDraft);
     refreshLibrarySaveButton(item.id);
 
-    CV_ITEM_FIELD_KEYS.forEach((field) => {
+    getCvItemFieldKeys(item).forEach((field) => {
       const node = section.querySelector(`[data-edit-key$=".${field}"]`);
       if (!node || node.classList.contains("is-editing")) {
         return;
       }
 
       const content = getCvItemFieldContent(item, field);
-      const filled = isCvItemFieldFilled(content, field);
+      const filled = isCvItemFieldFilled(content, field, item);
 
       node.classList.toggle("cv-cv-item-field-hidden", !isDraft && !filled);
       node.classList.toggle("cv-preview-placeholder", !filled);
@@ -466,9 +514,13 @@
       return [];
     }
 
-    return CV_ITEM_FIELD_KEYS.map((key) =>
-      section.querySelector(`[data-edit-key$=".${key}"]`)
-    ).filter(Boolean);
+    const itemId = section.dataset?.itemId;
+    const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "cv-item");
+    const keys = getCvItemFieldKeys(item);
+
+    return keys
+      .map((key) => section.querySelector(`[data-edit-key$=".${key}"]`))
+      .filter(Boolean);
   }
 
   function commitEditableField(node) {
@@ -548,12 +600,19 @@
     node.addEventListener(
       "keydown",
       (event) => {
-        if (event.key !== "Enter" || event.shiftKey) {
+        const isTab = event.key === "Tab" && !event.shiftKey;
+        const isEnter = event.key === "Enter" && !event.shiftKey;
+        if (!isTab && !isEnter) {
           return;
         }
 
         const section = node.closest(".cv-preview-cv-item");
-        if (!section || node.classList.contains("cv-preview-description")) {
+        if (!section) {
+          return;
+        }
+
+        // Enter in bullets inserts a new bullet; Tab stops at the bullet field.
+        if (node.classList.contains("cv-preview-description")) {
           return;
         }
 
@@ -1626,12 +1685,12 @@
           return;
         }
 
-        CV_ITEM_FIELD_KEYS.forEach((field) => {
+        getCvItemFieldKeys(item).forEach((field) => {
           if (field === "description") {
             return;
           }
           const content = getCvItemFieldContent(item, field);
-          if (isCvItemFieldFilled(content, field)) {
+          if (isCvItemFieldFilled(content, field, item)) {
             charCount += editPlainText(content).length;
           }
         });
@@ -1959,9 +2018,9 @@
     if (item.type === "cv-item") {
       const snapshot = {};
       let hasContent = false;
-      CV_ITEM_FIELD_KEYS.forEach((field) => {
+      getCvItemFieldKeys(item).forEach((field) => {
         const content = getCvItemFieldContent(item, field);
-        if (isCvItemFieldFilled(content, field)) {
+        if (isCvItemFieldFilled(content, field, item)) {
           snapshot[field] = content;
           hasContent = true;
         } else {
@@ -2545,7 +2604,7 @@
 
     const cvItem = parseCvItemEditKey(editKey);
     if (cvItem) {
-      return CV_ITEM_PLACEHOLDERS[cvItem.field] || "";
+      return getCvItemPlaceholders(cvItem.item)[cvItem.field] || "";
     }
 
     const item = layoutItemFromEditKey(editKey);
@@ -3037,12 +3096,19 @@
       return "";
     }
 
+    const placeholders = getCvItemPlaceholders(item);
+    const fieldKeys = getCvItemFieldKeys(item);
     const filled = {};
-    CV_ITEM_FIELD_KEYS.forEach((field) => {
-      filled[field] = isCvItemFieldFilled(getCvItemFieldContent(item, field), field);
+    fieldKeys.forEach((field) => {
+      filled[field] = isCvItemFieldFilled(getCvItemFieldContent(item, field), field, item);
     });
 
-    const shouldShow = (field) => (publish ? filled[field] : true);
+    const shouldShow = (field) => {
+      if (!fieldKeys.includes(field)) {
+        return false;
+      }
+      return publish ? filled[field] : true;
+    };
 
     const hiddenFieldClass = (field) => {
       if (publish || filled[field] || isDraft) {
@@ -3055,7 +3121,7 @@
       !publish && !filled[field] ? " cv-preview-placeholder" : "";
 
     const fieldText = (field) =>
-      filled[field] ? getCvItemFieldContent(item, field) : CV_ITEM_PLACEHOLDERS[field];
+      filled[field] ? getCvItemFieldContent(item, field) : placeholders[field];
 
     let titleHtml = "";
     if (shouldShow("title") || shouldShow("date")) {
@@ -3067,7 +3133,7 @@
             class="cv-preview-entry-title cv-preview-cv-item-title${placeholderClass("title")}${hiddenFieldClass("title")}"
             contenteditable="false"
             data-edit-key="items.${item.id}.title"
-            data-placeholder-text="Title"
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.title)}"
           >${richTextToHtml(fieldText("title"))}</h3>`
               : ""
           }
@@ -3077,7 +3143,7 @@
             class="cv-preview-entry-date cv-preview-cv-item-date${placeholderClass("date")}${hiddenFieldClass("date")}"
             contenteditable="false"
             data-edit-key="items.${item.id}.date"
-            data-placeholder-text="DATE"
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.date)}"
           >${richTextToHtml(fieldText("date"))}</span>`
               : ""
           }
@@ -3093,7 +3159,7 @@
             class="cv-preview-cv-item-subtitle${placeholderClass("subtitle")}${hiddenFieldClass("subtitle")}"
             contenteditable="false"
             data-edit-key="items.${item.id}.subtitle"
-            data-placeholder-text="Subtitle"
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.subtitle)}"
           >${richTextToHtml(fieldText("subtitle"))}</span>
         </div>
       `;
@@ -3106,7 +3172,7 @@
           class="cv-preview-cv-item-location${placeholderClass("location")}${hiddenFieldClass("location")}"
           contenteditable="false"
           data-edit-key="items.${item.id}.location"
-          data-placeholder-text="Location"
+          data-placeholder-text="${escapeDataPlaceholder(placeholders.location)}"
         >${richTextToHtml(fieldText("location"))}</p>
       `;
     }
@@ -3115,7 +3181,7 @@
     if (shouldShow("description")) {
       const bulletContent = filled.description
         ? getCvItemFieldContent(item, "description")
-        : CV_ITEM_PLACEHOLDERS.description;
+        : placeholders.description;
       const bulletMarkup = descriptionToEditableHtml(bulletContent);
       if (bulletMarkup || !publish) {
         bulletsHtml = `
@@ -3123,8 +3189,8 @@
             class="cv-preview-entry-body cv-preview-description cv-preview-cv-item-bullets${placeholderClass("description")}${hiddenFieldClass("description")}"
             contenteditable="false"
             data-edit-key="items.${item.id}.description"
-            data-placeholder-text="${escapeDataPlaceholder(CV_ITEM_PLACEHOLDERS.description)}"
-          >${bulletMarkup || descriptionToEditableHtml(CV_ITEM_PLACEHOLDERS.description)}</div>
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.description)}"
+          >${bulletMarkup || descriptionToEditableHtml(placeholders.description)}</div>
         `;
       }
     }
@@ -3133,8 +3199,10 @@
       return "";
     }
 
+    const kindAttr = getCvItemKind(item) !== "default" ? ` data-item-kind="${getCvItemKind(item)}"` : "";
+
     return `
-      <section class="cv-preview-entry cv-preview-cv-item" data-item-id="${item.id}">
+      <section class="cv-preview-entry cv-preview-cv-item" data-item-id="${item.id}"${kindAttr}>
         ${titleHtml}
         ${subrowHtml}
         ${locationHtml}
@@ -3707,6 +3775,7 @@
       }
 
       if (item.type === "cv-item") {
+        const placeholders = getCvItemPlaceholders(item);
         const block = {
           kind: "cv-item",
           title: [],
@@ -3715,16 +3784,16 @@
           location: [],
           bullets: [],
         };
-        CV_ITEM_FIELD_KEYS.forEach((field) => {
+        getCvItemFieldKeys(item).forEach((field) => {
           const content = getCvItemFieldContent(item, field);
-          if (!isCvItemFieldFilled(content, field)) {
+          if (!isCvItemFieldFilled(content, field, item)) {
             return;
           }
           if (field === "description") {
-            block.bullets = exportBulletLines(content, CV_ITEM_PLACEHOLDERS.description);
+            block.bullets = exportBulletLines(content, placeholders.description);
             return;
           }
-          block[field] = exportFieldLines(content, CV_ITEM_PLACEHOLDERS[field]);
+          block[field] = exportFieldLines(content, placeholders[field]);
         });
         const hasContent = [block.title, block.subtitle, block.date, block.location, block.bullets].some(
           (group) => group.length > 0
