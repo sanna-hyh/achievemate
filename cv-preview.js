@@ -2661,6 +2661,17 @@
       changed = true;
     }
 
+    if (editKey === "personal.name") {
+      const displayName =
+        next == null ? "" : editPlainText(next).replace(/\s+/g, " ").trim();
+      if ((state.personalInfo.name || "") !== displayName) {
+        state.personalInfo.name = displayName;
+        window.AchieveMateApp?.refreshPersonalForm?.();
+        window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+        changed = true;
+      }
+    }
+
     if (changed && !options.skipSave) {
       if (options.flushSave) {
         flushEditSave();
@@ -3250,9 +3261,22 @@
     return String(value || "").trim().replace(/\.pdf$/i, "");
   }
 
+  function getCanvasDisplayName() {
+    const raw = getEdit("personal.name", state.personalInfo.name || "");
+    const plain = editPlainText(raw).replace(/\s+/g, " ").trim();
+    if (
+      !plain ||
+      normalizePlaceholderCompare(plain) === normalizePlaceholderCompare("Your Name")
+    ) {
+      return "";
+    }
+    return plain;
+  }
+
   function getDefaultExportBaseName() {
-    if (state.personalInfo.name) {
-      return `${state.personalInfo.name.replace(/\s+/g, "_")}_CV`;
+    const name = getCanvasDisplayName();
+    if (name) {
+      return `${name.replace(/\s+/g, "_")}_CV`;
     }
     return "My_CV";
   }
