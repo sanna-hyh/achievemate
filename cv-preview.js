@@ -2589,6 +2589,17 @@
       changed = true;
     }
 
+    if (editKey === "personal.name") {
+      const displayName =
+        next == null ? "" : editPlainText(next).replace(/\s+/g, " ").trim();
+      if ((state.personalInfo.name || "") !== displayName) {
+        state.personalInfo.name = displayName;
+        window.AchieveMateApp?.refreshPersonalForm?.();
+        window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+        changed = true;
+      }
+    }
+
     if (changed && !options.skipSave) {
       if (options.flushSave) {
         flushEditSave();
