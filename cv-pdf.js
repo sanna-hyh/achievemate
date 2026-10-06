@@ -552,14 +552,14 @@
       const subtitle = (block.subtitle || []).filter(lineHasText);
 
       if (block.kind === "cv-item") {
-        if (title.length) {
-          drawWrapped(title, margin, contentWidth, titleSize, accentColor, { bold: true });
+        if (title.length || date.length) {
+          drawSplitRow(title, date, titleSize, bodySize, accentColor, textColor);
         }
-        if (subtitle.length || date.length) {
-          if (title.length) {
+        if (subtitle.length) {
+          if (title.length || date.length) {
             y += Math.max(1, sectionMargin * 0.08);
           }
-          drawSplitRow(subtitle, date, titleSize, bodySize, accentColor, textColor);
+          drawWrapped(subtitle, margin, contentWidth, titleSize, accentColor, { bold: true });
         }
       } else if (title.length || date.length) {
         drawSplitRow(title, date, titleSize, bodySize, accentColor, textColor);

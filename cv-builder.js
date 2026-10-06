@@ -56,7 +56,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render();
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.("Clear CV");
 
     window.AchieveMateToast?.show("CV cleared — start fresh", {
       actionLabel: "Undo",
@@ -70,7 +70,7 @@
         saveState();
         renderRail();
         window.AchieveMateCvPreview?.render();
-        window.AchieveMateCvHistory?.record?.();
+        window.AchieveMateCvHistory?.record?.("Restore CV");
       },
     });
   }
@@ -183,7 +183,7 @@
         saveState();
         renderRail();
         window.AchieveMateCvPreview?.syncLibraryStars?.();
-        window.AchieveMateCvHistory?.record?.();
+        window.AchieveMateCvHistory?.record?.('Update library');
         window.AchieveMateToast?.show('Updated in library');
         return { saved: true, updated: true, entry: updated };
       }
@@ -195,7 +195,7 @@
         linkLayoutItemToLibrary(layoutItem, existing.id);
         saveState();
         window.AchieveMateCvPreview?.syncLibraryStars?.();
-        window.AchieveMateCvHistory?.record?.();
+        window.AchieveMateCvHistory?.record?.('Save to library');
       }
       window.AchieveMateToast?.show('Already in your library', { tone: 'neutral' });
       return { saved: false, reason: 'duplicate', entry: existing };
@@ -207,7 +207,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.syncLibraryStars?.();
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.('Save to library');
     window.AchieveMateToast?.show('Saved to library');
     return { saved: true, entry };
   }
@@ -311,7 +311,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.syncLibraryStars?.();
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.('Remove from library');
 
     window.AchieveMateToast?.show('Removed from library', {
       actionLabel: 'Undo',
@@ -327,7 +327,7 @@
         saveState();
         renderRail();
         window.AchieveMateCvPreview?.syncLibraryStars?.();
-        window.AchieveMateCvHistory?.record?.();
+        window.AchieveMateCvHistory?.record?.('Restore library item');
       },
     });
 
@@ -370,7 +370,9 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render({ flashItemId: item.id });
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.(
+      item.type === "heading" ? "Add heading" : item.type === "cv-item" ? "Add CV item" : "Add item"
+    );
     return item.id;
   }
 
@@ -387,7 +389,7 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render({ flashItemId: moved.id });
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.("Move item");
     return moved.id;
   }
 
@@ -402,7 +404,9 @@
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.render();
-    window.AchieveMateCvHistory?.record?.();
+    window.AchieveMateCvHistory?.record?.(
+      removed?.type === "heading" ? "Remove heading" : "Remove item"
+    );
     return { removed, index };
   }
 

@@ -1,11 +1,14 @@
 (function initCvHistory() {
   const MAX_STEPS = 60;
+  const SUPPRESS_MS = 450;
   const undoBtn = document.getElementById("cvUndoBtn");
   const redoBtn = document.getElementById("cvRedoBtn");
 
   let stack = [];
   let index = -1;
   let applying = false;
+  let suppressUntil = 0;
+  let lastRecordAt = 0;
   const listeners = new Set();
 
   function getApp() {
@@ -34,7 +37,20 @@
     if (!a || !b) {
       return false;
     }
-    return JSON.stringify(a) === JSON.stringify(b);
+    return (
+      JSON.stringify({
+        cvLayout: a.cvLayout,
+        cvLibrary: a.cvLibrary,
+        cvPreviewEdits: a.cvPreviewEdits,
+        personalInfo: a.personalInfo,
+      }) ===
+      JSON.stringify({
+        cvLayout: b.cvLayout,
+        cvLibrary: b.cvLibrary,
+        cvPreviewEdits: b.cvPreviewEdits,
+        personalInfo: b.personalInfo,
+      })
+    );
   }
 
   function notify() {
@@ -60,17 +76,22 @@
     }
   }
 
-  function applySnapshot(snapshot) {
+  function toastHistory(message) {
+    window.AchieveMateToast?.show(message, { tone: "neutral" });
+  }
+
+  function applySnapshot(entry) {
     const app = getApp();
-    if (!app?.state || !snapshot) {
+    if (!app?.state || !entry) {
       return;
     }
 
     applying = true;
-    app.state.cvLayout = JSON.parse(JSON.stringify(snapshot.cvLayout));
-    app.state.cvLibrary = JSON.parse(JSON.stringify(snapshot.cvLibrary || []));
-    app.state.cvPreviewEdits = JSON.parse(JSON.stringify(snapshot.cvPreviewEdits));
-    app.state.personalInfo = JSON.parse(JSON.stringify(snapshot.personalInfo));
+    suppressUntil = performance.now() + SUPPRESS_MS;
+    app.state.cvLayout = JSON.parse(JSON.stringify(entry.cvLayout));
+    app.state.cvLibrary = JSON.parse(JSON.stringify(entry.cvLibrary || []));
+    app.state.cvPreviewEdits = JSON.parse(JSON.stringify(entry.cvPreviewEdits));
+    app.state.personalInfo = JSON.parse(JSON.stringify(entry.personalInfo));
     app.saveState();
     app.refreshPersonalForm?.();
     window.AchieveMateCvBuilder?.render?.();
@@ -79,11 +100,13 @@
     window.AchieveMateCvPreview?.scheduleSmartLayout?.();
     window.AchieveMateCvPreview?.scheduleFitPreview?.();
     applying = false;
+    // Keep suppress a bit after async layout/blur settles.
+    suppressUntil = performance.now() + SUPPRESS_MS;
     notify();
   }
 
-  function record() {
-    if (applying) {
+  function record(label = "Edit") {
+    if (applying || performance.now() < suppressUntil) {
       return false;
     }
 
@@ -92,16 +115,33 @@
       return false;
     }
 
-    if (index >= 0 && sameSnapshot(stack[index], snapshot)) {
+    const now = performance.now();
+    const entry = { label: String(label || "Edit"), ...snapshot };
+
+    if (index >= 0 && sameSnapshot(stack[index], entry)) {
       return false;
     }
 
+    // Replace tip for rapid repeats of the same action (e.g. continuous typing commits).
+    if (
+      index >= 0 &&
+      stack[index].label === entry.label &&
+      now - lastRecordAt < 700 &&
+      entry.label === "Edit text"
+    ) {
+      stack[index] = entry;
+      lastRecordAt = now;
+      notify();
+      return true;
+    }
+
     stack = stack.slice(0, index + 1);
-    stack.push(snapshot);
+    stack.push(entry);
     if (stack.length > MAX_STEPS) {
       stack.shift();
     }
     index = stack.length - 1;
+    lastRecordAt = now;
     notify();
     return true;
   }
@@ -109,15 +149,26 @@
   function seed() {
     stack = [];
     index = -1;
-    record();
+    lastRecordAt = 0;
+    suppressUntil = 0;
+    applying = false;
+    const snapshot = cloneCvState();
+    if (!snapshot) {
+      return;
+    }
+    stack.push({ label: "Start", ...snapshot });
+    index = 0;
+    notify();
   }
 
   function undo() {
     if (index <= 0) {
       return false;
     }
+    const undone = stack[index];
     index -= 1;
     applySnapshot(stack[index]);
+    toastHistory(`Undid ${undone?.label || "Edit"}`);
     return true;
   }
 
@@ -126,7 +177,9 @@
       return false;
     }
     index += 1;
+    const redone = stack[index];
     applySnapshot(stack[index]);
+    toastHistory(`Redid ${redone?.label || "Edit"}`);
     return true;
   }
 
@@ -200,10 +253,9 @@
     subscribe,
     canUndo: () => index > 0,
     canRedo: () => index >= 0 && index < stack.length - 1,
-    isApplying: () => applying,
+    isApplying: () => applying || performance.now() < suppressUntil,
   };
 
-  // Baseline after app state is available.
   if (getApp()?.state) {
     seed();
   } else {

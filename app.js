@@ -172,8 +172,21 @@ function loadCvSettings(legacySettings) {
 
 function saveCvSettings() {
   window.AchieveMateSaveStatus?.markPending();
-  localStorage.setItem(CV_SETTINGS_STORAGE_KEY, JSON.stringify(state.cvSettings));
-  window.AchieveMateSaveStatus?.markComplete();
+  try {
+    localStorage.setItem(CV_SETTINGS_STORAGE_KEY, JSON.stringify(state.cvSettings));
+    window.AchieveMateSaveStatus?.markComplete();
+    return true;
+  } catch (error) {
+    window.AchieveMateSaveStatus?.markComplete();
+    console.warn("Could not save CV settings:", error);
+    showToast(
+      isQuotaExceededError(error)
+        ? "Storage is full — design settings couldn't be saved."
+        : "Couldn't save design settings",
+      { tone: "danger" }
+    );
+    return false;
+  }
 }
 
 function getCustomDefaults() {
@@ -259,10 +272,83 @@ function loadState() {
   loadCvSettings(legacyCvSettings);
 }
 
-function saveState() {
+function isQuotaExceededError(error) {
+  if (!error) {
+    return false;
+  }
+
+  return (
+    error.name === "QuotaExceededError" ||
+    error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    error.code === 22 ||
+    error.code === 1014 ||
+    /quota/i.test(String(error.message || ""))
+  );
+}
+
+function saveState(options = {}) {
+  const {
+    silent = false,
+    quotaMessage = "Storage is full — changes couldn't be saved. Free some space or use a smaller attachment.",
+  } = options;
+
   window.AchieveMateSaveStatus?.markPending();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  window.AchieveMateSaveStatus?.markComplete();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    window.AchieveMateSaveStatus?.markComplete();
+    return true;
+  } catch (error) {
+    window.AchieveMateSaveStatus?.markComplete();
+    console.warn("Could not save data:", error);
+    if (!silent) {
+      showToast(
+        isQuotaExceededError(error)
+          ? quotaMessage
+          : "Couldn't save your changes",
+        { tone: "danger" }
+      );
+    }
+    return false;
+  }
+}
+
+function canPersistMutatedState(mutateSnapshot) {
+  let snapshot;
+  try {
+    snapshot = JSON.parse(JSON.stringify(state));
+  } catch (error) {
+    console.warn("Could not clone state for storage probe:", error);
+    return false;
+  }
+
+  try {
+    mutateSnapshot?.(snapshot);
+  } catch (error) {
+    console.warn("Storage probe mutation failed:", error);
+    return false;
+  }
+
+  const previousRaw = localStorage.getItem(STORAGE_KEY);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+  } catch (error) {
+    if (!isQuotaExceededError(error)) {
+      console.warn("Storage probe failed:", error);
+    }
+    return false;
+  }
+
+  try {
+    if (previousRaw == null) {
+      localStorage.removeItem(STORAGE_KEY);
+    } else {
+      localStorage.setItem(STORAGE_KEY, previousRaw);
+    }
+  } catch (restoreError) {
+    console.warn("Could not restore previous storage after probe:", restoreError);
+  }
+
+  return true;
 }
 
 function stripBulletGlyphs(value) {
@@ -782,20 +868,66 @@ function saveEditing() {
     return;
   }
 
+  const previous = {
+    title: achievement.title || "",
+    date: achievement.date || "",
+    category: achievement.category,
+    starred: Boolean(achievement.starred),
+    description: achievement.description || "",
+    showDescription: achievement.showDescription,
+    fileName: achievement.fileName || "",
+    fileType: achievement.fileType || "",
+    fileData: achievement.fileData || "",
+    proofPath: achievement.proofPath || "",
+  };
+  const nextFiles = {
+    fileName: editingDraft.fileName || "",
+    fileType: editingDraft.fileType || "",
+    fileData: editingDraft.fileData || "",
+    proofPath: editingDraft.proofPath || "",
+  };
+  const attachmentGrew =
+    (nextFiles.fileData || "").length > (previous.fileData || "").length;
+
   achievement.title = editingDraft.title.trim();
   achievement.date = editingDraft.date.trim();
   achievement.category = normalizeAchievementCategory(editingDraft.category);
   achievement.starred = Boolean(editingDraft.starred);
   achievement.description = stripBulletGlyphs(editingDraft.description);
-  achievement.fileName = editingDraft.fileName || "";
-  achievement.fileType = editingDraft.fileType || "";
-  achievement.fileData = editingDraft.fileData || "";
-  achievement.proofPath = editingDraft.proofPath || "";
+  achievement.fileName = nextFiles.fileName;
+  achievement.fileType = nextFiles.fileType;
+  achievement.fileData = nextFiles.fileData;
+  achievement.proofPath = nextFiles.proofPath;
   achievement.showDescription = getDescriptionLines(achievement.description).length > 0;
+
+  const saved = saveState({
+    silent: attachmentGrew,
+    quotaMessage:
+      "Storage is full — this attachment couldn't be saved. Try a smaller file.",
+  });
+
+  if (!saved) {
+    Object.assign(achievement, previous);
+    if (attachmentGrew) {
+      editingDraft.fileName = previous.fileName;
+      editingDraft.fileType = previous.fileType;
+      editingDraft.fileData = previous.fileData;
+      editingDraft.proofPath = previous.proofPath;
+      showToast("Storage is full — this attachment couldn't be saved. Try a smaller file.", {
+        tone: "danger",
+      });
+      renderAchievements();
+      return;
+    }
+    editingAchievementId = null;
+    editingDraft = null;
+    renderAchievements();
+    refreshCvSurfaces();
+    return;
+  }
 
   editingAchievementId = null;
   editingDraft = null;
-  saveState();
   renderAchievements();
   refreshCvSurfaces();
 }
@@ -1716,14 +1848,50 @@ function createEditEntry(achievement) {
       }
 
       try {
+        const dataUrl = await readFileAsDataUrl(file);
+        const achievementId = editingAchievementId;
+        syncDraft();
+        const fits = canPersistMutatedState((snapshot) => {
+          const target = snapshot.achievements.find((item) => item.id === achievementId);
+          if (!target) {
+            return;
+          }
+          target.title = (editingDraft?.title || draft.title || "").trim();
+          target.date = (editingDraft?.date || draft.date || "").trim();
+          target.category = normalizeAchievementCategory(
+            editingDraft?.category || draft.category
+          );
+          target.starred = Boolean(editingDraft?.starred ?? draft.starred);
+          target.description = stripBulletGlyphs(
+            editingDraft?.description || draft.description || ""
+          );
+          target.showDescription =
+            getDescriptionLines(target.description).length > 0;
+          target.fileName = file.name;
+          target.fileType = file.type;
+          target.fileData = dataUrl;
+          target.proofPath = "";
+        });
+
+        if (!fits) {
+          showToast(
+            "Storage is full — this attachment couldn't be saved. Try a smaller file.",
+            { tone: "danger" }
+          );
+          fileInput.value = "";
+          return;
+        }
+
         draft.fileName = file.name;
         draft.fileType = file.type;
-        draft.fileData = await readFileAsDataUrl(file);
+        draft.fileData = dataUrl;
         draft.proofPath = "";
         syncDraft();
         renderProofControls();
       } catch (error) {
         console.warn("Could not read file:", error);
+        showToast("Couldn't read that file", { tone: "danger" });
+        fileInput.value = "";
       }
     });
     proofWrap.append(attachBtn, fileInput);
