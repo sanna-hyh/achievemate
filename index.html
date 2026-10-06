@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=131" />
+  <link rel="stylesheet" href="styles.css?v=132" />
   <script src="features.js?v=2"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -176,7 +176,7 @@
             aria-controls="railAddPanel"
             data-rail-tab="add"
           >
-            Add
+            <span class="studio-rail-tab-label">Add</span>
           </button>
           <button
             type="button"
@@ -187,8 +187,8 @@
             aria-controls="cvLibrarySection"
             data-rail-tab="library"
           >
-            Library
-            <span class="studio-rail-count" id="studioRailCount">0</span>
+            <span class="studio-rail-tab-label">Library</span>
+            <span class="studio-rail-count" id="studioRailCount" hidden>0</span>
           </button>
         </div>
         <div class="studio-rail-scroll">
@@ -460,7 +460,7 @@
   <script src="app.js?v=50"></script>
   <script src="cv-history.js?v=3"></script>
   <script src="drag-preview.js?v=7"></script>
-  <script src="cv-builder.js?v=27"></script>
+  <script src="cv-builder.js?v=28"></script>
   <script src="cv-pdf.js?v=5"></script>
   <script src="cv-preview.js?v=80"></script>
   <script src="cv-layout-panel.js?v=11"></script>

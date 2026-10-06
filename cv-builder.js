@@ -103,9 +103,12 @@
   }
 
   function updateRailCount() {
-    if (studioRailCount) {
-      studioRailCount.textContent = String(state.cvLibrary?.length || 0);
+    if (!studioRailCount) {
+      return;
     }
+    const count = state.cvLibrary?.length || 0;
+    studioRailCount.textContent = String(count);
+    studioRailCount.hidden = count === 0;
   }
 
   function librarySnapshotKey(entry) {
