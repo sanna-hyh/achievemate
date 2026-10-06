@@ -1268,14 +1268,16 @@
   }
 
   const LAYOUT = {
-    minBodyPt: 9,
-    maxBodyPt: 12,
-    minHeaderPt: 9.5,
-    maxHeaderPt: 12,
-    minLineHeight: 1.1,
-    maxLineHeight: 1.5,
-    minSpacingPx: 0,
-    maxSpacingPx: 24,
+    ...(window.AchieveMateApp?.CV_TYPOGRAPHY || {
+      minBodyPt: 10,
+      maxBodyPt: 12,
+      minHeaderPt: 10.5,
+      maxHeaderPt: 12,
+      minLineHeight: 1.1,
+      maxLineHeight: 1.5,
+      minSpacingPx: 0,
+      maxSpacingPx: 24,
+    }),
     pageHeightMm: 297,
   };
 
@@ -1301,10 +1303,10 @@
   }
 
   function manualTypographyFromBase(baseFontSize) {
-    const bodyFontPt = Math.max(9, Math.min(12, baseFontSize));
+    const bodyFontPt = Math.max(LAYOUT.minBodyPt, Math.min(LAYOUT.maxBodyPt, Number(baseFontSize) || LAYOUT.minBodyPt));
     return {
       bodyFontPt,
-      headerFontPt: Math.min(bodyFontPt + 0.5, 12),
+      headerFontPt: Math.min(bodyFontPt + 0.5, LAYOUT.maxHeaderPt),
     };
   }
 
@@ -1698,8 +1700,12 @@
       return;
     }
 
-    cvPreview.style.setProperty("--cv-body-font", `${fit.bodyPt}pt`);
-    cvPreview.style.setProperty("--cv-header-font", `${fit.titlePt}pt`);
+    const minBodyPt = LAYOUT.minBodyPt;
+    const bodyPt = Math.max(minBodyPt, Number(fit.bodyPt) || minBodyPt);
+    const titlePt = Math.max(LAYOUT.minHeaderPt, Number(fit.titlePt) || bodyPt + 0.5);
+
+    cvPreview.style.setProperty("--cv-body-font", `${bodyPt}pt`);
+    cvPreview.style.setProperty("--cv-header-font", `${titlePt}pt`);
     cvPreview.style.setProperty("--cv-name-font", `${fit.namePt}pt`);
     cvPreview.style.setProperty("--cv-section-heading-font", `${fit.headingPt}pt`);
     if (Number.isFinite(Number(fit.lineHeight))) {
@@ -1711,11 +1717,18 @@
     if (Number.isFinite(Number(fit.marginPt))) {
       cvPreview.style.setProperty("--cv-page-padding", `${fit.marginPt}pt`);
     }
-    cvPreview.classList.add("cv-preview-single-page");
+
+    // Same overflow rule as PDF: clip to one page only while content still fits;
+    // at the 10pt floor, allow the sheet to grow (multi-page).
+    if (fit.fitOverflow) {
+      cvPreview.classList.remove("cv-preview-single-page");
+    } else {
+      cvPreview.classList.add("cv-preview-single-page");
+    }
   }
 
   function rememberPdfFit(fit) {
-    pdfFitOverride = fit?.fitChanged ? fit : null;
+    pdfFitOverride = fit?.fitChanged || fit?.fitOverflow ? fit : null;
     if (pdfFitOverride) {
       writeFittedTypography(pdfFitOverride);
     }
@@ -1729,11 +1742,34 @@
     return cvPreview.scrollHeight > cvPreview.clientHeight + 2;
   }
 
+  function getLiveTypography() {
+    if (!cvPreview) {
+      return null;
+    }
+
+    const lineHeightRaw = parseFloat(cvPreview.style.getPropertyValue("--cv-line-height"));
+    const sectionGapRaw = parseFloat(cvPreview.style.getPropertyValue("--cv-section-gap"));
+
+    return {
+      bodyFontPt: Math.round(readCssPt("--cv-body-font", LAYOUT.minBodyPt) * 10) / 10,
+      lineHeight: Number.isFinite(lineHeightRaw)
+        ? Math.round(lineHeightRaw * 100) / 100
+        : LAYOUT.minLineHeight,
+      sectionGapPx: Number.isFinite(sectionGapRaw) ? Math.round(sectionGapRaw) : LAYOUT.minSpacingPx,
+      singlePage: cvPreview.classList.contains("cv-preview-single-page"),
+    };
+  }
+
+  function syncDesignFittedOutputs() {
+    window.AchieveMateCvLayoutPanel?.syncFittedOutputs?.(getLiveTypography());
+  }
+
   function applySmartLayout(options = {}) {
     pdfFitOverride = null;
     applyLayoutStyles();
 
     const finishLayout = () => {
+      syncDesignFittedOutputs();
       if (options.syncFit) {
         applyPreviewZoom();
       } else {
@@ -1781,9 +1817,10 @@
 
     let overflow = measurePageOverflow();
     if (overflow) {
+      // Hard floor reached — keep min typography, allow multi-page (no clip).
       applyLayoutParams({
         ...layoutParamsFromRatio(0),
-        singlePage: true,
+        singlePage: false,
         density: "compact",
       });
     }
@@ -1791,13 +1828,21 @@
     if (window.AchieveMatePdf?.shrinkPdfModelToOnePage) {
       const fitted = window.AchieveMatePdf.shrinkPdfModelToOnePage(buildPdfModel(), {
         alsoFits(candidate) {
-          writeFittedTypography(candidate);
+          // Measure with single-page clip enabled so overflow detection works.
+          writeFittedTypography({ ...candidate, fitOverflow: false });
           return !measurePageOverflow();
         },
       });
       rememberPdfFit(fitted);
-      if (!fitted.fitChanged) {
-        applyLayoutParams(overflow ? { ...layoutParamsFromRatio(0), singlePage: true, density: "compact" } : cssParams);
+      if (!fitted.fitChanged && !fitted.fitOverflow) {
+        applyLayoutParams({
+          ...(overflow
+            ? { ...layoutParamsFromRatio(0), density: "compact" }
+            : cssParams),
+          singlePage: !overflow,
+        });
+      } else if (fitted.fitOverflow) {
+        cvPreview.classList.remove("cv-preview-single-page");
       }
     }
 
@@ -3625,7 +3670,7 @@
       namePt: readCssPt("--cv-name-font", getNameFontSizePt(styles)),
       headingPt: readCssPt("--cv-section-heading-font", getHeadingFontSizePt(styles)),
       titlePt: readCssPt("--cv-header-font", manual.headerFontPt),
-      bodyPt: readCssPt("--cv-body-font", manual.bodyFontPt),
+      bodyPt: Math.max(LAYOUT.minBodyPt, readCssPt("--cv-body-font", manual.bodyFontPt)),
       lineHeight: Number.isFinite(lineHeightRaw) ? lineHeightRaw : styles.lineHeight || 1.3,
       sectionGapPt: readCssPt("--cv-section-gap", (styles.sectionGap ?? 12) * 0.75),
       sectionMarginPt: readCssPt("--cv-section-margin", (styles.sectionGap ?? 12) * 0.75),
@@ -3642,7 +3687,7 @@
       model.namePt = pdfFitOverride.namePt;
       model.headingPt = pdfFitOverride.headingPt;
       model.titlePt = pdfFitOverride.titlePt;
-      model.bodyPt = pdfFitOverride.bodyPt;
+      model.bodyPt = Math.max(LAYOUT.minBodyPt, Number(pdfFitOverride.bodyPt) || LAYOUT.minBodyPt);
       model.lineHeight = pdfFitOverride.lineHeight;
       model.sectionGapPt = pdfFitOverride.sectionGapPt;
       model.sectionMarginPt = pdfFitOverride.sectionMarginPt;
@@ -3664,8 +3709,9 @@
     const model = buildPdfModel();
     const doc = await window.AchieveMatePdf.createCvPdf(model);
     const fit = window.AchieveMatePdf.getCvPdfFit?.(doc);
-    if (model.autoFit && fit?.fitChanged) {
+    if (model.autoFit && (fit?.fitChanged || fit?.fitOverflow)) {
       rememberPdfFit(fit);
+      syncDesignFittedOutputs();
     }
     return doc;
   }
@@ -3719,6 +3765,7 @@
     render: renderPreview,
     applyLayoutStyles,
     scheduleSmartLayout,
+    getLiveTypography,
     fitPreviewToScreen,
     scheduleFitPreview,
     setUserZoom,

@@ -88,8 +88,13 @@
 
   function syncFormFromState() {
     const styles = state.cvSettings;
+    const typography = window.AchieveMateApp?.CV_TYPOGRAPHY;
+    const minBody = typography?.minBodyPt ?? 10;
+    const maxBody = typography?.maxBodyPt ?? 12;
+    const clampedBase = Math.max(minBody, Math.min(maxBody, Number(styles.baseFontSize) || minBody));
+
     form.fontFamily.value = styles.fontFamily;
-    form.baseFontSize.value = String(styles.baseFontSize);
+    form.baseFontSize.value = String(clampedBase);
     form.nameFontSize.value = String(styles.nameFontSize ?? 20);
     form.headingFontSize.value = String(styles.headingFontSize ?? 13);
     form.textColor.value = styles.textColor;
@@ -117,16 +122,39 @@
     syncAllSliderFills();
   }
 
-  function updateOutputs() {
-    const autoFitOn = form.autoFit.checked;
+  function formatPt(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      return String(value ?? "");
+    }
+    return String(Math.round(n * 10) / 10);
+  }
 
-    if (autoFitOn) {
-      outputs.baseFontSize.textContent = "auto";
-      outputs.lineHeight.textContent = "auto";
-      outputs.sectionGap.textContent = "auto";
+  function formatLineHeight(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) {
+      return String(value ?? "");
+    }
+    return n.toFixed(2).replace(/\.?0+$/, "");
+  }
+
+  function updateOutputs(fitted = null) {
+    const autoFitOn = form.autoFit.checked;
+    const live =
+      fitted ||
+      (autoFitOn ? window.AchieveMateCvPreview?.getLiveTypography?.() : null);
+
+    if (autoFitOn && live) {
+      outputs.baseFontSize.textContent = `${formatPt(live.bodyFontPt)}pt`;
+      outputs.lineHeight.textContent = formatLineHeight(live.lineHeight);
+      outputs.sectionGap.textContent = `${Math.round(Number(live.sectionGapPx) || 0)}px`;
+    } else if (autoFitOn) {
+      outputs.baseFontSize.textContent = "…";
+      outputs.lineHeight.textContent = "…";
+      outputs.sectionGap.textContent = "…";
     } else {
       outputs.baseFontSize.textContent = `${form.baseFontSize.value}pt`;
-      outputs.lineHeight.textContent = Number(form.lineHeight.value).toFixed(2).replace(/\.?0+$/, "");
+      outputs.lineHeight.textContent = formatLineHeight(form.lineHeight.value);
       outputs.sectionGap.textContent = `${form.sectionGap.value}px`;
     }
 
@@ -135,10 +163,21 @@
     outputs.itemGap.textContent = `${form.itemGap.value}px`;
   }
 
+  function syncFittedOutputs(fitted) {
+    if (!form.autoFit.checked) {
+      return;
+    }
+    updateOutputs(fitted);
+  }
+
   function readFormIntoState() {
+    const typography = window.AchieveMateApp?.CV_TYPOGRAPHY;
+    const minBody = typography?.minBodyPt ?? 10;
+    const maxBody = typography?.maxBodyPt ?? 12;
+
     state.cvSettings = {
       fontFamily: form.fontFamily.value,
-      baseFontSize: Number(form.baseFontSize.value),
+      baseFontSize: Math.max(minBody, Math.min(maxBody, Number(form.baseFontSize.value) || minBody)),
       nameFontSize: Number(form.nameFontSize.value),
       headingFontSize: Number(form.headingFontSize.value),
       textColor: form.textColor.value,
@@ -253,5 +292,6 @@
 
   window.AchieveMateCvLayoutPanel = {
     syncFormFromState,
+    syncFittedOutputs,
   };
 })();
