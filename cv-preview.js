@@ -1974,7 +1974,7 @@
   }
 
   function libraryStarButtonMarkup(inLibrary) {
-    const label = inLibrary ? "Update library item" : "Save to library";
+    const label = inLibrary ? "Remove from library" : "Save to library";
     return `<button type="button" class="btn-icon cv-section-save${
       inLibrary ? " is-in-library" : ""
     }" aria-label="${label}" title="${label}" aria-pressed="${String(inLibrary)}">
@@ -1990,7 +1990,7 @@
 
     button.classList.toggle("is-in-library", inLibrary);
     button.setAttribute("aria-pressed", String(inLibrary));
-    const label = inLibrary ? "Update library item" : "Save to library";
+    const label = inLibrary ? "Remove from library" : "Save to library";
     button.setAttribute("aria-label", label);
     button.title = label;
   }
@@ -2020,7 +2020,6 @@
       return { saved: false, reason: "empty" };
     }
 
-    // Linked items update that Library card in place; unlinked items save as new.
     return window.AchieveMateCvBuilder?.saveLibrarySnapshot(snapshot, {
       sourceLayoutItemId: layoutItemId,
       layoutItemId,
@@ -2032,6 +2031,11 @@
     if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
       window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
       return { saved: false, reason: "unsupported" };
+    }
+
+    if (isLayoutItemInLibrary(layoutItemId)) {
+      window.AchieveMateCvBuilder?.removeLibraryEntry?.(item.libraryEntryId);
+      return { saved: false, removed: true };
     }
 
     return saveLayoutItemToLibrary(layoutItemId);
