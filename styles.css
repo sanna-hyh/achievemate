@@ -3527,16 +3527,18 @@ body.layout-drawer-collapsed .studio-cockpit,
   .studio-rail-tabs {
     flex-shrink: 0;
     align-self: center;
-    padding: 6px var(--rail-tab-gutter) 8px;
+    justify-content: center;
+    padding: 8px var(--rail-tab-gutter) 10px;
   }
 
   .studio-rail-tab {
     font-size: 0.75rem;
-    padding-bottom: 12px;
+    padding-bottom: 10px;
   }
 
   .studio-rail-tab[aria-selected="true"]::after {
-    bottom: 4px;
+    bottom: 3px;
+    width: 1em;
   }
 
   .studio-rail-scroll {
