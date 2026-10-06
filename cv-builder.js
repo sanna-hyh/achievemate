@@ -355,6 +355,15 @@
       };
     }
 
+    if (type === "skills") {
+      return {
+        id: createId("cv"),
+        type: "skills",
+        title: "Skills",
+        skills: [],
+      };
+    }
+
     return {
       id: createId("cv"),
       type: "achievement",
@@ -366,6 +375,9 @@
     if (item?.type === "heading") {
       const title = String(item.title || "").trim();
       return title ? `Add ${title}` : "Add heading";
+    }
+    if (item?.type === "skills") {
+      return "Add Skills";
     }
     if (item?.type === "cv-item") {
       return item.libraryEntryId ? "Add from library" : "Add CV item";
@@ -408,7 +420,7 @@
   const ADD_KINDS = {
     experience: { sectionTitle: "Experience", historyLabel: "Add Experience" },
     education: { sectionTitle: "Education", historyLabel: "Add Education" },
-    skills: { sectionTitle: "Skills", historyLabel: "Add Skills" },
+    skills: { historyLabel: "Add Skills", layoutType: "skills" },
     "free-text": { sectionTitle: null, historyLabel: "Add CV item" },
   };
 
@@ -418,19 +430,25 @@
     let insertAt = index == null ? next.length : Math.max(0, Math.min(index, next.length));
     let focusId = null;
 
-    if (config.sectionTitle && !findSectionHeading(config.sectionTitle)) {
-      const heading = createLayoutItem("heading");
-      heading.title = config.sectionTitle;
-      next.splice(insertAt, 0, heading);
-      insertAt += 1;
-    }
+    if (config.layoutType === "skills") {
+      const item = createLayoutItem("skills");
+      next.splice(insertAt, 0, item);
+      focusId = item.id;
+    } else {
+      if (config.sectionTitle && !findSectionHeading(config.sectionTitle)) {
+        const heading = createLayoutItem("heading");
+        heading.title = config.sectionTitle;
+        next.splice(insertAt, 0, heading);
+        insertAt += 1;
+      }
 
-    const item = createLayoutItem("cv-item");
-    if (kind === "experience" || kind === "education") {
-      item.itemKind = kind;
+      const item = createLayoutItem("cv-item");
+      if (kind === "experience" || kind === "education") {
+        item.itemKind = kind;
+      }
+      next.splice(insertAt, 0, item);
+      focusId = item.id;
     }
-    next.splice(insertAt, 0, item);
-    focusId = item.id;
 
     state.cvLayout = next;
     saveState();

@@ -115,6 +115,53 @@
     return getCvItemSchema(item).fields;
   }
 
+  const SKILLS_INPUT_PLACEHOLDER = "Add a skill";
+  const SKILLS_HEADING_DEFAULT = "Skills";
+
+  function normalizeSkillLabel(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function getSkillsList(item) {
+    if (!item || item.type !== "skills") {
+      return [];
+    }
+
+    const stored = getCvItemStoredField(item, "skills");
+    const source = stored !== undefined ? stored : item.skills;
+    if (Array.isArray(source)) {
+      return source.map(normalizeSkillLabel).filter(Boolean);
+    }
+    if (typeof source === "string" && source.trim()) {
+      return source
+        .split(/\n|,/)
+        .map(normalizeSkillLabel)
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  function writeSkillsList(item, skills) {
+    if (!item || item.type !== "skills") {
+      return;
+    }
+
+    item.skills = skills.map(normalizeSkillLabel).filter(Boolean);
+    const index = state.cvLayout.findIndex((entry) => entry.id === item.id);
+    if (index !== -1) {
+      state.cvLayout[index] = item;
+      state.cvLayout = [...state.cvLayout];
+    }
+  }
+
+  function skillsHasExportableContent(item) {
+    return getSkillsList(item).length > 0;
+  }
+
+  function skillsHasUserContent(item) {
+    return skillsHasExportableContent(item);
+  }
+
   function clearSectionPointer() {
     if (sectionPointer?.wrap) {
       sectionPointer.wrap.classList.remove("is-drag-armed");
@@ -1706,6 +1753,17 @@
         return;
       }
 
+      if (item.type === "skills") {
+        const skills = getSkillsList(item);
+        if (!skills.length) {
+          return;
+        }
+        const title = getEdit(`items.${item.id}.title`, item.title || SKILLS_HEADING_DEFAULT);
+        charCount += editPlainText(title).length + skills.join("").length;
+        itemCount += skills.length;
+        return;
+      }
+
       const achievement = getAchievement(item.achievementId);
       const title = getEdit(`items.${item.id}.title`, achievement?.title || "");
       const date = getEdit(`items.${item.id}.date`, achievement?.date || "");
@@ -2062,6 +2120,22 @@
       };
     }
 
+    if (item.type === "skills") {
+      const skills = getSkillsList(item);
+      if (!skills.length) {
+        return null;
+      }
+      const titleRaw = preferStoredField(`items.${item.id}.title`, item.title || SKILLS_HEADING_DEFAULT);
+      const title = editPlainText(titleRaw).replace(/\s+/g, " ").trim() || SKILLS_HEADING_DEFAULT;
+      return {
+        title,
+        subtitle: "",
+        date: "",
+        location: "",
+        description: skills.join("\n"),
+      };
+    }
+
     return null;
   }
 
@@ -2079,7 +2153,7 @@
     }
 
     const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
-    if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
+    if (!item || (item.type !== "cv-item" && item.type !== "achievement" && item.type !== "skills")) {
       return { snapshot: null, reason: "unsupported" };
     }
 
@@ -2156,7 +2230,7 @@
 
   function toggleLayoutItemInLibrary(layoutItemId) {
     const item = state.cvLayout.find((entry) => entry.id === layoutItemId);
-    if (!item || (item.type !== "cv-item" && item.type !== "achievement")) {
+    if (!item || (item.type !== "cv-item" && item.type !== "achievement" && item.type !== "skills")) {
       window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
       return { saved: false, reason: "unsupported" };
     }
@@ -2293,6 +2367,11 @@
     }
 
     wrap.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+    const skillInput = wrap.querySelector(".cv-skill-input");
+    if (skillInput) {
+      skillInput.focus({ preventScroll: true });
+      return;
+    }
     const firstField = wrap.querySelector("[data-edit-key]");
     if (firstField) {
       activateEdit(firstField);
@@ -3072,6 +3151,90 @@
     syncAllPlaceholderClasses();
   }
 
+  function commitSkillsListChange(item, skills, { focusInput = false } = {}) {
+    writeSkillsList(item, skills);
+    saveState();
+    renderPreview({
+      flashItemId: item.id,
+      focusFirstField: focusInput,
+    });
+    recordCvHistory("Edit skills");
+  }
+
+  function bindSkillsSections() {
+    if (!cvPreview) {
+      return;
+    }
+
+    cvPreview.querySelectorAll(".cv-preview-skills").forEach((section) => {
+      const itemId = section.dataset.itemId;
+      const item = state.cvLayout.find((entry) => entry.id === itemId && entry.type === "skills");
+      if (!item) {
+        return;
+      }
+
+      section.querySelectorAll(".cv-skill-chip-remove").forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const chip = button.closest(".cv-skill-chip");
+          const index = Number(chip?.dataset?.skillIndex);
+          const skills = getSkillsList(item);
+          if (!Number.isInteger(index) || index < 0 || index >= skills.length) {
+            return;
+          }
+          const next = skills.slice();
+          next.splice(index, 1);
+          commitSkillsListChange(item, next);
+        });
+      });
+
+      const input = section.querySelector(".cv-skill-input");
+      if (!input) {
+        return;
+      }
+
+      const addFromInput = () => {
+        const label = normalizeSkillLabel(input.value);
+        if (
+          !label ||
+          normalizePlaceholderCompare(label) === normalizePlaceholderCompare(SKILLS_INPUT_PLACEHOLDER)
+        ) {
+          input.value = "";
+          return;
+        }
+        const skills = getSkillsList(item);
+        if (skills.some((skill) => normalizePlaceholderCompare(skill) === normalizePlaceholderCompare(label))) {
+          input.value = "";
+          return;
+        }
+        commitSkillsListChange(item, [...skills, label], { focusInput: true });
+      };
+
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === ",") {
+          event.preventDefault();
+          addFromInput();
+          return;
+        }
+        if (event.key === "Backspace" && !input.value) {
+          const skills = getSkillsList(item);
+          if (!skills.length) {
+            return;
+          }
+          event.preventDefault();
+          commitSkillsListChange(item, skills.slice(0, -1), { focusInput: true });
+        }
+      });
+
+      input.addEventListener("blur", () => {
+        if (normalizeSkillLabel(input.value)) {
+          addFromInput();
+        }
+      });
+    });
+  }
+
   function renderPersonalSection() {
     const name = getEdit("personal.name", state.personalInfo.name || "Your Name");
     const phone = getEdit("personal.phone", state.personalInfo.phone || "");
@@ -3091,6 +3254,63 @@
             : `<p class="cv-preview-contact" contenteditable="false" data-edit-key="personal.contact" data-placeholder-text="Phone | Email">Phone | Email</p>`
         }
       </header>
+    `;
+  }
+
+  function renderSkillsSection(item, { publish = false } = {}) {
+    const skills = getSkillsList(item);
+    if (publish && skills.length === 0) {
+      return "";
+    }
+
+    const headingRaw = getEdit(`items.${item.id}.title`, item.title || SKILLS_HEADING_DEFAULT);
+    const headingPlain = editPlainText(headingRaw).replace(/\s+/g, " ").trim();
+    const showHeading = publish ? Boolean(headingPlain) : true;
+
+    const chipsHtml = skills
+      .map(
+        (skill, index) => `
+        <span class="cv-skill-chip" data-skill-index="${index}">
+          <span class="cv-skill-chip-label">${escapeHtml(skill)}</span>
+          ${
+            publish
+              ? ""
+              : `<button type="button" class="cv-skill-chip-remove" aria-label="Remove ${escapeHtml(skill)}">×</button>`
+          }
+        </span>`
+      )
+      .join("");
+
+    const inputHtml = publish
+      ? ""
+      : `<input type="text" class="cv-skill-input" value="" placeholder="${escapeDataPlaceholder(
+          SKILLS_INPUT_PLACEHOLDER
+        )}" aria-label="${escapeDataPlaceholder(SKILLS_INPUT_PLACEHOLDER)}" autocomplete="off" />`;
+
+    const listHtml =
+      skills.length || !publish
+        ? `<div class="cv-preview-skills-list">${chipsHtml}${inputHtml}</div>`
+        : "";
+
+    if (publish && !showHeading && !listHtml) {
+      return "";
+    }
+
+    return `
+      <section class="cv-preview-entry cv-preview-skills" data-item-id="${item.id}" data-item-kind="skills">
+        ${
+          showHeading
+            ? `<h2
+          class="cv-preview-section-heading cv-preview-skills-heading"
+          contenteditable="false"
+          data-edit-key="items.${item.id}.title"
+          data-item-id="${item.id}"
+          data-placeholder-text="${escapeDataPlaceholder(SKILLS_HEADING_DEFAULT)}"
+        >${richTextToHtml(headingPlain || SKILLS_HEADING_DEFAULT)}</h2>`
+            : ""
+        }
+        ${listHtml}
+      </section>
     `;
   }
 
@@ -3234,6 +3454,11 @@
       if (!options.publish && cvItemHasUserContent(item)) {
         wrapExtraClass = " is-cv-item-collapsed";
       }
+    } else if (item.type === "skills") {
+      inner = renderSkillsSection(item, options);
+      if (!inner) {
+        return "";
+      }
     } else {
       const achievement = getAchievement(item.achievementId);
       const title = getEdit(
@@ -3263,7 +3488,7 @@
     }
 
     const saveButton =
-      item.type === "cv-item" || item.type === "achievement"
+      item.type === "cv-item" || item.type === "achievement" || item.type === "skills"
         ? libraryStarButtonMarkup(isLayoutItemInLibrary(item.id))
         : "";
 
@@ -3327,6 +3552,7 @@
     `;
 
     bindEditableNodes();
+    bindSkillsSections();
     bindSectionHandles();
     scheduleSmartLayout({
       onComplete: () => {
@@ -3821,6 +4047,23 @@
         if (hasContent) {
           blocks.push(block);
         }
+        return;
+      }
+
+      if (item.type === "skills") {
+        const skills = getSkillsList(item);
+        if (!skills.length) {
+          return;
+        }
+        const title = exportFieldLines(
+          getEdit(`items.${item.id}.title`, item.title || SKILLS_HEADING_DEFAULT),
+          ""
+        );
+        blocks.push({
+          kind: "skills",
+          title,
+          skills,
+        });
         return;
       }
 

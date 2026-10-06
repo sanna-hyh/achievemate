@@ -123,6 +123,7 @@
       pushLines(block.date);
       pushLines(block.location);
       pushLines(block.bullets);
+      (block.skills || []).forEach((skill) => chunks.push(String(skill || "")));
     });
     if (model?.documentTitle) {
       chunks.push(model.documentTitle);
@@ -547,6 +548,30 @@
     }
 
     function drawEntry(block) {
+      if (block.kind === "skills") {
+        const title = (block.title || []).filter(lineHasText);
+        if (title.length) {
+          drawHeading({ title });
+        }
+        const skills = (block.skills || []).map((skill) => String(skill || "").trim()).filter(Boolean);
+        if (!skills.length) {
+          return;
+        }
+        if (title.length) {
+          y += Math.max(1, sectionMargin * 0.12);
+        }
+        const skillLine = [
+          {
+            text: skills.join(" · "),
+            bold: false,
+            italic: false,
+            underline: false,
+          },
+        ];
+        drawWrapped([skillLine], margin, contentWidth, bodySize, textColor, { leading: lineHeight });
+        return;
+      }
+
       const title = (block.title || []).filter(lineHasText);
       const date = (block.date || []).filter(lineHasText);
       const subtitle = (block.subtitle || []).filter(lineHasText);
@@ -605,6 +630,12 @@
     }
 
     function blockHasContent(block) {
+      if (block?.kind === "skills") {
+        return (
+          (block.skills || []).some((skill) => String(skill || "").trim()) ||
+          (block.title || []).some(lineHasText)
+        );
+      }
       const groups =
         block?.kind === "heading"
           ? [block.title]
