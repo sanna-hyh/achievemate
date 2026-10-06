@@ -3054,26 +3054,26 @@ body.layout-drawer-collapsed .studio-cockpit,
 }
 
 .studio-rail-tabs {
-  --rail-tab-gutter: 0.625rem;
+  --rail-tab-gutter: 1rem;
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: flex-end;
-  gap: calc(var(--rail-tab-gutter) * 2);
+  gap: var(--rail-tab-gutter);
   flex-shrink: 0;
-  padding: 8px var(--rail-tab-gutter) 10px;
+  padding: 10px var(--rail-tab-gutter) 12px;
 }
 
 .studio-rail-tab {
   position: relative;
   display: inline-flex;
   align-items: baseline;
-  gap: var(--rail-tab-gutter);
   min-height: 0;
-  padding: 2px 0 14px;
+  padding: 2px 0 12px;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: color-mix(in srgb, var(--brass) 38%, var(--text-muted));
+  color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 600;
@@ -3083,21 +3083,8 @@ body.layout-drawer-collapsed .studio-cockpit,
   transition: color var(--dur-fast) var(--ease-out);
 }
 
-.studio-rail-tab:not(:first-child)::before {
-  content: "|";
-  position: absolute;
-  left: calc(-1 * var(--rail-tab-gutter));
-  top: 2px;
-  transform: translateX(-50%);
-  margin: 0;
-  color: color-mix(in srgb, var(--brass) 22%, var(--border-strong));
-  font-weight: 400;
-  line-height: 1.35;
-  pointer-events: none;
-}
-
 .studio-rail-tab:hover:not([aria-selected="true"]) {
-  color: color-mix(in srgb, var(--brass) 58%, var(--text-secondary));
+  color: var(--text-secondary);
   background: transparent;
 }
 
@@ -3109,25 +3096,33 @@ body.layout-drawer-collapsed .studio-cockpit,
 .studio-rail-tab[aria-selected="true"]::after {
   content: "";
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 5px;
+  left: 50%;
+  bottom: 4px;
+  width: 1.15em;
   height: 2px;
+  transform: translateX(-50%);
   background: var(--brass);
   border-radius: 1px;
 }
 
 .studio-rail-tab .studio-rail-count {
+  position: absolute;
+  left: calc(100% + 0.5rem);
+  top: 2px;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: inherit;
-  opacity: 0.72;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.35;
+  color: var(--text-muted);
+  opacity: 0.48;
+  pointer-events: none;
 }
 
 .studio-rail-tab[aria-selected="true"] .studio-rail-count {
-  opacity: 0.88;
+  color: var(--text-muted);
+  opacity: 0.52;
 }
 
 .studio-rail-scroll {
