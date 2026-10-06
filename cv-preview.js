@@ -2394,7 +2394,18 @@
     wrap.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
     const skillInput = wrap.querySelector(".cv-skill-input");
     if (skillInput) {
-      skillInput.focus({ preventScroll: true });
+      if (document.activeElement !== skillInput) {
+        skillInput.focus({ preventScroll: true });
+      }
+      return;
+    }
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      wrap.contains(active) &&
+      active.matches("[data-edit-key].is-editing") &&
+      active.getAttribute("contenteditable") === "true"
+    ) {
       return;
     }
     const firstField = wrap.querySelector("[data-edit-key]");
