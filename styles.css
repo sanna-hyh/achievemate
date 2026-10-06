@@ -3827,7 +3827,11 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 }
 
 .cv-section-save:hover,
-.cv-section-save:focus-visible,
+.cv-section-save:focus-visible {
+  color: var(--brass-bright);
+  background: transparent;
+}
+
 .cv-section-save.is-in-library {
   color: var(--brass-bright);
   background: transparent;
@@ -3844,18 +3848,19 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   line-height: 0;
 }
 
+/* At rest / unsaved: hollow. Filled only when actually in Library. */
 .cv-section-save .cv-section-save-icon-hollow {
   display: block;
 }
 
-.cv-section-save:hover .cv-section-save-icon-hollow,
-.cv-section-save:focus-visible .cv-section-save-icon-hollow,
+.cv-section-save .cv-section-save-icon-filled {
+  display: none;
+}
+
 .cv-section-save.is-in-library .cv-section-save-icon-hollow {
   display: none;
 }
 
-.cv-section-save:hover .cv-section-save-icon-filled,
-.cv-section-save:focus-visible .cv-section-save-icon-filled,
 .cv-section-save.is-in-library .cv-section-save-icon-filled {
   display: block;
 }
