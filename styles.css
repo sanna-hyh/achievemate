@@ -3056,7 +3056,7 @@ body.layout-drawer-collapsed .studio-cockpit,
 .studio-rail-tabs {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: flex-end;
   gap: 20px;
   flex-shrink: 0;
@@ -3541,7 +3541,7 @@ body.layout-drawer-collapsed .studio-cockpit,
   .studio-rail-tabs {
     flex-shrink: 0;
     align-self: stretch;
-    justify-content: flex-start;
+    justify-content: center;
     margin: 0 -16px;
     padding: 0 16px;
     border-bottom: 1px solid var(--border-subtle);
