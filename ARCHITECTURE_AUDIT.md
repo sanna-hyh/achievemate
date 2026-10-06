@@ -20,7 +20,7 @@ Scope: this is a read of the repository as of `main` (12 commits, latest `77bc24
 - The CV editor is carefully built. Drag-and-drop, a 60-step undo stack, zoom, “fit on one page,” and a PDF exporter live in dedicated files. User-typed formatting is passed through a small HTML cleaner before it is shown again.
 - The database design, sitting unused, is disciplined. SQL migrations turn on row-level security (database rules that limit each person to their own rows), cap file sizes, and keep proof files out of the database.
 
-**Top 3 risks**
+**Top risks**
 
 - A CV exists only in that browser’s `localStorage` (a small private notepad the site can use). Clearing site data, switching computers, or attaching one large proof file can drop the work. `saveState()` does not catch a “storage full” error.
 - Cloud code is still in the repo and still publicly downloadable, and it no longer matches the product. The Library (`cvLibrary`) is not in the database schema. Plugging the old script tags back in would not safely restore sync.
