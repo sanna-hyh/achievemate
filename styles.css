@@ -4352,13 +4352,13 @@ body.is-cv-dragging .cv-preview-document {
   height: auto;
   max-height: none;
   overflow: visible;
-  background-color: #ffffff;
+  background-color: #cbd5e1;
   background-image: repeating-linear-gradient(
     to bottom,
-    transparent 0,
-    transparent calc(297mm - 1px),
-    rgba(15, 23, 42, 0.16) calc(297mm - 1px),
-    rgba(15, 23, 42, 0.16) 297mm
+    #ffffff 0,
+    #ffffff calc(297mm - 12px),
+    #cbd5e1 calc(297mm - 12px),
+    #cbd5e1 297mm
   );
 }
 

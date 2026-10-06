@@ -945,13 +945,16 @@
       return null;
     }
 
+    const isMultipage = cvPreview.classList.contains("cv-preview-multipage");
+    const pageH = isMultipage ? docW * (297 / 210) : docH;
+
     return {
       wrap,
       docW,
       docH,
       availableW,
       availableH,
-      baseFitScale: Math.min(availableW / docW, availableH / docH),
+      baseFitScale: Math.min(availableW / docW, availableH / pageH),
     };
   }
 
@@ -1060,9 +1063,10 @@
     wrap.classList.add("is-preview-fit");
 
     const isZoomed = userZoom > MIN_USER_ZOOM + 0.001;
-    wrap.classList.toggle("is-zoomed", isZoomed);
+    const isMultipage = cvPreview.classList.contains("cv-preview-multipage");
+    wrap.classList.toggle("is-zoomed", isZoomed || isMultipage);
 
-    if (options.resetScroll || !isZoomed) {
+    if (options.resetScroll || (!isZoomed && !isMultipage)) {
       wrap.scrollTop = 0;
       wrap.scrollLeft = 0;
     } else {
