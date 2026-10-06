@@ -3542,8 +3542,8 @@ body.layout-drawer-collapsed .studio-cockpit,
     flex-shrink: 0;
     align-self: stretch;
     justify-content: center;
-    margin: 0 -16px;
-    padding: 0 16px;
+    margin: 0;
+    padding: 0;
     border-bottom: 1px solid var(--border-subtle);
   }
 
