@@ -842,8 +842,8 @@
           documentDragState.handled = true;
           builder.moveLayoutItem(currentIndex, index);
         } else if (event.clientX !== 0 || event.clientY !== 0) {
+          // Drop outside CV / Library cancels — keep the block.
           documentDragState.handled = true;
-          removeSectionFromCv(layoutItemId);
         }
       }
 
@@ -2371,13 +2371,33 @@
     focusSectionHandle(layoutItemId);
   }
 
+  function restoreItemEdits(layoutItemId, itemEdits) {
+    if (!itemEdits || typeof itemEdits !== "object") {
+      return;
+    }
+    if (!state.cvPreviewEdits.items || typeof state.cvPreviewEdits.items !== "object") {
+      state.cvPreviewEdits.items = {};
+    }
+    state.cvPreviewEdits.items[layoutItemId] = JSON.parse(JSON.stringify(itemEdits));
+  }
+
   function removeSectionFromCv(layoutItemId) {
     const builder = window.AchieveMateCvBuilder;
     if (!builder) {
       return;
     }
 
-    const result = builder.removeLayoutItem(layoutItemId);
+    const wrap = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    const active = document.activeElement;
+    if (active && wrap?.contains(active) && active.matches("[data-edit-key]")) {
+      finishFieldEdit(active);
+    } else {
+      commitActivePreviewEdit();
+    }
+    isEditingPreview = false;
+    flushEditSave();
+
+    const result = builder.removeLayoutItem(layoutItemId, { pruneKindHeading: true, forceRender: true });
     if (!result) {
       return;
     }
@@ -2390,11 +2410,25 @@
           return;
         }
         const next = [...state.cvLayout];
-        next.splice(result.index, 0, result.removed);
+        const restoreAt = Math.max(0, Math.min(result.index, next.length));
+        next.splice(restoreAt, 0, result.removed);
+        if (Array.isArray(result.alsoRemoved) && result.alsoRemoved.length) {
+          result.alsoRemoved
+            .slice()
+            .sort((a, b) => a.index - b.index)
+            .forEach((entry) => {
+              const at = Math.max(0, Math.min(entry.index, next.length));
+              next.splice(at, 0, entry.item);
+            });
+        }
         state.cvLayout = next;
+        restoreItemEdits(result.removed.id, result.itemEdits);
+        (result.alsoRemoved || []).forEach((entry) => {
+          restoreItemEdits(entry.item.id, entry.itemEdits);
+        });
         saveState();
         builder.render();
-        renderPreview({ flashItemId: result.removed.id });
+        renderPreview({ flashItemId: result.removed.id, force: true });
         recordCvHistory("Restore item");
       },
     });
@@ -2422,11 +2456,9 @@
       return false;
     }
 
+    // Drop outside CV / Library cancels the drag — do not delete the block.
     pending.handled = true;
-    removeSectionFromCv(pending.layoutItemId);
     window.AchieveMateDragPreview?.end();
-    documentDragState = null;
-    window.AchieveMateDrag.payload = null;
     return true;
   }
 
@@ -3505,7 +3537,7 @@
   }
 
   function renderPreview(options = {}) {
-    if (isEditingPreview) {
+    if (!options.force && isEditingPreview) {
       const active = document.activeElement;
       const stillEditing =
         active &&
@@ -3515,6 +3547,8 @@
       if (stillEditing) {
         return;
       }
+      isEditingPreview = false;
+    } else if (options.force) {
       isEditingPreview = false;
     }
 

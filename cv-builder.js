@@ -478,21 +478,59 @@
     return moved.id;
   }
 
-  function removeLayoutItem(layoutItemId) {
+  function removeLayoutItem(layoutItemId, options = {}) {
     const index = state.cvLayout.findIndex((item) => item.id === layoutItemId);
     if (index === -1) {
       return null;
     }
 
     const [removed] = state.cvLayout.splice(index, 1);
+    const itemEdits = (() => {
+      const bucket = state.cvPreviewEdits?.items?.[layoutItemId];
+      if (!bucket || typeof bucket !== "object") {
+        return null;
+      }
+      const copy = JSON.parse(JSON.stringify(bucket));
+      delete state.cvPreviewEdits.items[layoutItemId];
+      return copy;
+    })();
+
+    const alsoRemoved = [];
+    if (
+      options.pruneKindHeading &&
+      removed?.type === "cv-item" &&
+      (removed.itemKind === "experience" || removed.itemKind === "education")
+    ) {
+      const sectionTitle = removed.itemKind === "experience" ? "Experience" : "Education";
+      const stillHasKind = state.cvLayout.some(
+        (item) => item.type === "cv-item" && item.itemKind === removed.itemKind
+      );
+      if (!stillHasKind) {
+        const headingIndex = state.cvLayout.findIndex((item) => headingTitleMatches(item, sectionTitle));
+        if (headingIndex !== -1) {
+          const [heading] = state.cvLayout.splice(headingIndex, 1);
+          const headingEdits = (() => {
+            const bucket = state.cvPreviewEdits?.items?.[heading.id];
+            if (!bucket || typeof bucket !== "object") {
+              return null;
+            }
+            const copy = JSON.parse(JSON.stringify(bucket));
+            delete state.cvPreviewEdits.items[heading.id];
+            return copy;
+          })();
+          alsoRemoved.push({ item: heading, index: headingIndex, itemEdits: headingEdits });
+        }
+      }
+    }
+
     state.cvLayout = [...state.cvLayout];
     saveState();
     renderRail();
-    window.AchieveMateCvPreview?.render();
+    window.AchieveMateCvPreview?.render({ force: Boolean(options.forceRender) });
     window.AchieveMateCvHistory?.record?.(
       removed?.type === "heading" ? "Remove heading" : "Remove item"
     );
-    return { removed, index };
+    return { removed, index, itemEdits, alsoRemoved };
   }
 
   function setDragPayload(event, payload) {
