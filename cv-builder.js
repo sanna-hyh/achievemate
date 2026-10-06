@@ -368,7 +368,7 @@
       return title ? `Add ${title}` : "Add heading";
     }
     if (item?.type === "cv-item") {
-      return item.libraryEntryId ? "Add from library" : "Add Free text";
+      return item.libraryEntryId ? "Add from library" : "Add CV item";
     }
     return "Add item";
   }
@@ -409,7 +409,7 @@
     experience: { sectionTitle: "Experience", historyLabel: "Add Experience" },
     education: { sectionTitle: "Education", historyLabel: "Add Education" },
     skills: { sectionTitle: "Skills", historyLabel: "Add Skills" },
-    "free-text": { sectionTitle: null, historyLabel: "Add Free text" },
+    "free-text": { sectionTitle: null, historyLabel: "Add CV item" },
   };
 
   function addBlockKind(kind, index = null) {

@@ -3212,7 +3212,7 @@
       <div class="cv-doc-empty">
         <div class="cv-doc-empty-glyph" aria-hidden="true">¶</div>
         <p class="cv-doc-empty-headline">Start your CV</p>
-        <p class="cv-doc-empty-body">Add Experience, Education, Skills, or Free text — or drag a saved item from Library.</p>
+        <p class="cv-doc-empty-body">Add a CV item, Experience, Education, or Skills — or drag a saved item from Library.</p>
       </div>
     `;
   }
