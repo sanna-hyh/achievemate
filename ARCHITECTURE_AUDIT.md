@@ -2,13 +2,15 @@
 
 Audience: the product owner. Technical names are kept, with a short plain-language gloss the first time they matter.
 
-Scope: this is a read of the repository as of `main` (12 commits, latest `77bc24f` on 2026-10-05) plus a check of the live site `https://achievemate.vercel.app`. No product features were changed.
+Scope: this is a read of the repository as of `main` (12 commits, latest `77bc24f` on 2026-10-05) plus a check of the live site `https://achievemate.vercel.app`. A second pass pressure-tests the UX teammate’s risks and open questions against the code. No product features were changed.
 
 ---
 
 ## 1. Executive summary
 
-**What the app is.** AchieveMate is a personal CV workshop. You keep a logbook of achievements, design a one-page CV on a live page, and download that page as a PDF. The live site is a static website: the browser downloads HTML, CSS, and JavaScript and does the work itself. There is no application server in this repository.
+**What the app is.** AchieveMate is a personal CV workshop for job seekers, built as Sanna’s portfolio and as a tool she can use. The locked direction is Studio-first: the CV canvas is home, sections are added and edited on that page, a star or a drag saves a block into the Library, Design controls density, and Export downloads a PDF. The logbook is a side journal behind `ENABLE_LOGBOOK`. The live site is a static website: the browser downloads HTML, CSS, and JavaScript and does the work itself. There is no application server in this repository.
+
+**How that direction shows up in code.** Home is the canvas (`workspace-tabs.js`, `#/`). Export is not behind a login (`cv-preview.js` never calls `requireAuth`). Login is not optional-on today; it is absent, because the account UI was removed. The proposed typed blocks (Experience, Education, Skills, Summary, Free text) and the density presets 0.5 / 0.65 / 0.75 / 1.0 are not in the code. Section 11 is the pressure test.
 
 **Overall maturity.** The editing experience is ahead of the platform around it. The CV canvas, library, undo, auto-fit, and PDF export are a real product. Accounts and cloud save were designed and partly built, then deliberately unplugged on 2026-10-05 so the running app keeps data only in the browser. Treat this as a strong single-browser prototype, not yet a multi-device product.
 
@@ -23,6 +25,7 @@ Scope: this is a read of the repository as of `main` (12 commits, latest `77bc24
 - A CV exists only in that browser’s `localStorage` (a small private notepad the site can use). Clearing site data, switching computers, or attaching one large proof file can drop the work. `saveState()` does not catch a “storage full” error.
 - Cloud code is still in the repo and still publicly downloadable, and it no longer matches the product. The Library (`cvLibrary`) is not in the database schema. Plugging the old script tags back in would not safely restore sync.
 - The whole repository is the website. Vercel serves internal docs, SQL, the Supabase public key, and a 16 MB image the app never displays. There is no test suite and no continuous integration.
+- The number on the Design slider, the type on the page, and the type in the PDF are three different values once Auto-fit runs. Auto-fit can shrink body text far below a 10pt applicant-tracking floor, and the export file name ignores the name typed on the page. Details are in section 11.
 
 ---
 
@@ -264,7 +267,9 @@ Because `vercel.json` publishes the repository root, that file is on the public 
 
 ## 10. Prioritized recommendations
 
-Effort hints: **small** means a focused change in a few files; **medium** means a careful multi-file change that should be tested by hand on two browsers; **large** means a restructuring. None of these are feature requests to do inside this audit.
+Effort hints: **small** means a focused change in a few files; **medium** means a careful multi-file change that should be tested by hand on two browsers; **large** means a restructuring. None of these are feature requests done inside this audit.
+
+Process that matches how this product is shipping: one fix per pull request, check the Vercel preview, then merge. Keep each cloud-agent change narrow. Do not bundle a data-model migration with a star-icon tweak.
 
 ### P0 — data loss and a false sense that cloud save is ready
 
@@ -278,45 +283,159 @@ Effort hints: **small** means a focused change in a few files; **medium** means 
    What: catch `QuotaExceededError`, toast a plain explanation, and refuse the attachment instead of keeping a base64 copy that cannot be saved.  
    Effort: small.
 
-3. **Do not turn the old sync scripts back on until the data model is updated.**  
-   Why: `cvLibrary` is not in `cv_documents`. `saveState()` does not call `queuePush()` and ignores `skipSync`. `pushToServer()` can drop a save that overlaps another. Export snapshots carry unused `previewHtml`. Re-adding the script tags from commit `c5c4be7` would look like progress and then drop or stale the Library.  
-   What: decide whether cloud save is in scope. If yes, add the Library to the CV document JSON (or its own column), teach `saveState()` to push with a real `skipSync` guard, and fix the in-flight push. If no, move `auth.js`, `sync.js`, `guest-migration.js`, and `hooks/useAuth.js` to a clearly named `archive/` folder so the next change does not wire them by accident.  
-   Effort: medium if you restore sync; small if you archive it.
+3. **Keep guests first. Do not turn the old sync scripts back on until the data model is updated, and do not gate Export.**  
+   Why: the product decision is optional login and an ungated PDF. The live page already matches that. `auth.js` still contains the copy “Sign in to export,” which would fight that decision if the file is loaded again. `cvLibrary` is not in `cv_documents`. `saveState()` does not call `queuePush()` and ignores `skipSync`. `pushToServer()` can drop a save that overlaps another. Re-adding the script tags from commit `c5c4be7` would look like progress and then drop or stale the Library.  
+   What: leave Export on the canvas with no account check. If cloud save comes back, it should be an optional “save to account” merge (guest notepad → that user’s rows), with the Library included, and a real `skipSync` guard. Until that is a dedicated PR, move `auth.js`, `sync.js`, `guest-migration.js`, and `hooks/useAuth.js` to a clearly named `archive/` folder so the next change does not wire them by accident.  
+   Effort: medium if you restore optional sync; small if you archive it.
 
 4. **Confirm the hosted Supabase project, or pause it.**  
    Why: the anon key and project URL are public at `/supabase-config.js`. Safety depends on row-level security actually being applied in the dashboard. This repository cannot see that dashboard. An unused free project is also an idle signup and storage surface.  
    What: in the Supabase dashboard, confirm the four migrations are applied and RLS is forced, or pause the project until recommendation 3 is done on purpose.  
    Effort: small (dashboard only).
 
+### P1 — confirmed UX risks, one pull request each
+
+These are the pressure-test items that are real in the current code (section 11). Ship them as separate previews.
+
+5. **Show the type size the PDF will use, and stop Auto-fit from going under a floor.**  
+   Why: with Auto-fit on, `shrinkPdfModelToOnePage` may scale body type down to 8% (`minScale = 0.08` in `cv-pdf.js`). A 9pt body can become well under 1pt. The Design slider still says “auto” (`cv-layout-panel.js`). With Auto-fit off, the page clips at one A4 (`overflow: hidden`) while the PDF may add pages.  
+   What: one PR that picks a floor (the UX note says about 10pt), shows that fitted size in the drawer, and makes the screen and the PDF follow the same page rule.  
+   Effort: medium.
+
+6. **Name the PDF from the name on the page.**  
+   Why: `getDefaultExportBaseName()` reads `state.personalInfo.name`, and nothing in the app assigns that field anymore. The typed name lives in `cvPreviewEdits` under `personal.name`. The dialog also resets on every open, so it ignores `lastExportFileName`.  
+   What: one PR. Default the file name from the canvas name.  
+   Effort: small.
+
+7. **Make a second star update the Library card, and make the outline visible.**  
+   Why: `libraryEntryId` is saved (PR #5 did that). The star click still removes the card when it is already linked (`toggleLayoutItemInLibrary`), so the “update on restar” branch in `saveLibrarySnapshot` never runs from the button. The star is `opacity: 0` at rest, so a saved star vanishes when the pointer leaves, and the button’s own hover always draws the filled icon. Commit `77bc24f` landed after PR #5 and dropped the resting opacity.  
+   What: one PR for star behavior (restar updates the linked card; dedupe stays). A separate PR only if the icon CSS needs a visual pass after the behavior is true.  
+   Effort: small for the click path; small for the CSS.
+
+8. **After adding a block, scroll it into view and focus its first field.**  
+   Why: `insertLayoutItem` only flashes a CSS class (`flashSection`). The canvas is locked to 297mm with `overflow: hidden` whenever it has blocks, including when Auto-fit is off. A new block at the end can be clipped off the page.  
+   Effort: small.
+
+9. **Protect canvas delete the same way “Remove all” is protected.**  
+   Why: “Remove all” and logbook delete ask for a second click. The section × button and a drag off the page delete immediately. Undo exists, but only in memory, only for the canvas/library/name, and it is discarded on refresh.  
+   Effort: small.
+
 ### P1 — keep the next month of edits safe
 
-5. **Add a few automatic checks around save/load and the script list.**  
+10. **Add a few automatic checks around save/load and the script list.**  
    Why: there is no safety net. The highest-value checks are: `loadState()` round-trips library + layout + edits; `index.html` does not reference `supabase-client.js` while sync is meant to be off; `saveState()` still writes the library.  
    Effort: medium (a small test runner has to be introduced; the repo has none today).
 
-6. **Publish only the website.**  
+11. **Publish only the website.**  
    Why: the live host serves SQL, the backend spec, auth code, and 16 MB of unused art. That widens what a stranger can read and wastes bandwidth.  
    What: put public files in a `public/` directory (or set Vercel to ignore docs, SQL, and unused images). Delete or stop deploying `designpage.png` and the other unreferenced images listed in section 9.  
    Effort: small.
 
-7. **When you next touch the CV editor, split by job, not by a rewrite.**  
+12. **When you next touch the CV editor, split by job, not by a rewrite.**  
    Why: `cv-preview.js` is where regressions will come from.  
    What: peel export-history and the PDF model into the files that already own them (`cv-pdf.js` already exists) the next time those lines change. Leave a rewrite for later.  
    Effort: large if done alone; small if done as part of a change you are already making.
 
-8. **Refresh the two spec docs in one sitting, or mark them historical.**  
+13. **Refresh the two spec docs in one sitting, or mark them historical.**  
+   Also record the locked product rules: guest-first, Export never requires an account, Studio is home, Library is a copy-plus-link (not a live reference), and typed sections / density presets are future design, not current code.  
    Why: `BACKEND_SPEC.md` tells a future editor to hook `queuePush` into an app that has moved on. `DESIGN_SYSTEM.md` still describes a landing scene and a profile form that are gone. Stale specs are how student projects grow a second, conflicting architecture.  
    Effort: small.
 
 ### P2 — polish once P0 is calm
 
-9. **A one-page README.** How to open the site locally (any static file server), which files are live, and which files are the dormant cloud design. Effort: small.
+14. **A one-page README.** How to open the site locally (any static file server), which files are live, and which files are the dormant cloud design. Effort: small.
 
-10. **A Content-Security-Policy** that allows only this origin plus the CDNs you actually use (cdnjs, fonts.googleapis.com, and jsDelivr for the PDF font). The tiny inline script in `index.html` that toggles `logbook-enabled` would need to move into `features.js` first. Effort: small.
+15. **A Content-Security-Policy** that allows only this origin plus the CDNs you actually use (cdnjs, fonts.googleapis.com, and jsDelivr for the PDF font). The tiny inline script in `index.html` that toggles `logbook-enabled` would need to move into `features.js` first. Effort: small.
 
-11. **Replace hand-written `?v=` cache bumps** with the habit “change the query number whenever the file changes,” or a one-line build later. Effort: small.
+16. **Replace hand-written `?v=` cache bumps** with the habit “change the query number whenever the file changes,” or a one-line build later. Effort: small.
 
-12. **Leave the stack alone.** A React port, a custom server, or realtime sync would multiply moving parts without fixing data loss. `hooks/useAuth.js` can wait until a port is a real decision. Effort: none.
+17. **Leave the stack alone.** A React port, a custom server, or realtime sync would multiply moving parts without fixing data loss. `hooks/useAuth.js` can wait until a port is a real decision. Do not introduce Experience / Skills / Summary types, or density presets, until the single CV-item shell and the type-size source of truth are stable. Effort: none for the stack; the new types would be a later product PR.
+
+---
+
+## 11. UX pressure test
+
+This section answers the UX teammate’s list from the code, not from the intended design. “Confirmed” means the current files do that. “Not in code” means the idea is only in the design conversation.
+
+### What the product direction already matches
+
+- **Studio-first home.** `workspace-tabs.js` treats an empty hash as the canvas. The menu label is “CV maker” (`index.html`).
+- **Compose on the page.** New blocks are `heading` or `cv-item`, dropped onto `#cvPreview`. The old abstract builder tab is gone.
+- **Star and drag into the Library.** `cv-preview.js` (`toggleLayoutItemInLibrary`, `acceptDocumentDropOnLibrary`) and `cv-builder.js` (`saveLibrarySnapshot`).
+- **Guest-first, Export not gated.** The live `index.html` loads no auth script. `performPdfExport` does not check an account. That matches the advice. The dormant string in `auth.js` (“Sign in to export”) does not match it, and should not be revived as a gate.
+- **Logbook flag.** `features.js` sets `ENABLE_LOGBOOK`. It is `true`, so the logbook is still in the ☰ menu. The demotion is a switch, not the live default.
+
+### Risks checked against the code
+
+**1. Edit affordance, and state vs presentation — confirmed.**  
+Fields render with `contenteditable="false"` (`renderPersonalSection`, `renderCvItemSection`). A placeholder becomes editable on the first mousedown. Text that is already filled needs two clicks within 720ms and 16px, or a browser double-click (`detectEditDoubleClick`, `EDIT_DOUBLE_CLICK_MS`). That same mousedown also arms a drag (`sectionPointer`). The stored text is `state.cvPreviewEdits`. The layout block has its own fields too. `renderPreview` rebuilds the DOM from state, but refuses to rebuild while a field is focused, and `blur` writes the DOM back (`finishFieldEdit`). The page and the state can disagree until blur. There is no separate “edit mode” in the data; edit mode is a DOM attribute.
+
+**2. Add item can land off-screen — confirmed.**  
+`insertLayoutItem` in `cv-builder.js` appends the block and calls `render({ flashItemId })`. `flashSection` only adds `is-entering` / `is-dropped`. It does not scroll or focus. Once the canvas has any blocks, `applySmartLayout` adds `cv-preview-single-page` even when Auto-fit is off. That class is `height: 297mm; overflow: hidden` (`styles.css`). A block past the fold is clipped, and nothing moves the viewport to it.
+
+**3. Library star — partly fixed, the reported bugs are not gone.**  
+PR #5 (`7cc6a40`) did persist `libraryEntryId` on the layout block, and `saveLibrarySnapshot` can update that linked card when the text changed, or refuse an identical copy (`librarySnapshotKey`). That dedupe is real.  
+What the star button does is different. `toggleLayoutItemInLibrary` **removes** the card when the link is already there. It never calls the update branch. Dragging onto the Library calls `saveLayoutItemToLibrary`, which returns “duplicate” immediately when the link exists and does not write the new text. So “edit, then star again” deletes the Library card instead of updating it. A later star creates a new card. Identical text will not duplicate; changed text will not update in place from the button.  
+The outline is easy to miss, and a later commit made the saved state disappear at rest. `.cv-section-save` is `opacity: 0` until the section row is hovered or a field in it is focused. At rest, a saved star is invisible, because `.is-in-library` swaps in the filled icon but does not raise opacity. While the pointer is on the star itself, the CSS always shows the filled icon, saved or not, so the outline and the saved star look the same under the cursor. The outline only shows when the row is hovered and the item is not saved. Commit `77bc24f` put opacity back to 0 after PR #5 had given the star a resting opacity.  
+Blur: the star’s mousedown calls `preventDefault` so the text field keeps focus (“so :focus-within doesn’t pin chrome open”). The save path commits that field first (`commit: true`). The remove path does not. `saveBtn.blur()` runs after the toggle. The field’s own `blur` listener also calls `finishFieldEdit`. The commit-before-save idea is in the save path only.
+
+**4. Undo and delete — confirmed, uneven.**  
+`cv-history.js` keeps 60 memory snapshots of layout, library, preview edits, and `personalInfo`. It does not include logbook achievements or Design settings. It is wiped on refresh. Keyboard undo is ignored inside a text field and ignored outside the studio view.  
+“Remove all items” (`cv-builder.js`) and logbook delete (`app.js`) require a second click within 2 seconds. The canvas × button and a drag that ends outside the page call `removeSectionFromCv` immediately, then offer a toast Undo. Logbook undo restores the card and **clears the proof file** (`fileData` set to `""`).
+
+**5. Hamburger vs left rail — two sidebars, plus a drawer.**  
+The ☰ menu is `app-sidebar` in `sidebar.js`: CV maker, Logbook, Settings. It is an overlay. The left column on the canvas is `.studio-rail` in `index.html`: Blocks and Library, always in the grid (`styles.css` grid area `rail`). Under 900px that rail becomes an 88px horizontal strip. Design is a third surface: the top-bar button toggles `.studio-drawer` (`cv-preview.js`), and the form logic is `cv-layout-panel.js`. Settings in the menu only tells the person to open Design. Three files own “the thing on the side.”
+
+**6. Design panel is one crowded form — confirmed.**  
+`index.html` `#cvLayoutForm` stacks typography (font, three size sliders, two colors, divider), layout (line height, gaps, three margin presets, Auto-fit), Save as default / Reset, and the export-history list. There is no information architecture split. The density presets from the UX note (about 0.5 / 0.65 Standard / 0.75 / 1.0) do not exist. The only density words in code (`spacious`, `balanced`, `compact`) are internal labels on the Auto-fit search, not controls.
+
+**7. Sample data on first load — not present.**  
+A new browser gets empty arrays (`state` in `app.js`) and the empty line “Start your CV” (`renderDocumentEmptyState`). Nothing seeds a demo CV. The only automatic copy is legacy: if an old save has achievements and no `cvLibrary`, `loadState()` builds library cards from those achievements. That is migration, not sample content.
+
+**8. Export file name ignores the current name — confirmed.**  
+`openExportModal` sets the input from `getDefaultExportBaseName()`, which uses `state.personalInfo.name` or else `My_CV`. A repo search shows no `personalInfo.name =` assignment. Typing the name on the page writes `cvPreviewEdits` (`data-edit-key="personal.name"`) and does not copy it into `personalInfo`. `lastExportFileName` is stored after a download and then ignored the next time the dialog opens. If an old save still has `personalInfo.name`, the file name stays on that old value after the canvas name changes.
+
+**9. Auto-fit vs the size on screen — no single source of truth.**  
+Three layers:
+
+| Layer | Where | What it claims |
+|---|---|---|
+| Slider | `state.cvSettings.baseFontSize`, HTML range 9–12 | The number in Design, or the word “auto” while Auto-fit is on (`updateOutputs` in `cv-layout-panel.js`) |
+| Page CSS | `--cv-body-font` and sibling variables on `#cvPreview` | What you see. Manual mode clamps body type to 9–12pt (`manualTypographyFromBase`). Auto-fit then overwrites the variables from the PDF shrink (`writeFittedTypography`) |
+| PDF shrink | `shrinkPdfModelToOnePage` in `cv-pdf.js` | A second measurement. `minScale = 0.08`, so type can fall far below 6pt and below the 10pt ATS note |
+
+`buildPdfModel` reads the CSS variables, then, if Auto-fit left a `pdfFitOverride`, replaces the model with that override. Screen and PDF share numbers only after that copy. They are not one layout engine.
+
+**10. One page on screen, extra pages in the PDF — confirmed when Auto-fit is off.**  
+Auto-fit on: both the CSS search and `createCvPdf` try to force one page, at the cost of the shrink above.  
+Auto-fit off: `applySmartLayout` still adds `cv-preview-single-page`, so the screen clips. `createCvPdf` does not shrink, and `renderCvPdf` calls `doc.addPage()` when the next block does not fit (`ensureSpace` / the block loop). Overflow rules are not the same object.
+
+### Open architecture questions
+
+**Where is the CV’s source of truth?**  
+Today, the browser notepad. `saveState()` writes one JSON blob. Supabase is not in the page. A future optional login should treat that blob as the guest document and merge it once into that account (the intent of `guest-migration.js`), including `cvLibrary`. It should not become a second live document. `personalInfo` and `cvPreviewEdits.personal` are already two name stores; the file-name bug is that split leaking out. Cloud sync must not ship until Library and that name live in one payload.
+
+**Polymorphic items vs ad-hoc DOM?**  
+The code is ad-hoc, with a small type field. `createLayoutItem` makes `heading`, `cv-item`, or legacy `achievement`. A `cv-item` is always title, subtitle, date, location, description. There is no `sectionLabel`, no Experience vs Education type, no Skills list, no Summary singleton, no Free-text type. Section titles are heading blocks. The DOM is rebuilt from those objects plus `cvPreviewEdits`. Adding the UX shell (shared id, type, timestamps, star link, optional section label) would be a new model, not a rename. Do it in its own PR, after Auto-fit and Library behavior are stable, or the new types will be painted by the same 3,731-line renderer.
+
+**Does the PDF share a layout engine with the canvas?**  
+No. The canvas is CSS. The PDF is a jsPDF painter (`cv-pdf.js` `doc.text`). `buildPdfModel` in `cv-preview.js` is the bridge: it turns state into a plain model, then the painter measures again. Auto-fit is the only place that feeds the painter’s shrink result back onto the CSS. That is why the sizes drift. A shared engine would mean one model in, one set of point sizes out, both the page and the file consuming it. Until then, every typography change has to be checked twice.
+
+**What does undo cover?**  
+Canvas structure, library list, on-page edits, and the `personalInfo` object. Not Design settings, not logbook entries, not proof files, not the export-history list. It is not durable. “Remove all” is safer than a single-section delete because of the second click, not because undo is stronger.
+
+**Is the Library its own store, or references into CV items?**  
+Both, and the copy wins. `cvLibrary` is a separate array of field snapshots. The layout block may store `libraryEntryId`. Dropping a library card onto the page **copies** the fields into a new block (`seedLayoutItemFromLibrary`). Later edits on the page do not change the card, and other copies already on the page do not follow a library update. The link is an id for the star, not a live reference.
+
+**Feature flags and dead routes.**  
+`ENABLE_LOGBOOK` is the only flag, default on. `#logbook` is the logbook. `#profile`, `#achievements`, and `#viewlogbook` redirect there (`resolveRoute`). Unknown hashes redirect home. The old tab strip `#viewSwitcher` is still handled in JS and is not in the HTML. `personalForm` and the sidebar identity summary are still functions in `app.js` and are not in the page. The `achievement` block type is still rendered and exported for old saves. Those are the dead routes and leftovers. Hiding the logbook is flipping the flag, not deleting `app.js`.
+
+**ATS: selectable text, size floor, one column.**  
+The PDF path is real text (`doc.text` in `cv-pdf.js`), one column, full content width. Placeholders are omitted from the model (`exportFieldLines`). That part matches an ATS-friendly file. There is no 10pt floor. Auto-fit’s smallest scale is 0.08. The Design slider’s minimum is 9pt, not 10. If the Chinese font download fails, `createCvPdf` warns and non-Latin characters are omitted, which matters for names. Single-column is already true; the floor is not.
+
+### What not to build next, from this pass
+
+Do not add login as a wall in front of Export. Do not add four new block types in the same PR as a star fix. Do not treat `BACKEND_SPEC.md` as the map of the canvas; the canvas has moved on, and the spec has not. The next small PRs that match the risks are listed in section 10, items 5–9.
 
 ---
 
@@ -334,3 +453,11 @@ Effort hints: **small** means a focused change in a few files; **medium** means 
 | Library missing from cloud payload | `sync.js` `buildCvDocPayload` writes layout, preview edits, settings, custom defaults. Schema `cv_documents` has those columns and no library column |
 | Proof size vs notepad | `MAX_PROOF_SIZE = 5242880` in `app.js`; file bytes stored on `achievement.fileData` |
 | No tests or CI | No `package.json`, no `*test*` files, no `.github` directory |
+| Export is not behind login | `cv-preview.js` `performPdfExport` has no auth check. `auth.js` still has the unused line “Sign in to export” |
+| Export name ignores the canvas | `getDefaultExportBaseName()` uses `personalInfo.name`. No `personalInfo.name =` assignment exists. The page writes `cvPreviewEdits` via `data-edit-key="personal.name"` |
+| Auto-fit can crush type | `cv-pdf.js` `minScale = 0.08` inside `shrinkPdfModelToOnePage`. Drawer shows “auto” in `cv-layout-panel.js` `updateOutputs`. Slider min is 9 in `index.html` |
+| Screen clips, PDF can add pages | `applySmartLayout` adds `cv-preview-single-page` even when Auto-fit is off. `styles.css` sets `overflow: hidden` on that class. `renderCvPdf` calls `doc.addPage()` |
+| Star removes instead of updating | `toggleLayoutItemInLibrary` calls `removeLibraryEntry` when `isLayoutItemInLibrary` is true. The update branch is in `saveLibrarySnapshot` and is not reached from that click |
+| Star outline / saved state | `styles.css` `.cv-section-save { opacity: 0 }` until row hover or field focus. Button `:hover` always shows the filled icon. `.is-in-library` does not set opacity, so a saved star is invisible at rest |
+| New block is not focused | `insertLayoutItem` → `flashSection` adds classes only. No `scrollIntoView` |
+| Typed sections and density presets are not built | `createLayoutItem` returns `heading`, `cv-item`, or `achievement` only. No 0.5/0.65/0.75/1.0 controls |
