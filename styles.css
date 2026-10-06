@@ -3862,7 +3862,6 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   gap: 2px;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
-  pointer-events: none;
 }
 
 .cv-section-wrap:hover .cv-section-handles,
@@ -3870,7 +3869,6 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible) .cv-section-handles {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .cv-section-handles .cv-section-handle,
@@ -3880,7 +3878,6 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  pointer-events: auto;
 }
 
 .cv-section-handle {
