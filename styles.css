@@ -3860,15 +3860,17 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-section-handles {
   position: absolute;
-  left: -64px;
+  left: -36px;
   top: 0;
   z-index: 6;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
   gap: 2px;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
+  /* Hidden handles must not steal clicks from the next row's ⠿. */
+  pointer-events: none;
 }
 
 .cv-section-wrap:hover .cv-section-handles,
@@ -3876,6 +3878,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible) .cv-section-handles {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .cv-section-handles .cv-section-handle,
@@ -3883,8 +3886,25 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   position: relative;
   z-index: 1;
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 22px;
+  /* Children default to auto and would still hit-test through a none parent. */
+  pointer-events: none;
+}
+
+.cv-section-wrap:hover .cv-section-handles .cv-section-handle,
+.cv-section-wrap:hover .cv-section-handles .cv-section-remove,
+.cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-handle,
+.cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-remove,
+.cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-handle,
+.cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-remove,
+.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+  .cv-section-handles
+  .cv-section-handle,
+.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+  .cv-section-handles
+  .cv-section-remove {
+  pointer-events: auto;
 }
 
 .cv-section-handle {
