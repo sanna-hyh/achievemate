@@ -3520,15 +3520,14 @@ body.layout-drawer-collapsed .studio-cockpit,
   }
 
   .studio-rail-tabs {
-    grid-template-columns: 1fr;
-    width: 72px;
     flex-shrink: 0;
     align-self: center;
+    padding: 0 4px 0 0;
   }
 
   .studio-rail-tab {
-    min-height: 28px;
     font-size: 0.75rem;
+    padding-bottom: 6px;
   }
 
   .studio-rail-scroll {
