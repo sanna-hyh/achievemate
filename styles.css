@@ -3056,10 +3056,10 @@ body.layout-drawer-collapsed .studio-cockpit,
 .studio-rail-tabs {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: flex-end;
   gap: 0;
   flex-shrink: 0;
-  padding: 2px 0 0;
+  padding: 8px 6px 10px;
 }
 
 .studio-rail-tab {
@@ -3068,15 +3068,15 @@ body.layout-drawer-collapsed .studio-cockpit,
   align-items: baseline;
   gap: 0.35rem;
   min-height: 0;
-  padding: 0 0 7px;
+  padding: 2px 0 14px;
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--brass) 38%, var(--text-muted));
   font-family: var(--font-ui);
   font-size: 0.8125rem;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
   line-height: 1.35;
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease-out);
@@ -3084,19 +3084,19 @@ body.layout-drawer-collapsed .studio-cockpit,
 
 .studio-rail-tab:not(:first-child)::before {
   content: "|";
-  margin: 0 0.55rem 0 0;
-  color: var(--border-strong);
+  margin: 0 0.85rem 0 0.15rem;
+  color: color-mix(in srgb, var(--brass) 22%, var(--border-strong));
   font-weight: 400;
   pointer-events: none;
 }
 
-.studio-rail-tab:hover {
-  color: var(--text-secondary);
+.studio-rail-tab:hover:not([aria-selected="true"]) {
+  color: color-mix(in srgb, var(--brass) 58%, var(--text-secondary));
   background: transparent;
 }
 
 .studio-rail-tab[aria-selected="true"] {
-  color: var(--text-primary);
+  color: var(--brass);
   background: transparent;
 }
 
@@ -3105,7 +3105,7 @@ body.layout-drawer-collapsed .studio-cockpit,
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: 5px;
   height: 2px;
   background: var(--brass);
   border-radius: 1px;
@@ -3117,7 +3117,11 @@ body.layout-drawer-collapsed .studio-cockpit,
   font-size: 0.75rem;
   font-weight: 500;
   color: inherit;
-  opacity: 0.85;
+  opacity: 0.72;
+}
+
+.studio-rail-tab[aria-selected="true"] .studio-rail-count {
+  opacity: 0.88;
 }
 
 .studio-rail-scroll {
@@ -3522,12 +3526,16 @@ body.layout-drawer-collapsed .studio-cockpit,
   .studio-rail-tabs {
     flex-shrink: 0;
     align-self: center;
-    padding: 0 4px 0 0;
+    padding: 6px 8px 8px 4px;
   }
 
   .studio-rail-tab {
     font-size: 0.75rem;
-    padding-bottom: 6px;
+    padding-bottom: 12px;
+  }
+
+  .studio-rail-tab[aria-selected="true"]::after {
+    bottom: 4px;
   }
 
   .studio-rail-scroll {
