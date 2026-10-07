@@ -801,7 +801,11 @@
       typeBtn.setAttribute("aria-expanded", "false");
     }
 
+    let resetLibrarySheetOffset = () => {};
+    let resetDesignDrawerOffset = () => {};
+
     function closeLibrarySheet() {
+      resetLibrarySheetOffset();
       if (librarySheet) {
         librarySheet.hidden = true;
       }
@@ -810,6 +814,7 @@
     }
 
     function closeDesignDrawer() {
+      resetDesignDrawerOffset();
       if (designToggle?.getAttribute("aria-expanded") === "true") {
         designToggle.click();
       }
@@ -834,18 +839,30 @@
     function bindSheetDrag(panel, { onDismiss, isActive }) {
       const handle = panel?.querySelector(".phone-sheet-handle");
       if (!panel || !handle) {
-        return;
+        return { reset: () => {} };
       }
 
-      // Require a deep pull before dismiss so light drags only lower then snap back.
+      // Deep pull from full height dismisses; shorter pulls park at that height.
       const dismissPx = () =>
         Math.max(280, Math.round((panel.offsetHeight || 0) * 0.45));
       let dragging = false;
       let startY = 0;
+      let originY = 0;
       let dragY = 0;
+      let restY = 0;
       let pointerId = null;
 
-      const clearDragTransform = () => {
+      const applyY = (y) => {
+        restY = Math.max(0, y);
+        panel.style.transform = restY ? `translateY(${restY}px)` : "";
+      };
+
+      const reset = () => {
+        dragging = false;
+        restY = 0;
+        dragY = 0;
+        originY = 0;
+        pointerId = null;
         panel.style.transform = "";
         panel.classList.remove("is-sheet-dragging");
       };
@@ -855,7 +872,8 @@
           return;
         }
         event.preventDefault();
-        dragY = Math.max(0, event.clientY - startY);
+        const maxY = Math.max(dismissPx(), panel.offsetHeight || 0);
+        dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
         panel.style.transform = `translateY(${dragY}px)`;
       };
 
@@ -874,12 +892,14 @@
         }
 
         const shouldDismiss = dragY >= dismissPx();
-        clearDragTransform();
-        dragY = 0;
         pointerId = null;
+        panel.classList.remove("is-sheet-dragging");
         if (shouldDismiss) {
+          reset();
           onDismiss?.();
+          return;
         }
+        applyY(dragY);
       };
 
       handle.addEventListener("pointerdown", (event) => {
@@ -894,10 +914,11 @@
         }
         dragging = true;
         startY = event.clientY;
-        dragY = 0;
+        originY = restY;
+        dragY = restY;
         pointerId = event.pointerId;
         panel.classList.add("is-sheet-dragging");
-        panel.style.transform = "translateY(0px)";
+        panel.style.transform = `translateY(${restY}px)`;
         try {
           handle.setPointerCapture?.(pointerId);
         } catch {
@@ -909,19 +930,21 @@
         document.addEventListener("pointerup", onUp);
         document.addEventListener("pointercancel", onUp);
       });
+
+      return { reset };
     }
 
     const libraryPanel = librarySheet?.querySelector(".phone-sheet-panel");
-    bindSheetDrag(libraryPanel, {
+    resetLibrarySheetOffset = bindSheetDrag(libraryPanel, {
       isActive: () => Boolean(librarySheet && !librarySheet.hidden),
       onDismiss: closeLibrarySheet,
-    });
+    }).reset;
 
     const designDrawer = document.getElementById("cvLayoutDrawer");
-    bindSheetDrag(designDrawer, {
+    resetDesignDrawerOffset = bindSheetDrag(designDrawer, {
       isActive: () => designToggle?.getAttribute("aria-expanded") === "true",
       onDismiss: closeDesignDrawer,
-    });
+    }).reset;
 
     addBtn.addEventListener("click", () => {
       closeTypeMenu();
@@ -955,6 +978,7 @@
       }
       closeDesignDrawer();
       placeLibraryList();
+      resetLibrarySheetOffset();
       if (librarySheet) {
         librarySheet.hidden = false;
       }
@@ -976,10 +1000,17 @@
     });
 
     if (designToggle && designBtn) {
+      let designWasOpen = designToggle.getAttribute("aria-expanded") === "true";
       const syncDesign = () => {
         const open = designToggle.getAttribute("aria-expanded") === "true";
         designBtn.setAttribute("aria-expanded", String(open));
         designBtn.classList.toggle("is-active", open);
+        if (open && !designWasOpen) {
+          resetDesignDrawerOffset();
+        } else if (!open) {
+          resetDesignDrawerOffset();
+        }
+        designWasOpen = open;
       };
       new MutationObserver(syncDesign).observe(designToggle, {
         attributes: true,
