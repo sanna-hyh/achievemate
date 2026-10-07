@@ -849,9 +849,10 @@
         return { hide: () => {}, show: () => {} };
       }
 
-      // Deep pull dismisses; shorter pulls park. Parked height is kept across reopen.
-      const dismissPx = () =>
-        Math.max(380, Math.round((panel.offsetHeight || 0) * 0.62));
+      // Park by resizing height (not translateY) so inner content can scroll at that height.
+      const MIN_HEIGHT = 160;
+      const dismissPx = () => Math.max(380, Math.round((fullHeight || 0) * 0.62));
+      let fullHeight = 0;
       let dragging = false;
       let startY = 0;
       let originY = 0;
@@ -859,13 +860,37 @@
       let restY = 0;
       let pointerId = null;
 
-      const paintY = (y) => {
-        panel.style.transform = y ? `translateY(${y}px)` : "";
+      const measureFullHeight = () => {
+        const prevHeight = panel.style.height;
+        const prevMax = panel.style.maxHeight;
+        const prevTransform = panel.style.transform;
+        panel.style.height = "";
+        panel.style.maxHeight = "";
+        panel.style.transform = "";
+        fullHeight = Math.round(panel.getBoundingClientRect().height);
+        panel.style.height = prevHeight;
+        panel.style.maxHeight = prevMax;
+        panel.style.transform = prevTransform;
+        return fullHeight;
+      };
+
+      const paintOffset = (offset) => {
+        const base = fullHeight || measureFullHeight();
+        const next = Math.max(MIN_HEIGHT, base - Math.max(0, offset));
+        panel.style.transform = "";
+        panel.style.maxHeight = "none";
+        panel.style.height = `${next}px`;
       };
 
       const applyY = (y) => {
         restY = Math.max(0, y);
-        paintY(restY);
+        if (!restY) {
+          panel.style.height = "";
+          panel.style.maxHeight = "";
+          panel.style.transform = "";
+          return;
+        }
+        paintOffset(restY);
       };
 
       const hide = () => {
@@ -874,12 +899,17 @@
         originY = 0;
         pointerId = null;
         panel.classList.remove("is-sheet-dragging");
-        // Clear inline transform so CSS can collapse; keep restY for next open.
+        // Clear inline size so CSS can collapse; keep restY for next open.
+        panel.style.height = "";
+        panel.style.maxHeight = "";
         panel.style.transform = "";
       };
 
       const show = () => {
-        paintY(restY);
+        window.requestAnimationFrame(() => {
+          measureFullHeight();
+          applyY(restY);
+        });
       };
 
       const onMove = (event) => {
@@ -887,9 +917,9 @@
           return;
         }
         event.preventDefault();
-        const maxY = Math.max(dismissPx(), panel.offsetHeight || 0);
+        const maxY = Math.max(dismissPx(), (fullHeight || 0) - MIN_HEIGHT);
         dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
-        paintY(dragY);
+        paintOffset(dragY);
       };
 
       const onUp = (event) => {
@@ -928,13 +958,14 @@
         if (dragging) {
           return;
         }
+        measureFullHeight();
         dragging = true;
         startY = event.clientY;
         originY = restY;
         dragY = restY;
         pointerId = event.pointerId;
         panel.classList.add("is-sheet-dragging");
-        paintY(restY);
+        paintOffset(restY);
         try {
           handle.setPointerCapture?.(pointerId);
         } catch {

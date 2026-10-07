@@ -3713,12 +3713,13 @@ body.is-phone-keyboard {
   display: flex;
   flex-direction: column;
   max-height: min(70dvh, 520px);
+  overflow: hidden;
   pointer-events: auto;
   border-top: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--surface-1);
   box-shadow: var(--shadow-overlay);
-  transition: transform 220ms var(--ease-out);
+  transition: transform 220ms var(--ease-out), height 220ms var(--ease-out);
 }
 
 .phone-sheet-panel.is-sheet-dragging,
@@ -3751,8 +3752,13 @@ body.is-phone-keyboard {
 }
 
 .phone-sheet-body {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   padding: 12px 12px 16px;
 }
 
@@ -4036,13 +4042,20 @@ body.is-phone-keyboard {
     max-height: calc(100dvh - var(--topbar-h) - var(--phone-strip-h) - var(--phone-safe-bottom, 0px) - var(--phone-keyboard-inset, 0px) - 12px);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     border-left: none;
     border-top: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     transform: translateY(0);
-    transition: transform 220ms var(--ease-out);
+    transition: transform 220ms var(--ease-out), height 220ms var(--ease-out);
     /* Above CV, below phone strip (60) — same keyboard inset as the strip. */
     z-index: 55;
+  }
+
+  .studio-drawer .cv-layout-form {
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    -webkit-overflow-scrolling: touch;
   }
 
   .drawer-scrim {
