@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=138" />
+  <link rel="stylesheet" href="styles.css?v=139" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -265,6 +265,14 @@
         <div class="preview-zoom-chip" id="previewZoomChip" hidden>
           <span class="preview-zoom-chip-value" id="previewZoomValue">100%</span>
           <button type="button" class="btn btn-ghost preview-zoom-chip-fit" id="previewZoomFitBtn">Fit</button>
+        </div>
+        <div class="cv-mobile-reorder" id="cvMobileReorder" hidden role="group" aria-label="Reorder CV item">
+          <button type="button" class="cv-mobile-reorder-btn" id="cvMobileMoveUp" aria-label="Move section up">
+            <span aria-hidden="true">↑</span>
+          </button>
+          <button type="button" class="cv-mobile-reorder-btn" id="cvMobileMoveDown" aria-label="Move section down">
+            <span aria-hidden="true">↓</span>
+          </button>
         </div>
       </div>
 
@@ -523,7 +531,7 @@
   <script src="drag-preview.js?v=7"></script>
   <script src="cv-builder.js?v=30"></script>
   <script src="cv-pdf.js?v=5"></script>
-  <script src="cv-preview.js?v=80"></script>
+  <script src="cv-preview.js?v=81"></script>
   <script src="cv-layout-panel.js?v=11"></script>
   <script src="sidebar.js?v=6"></script>
   <script src="workspace-tabs.js?v=14"></script>
