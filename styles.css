@@ -3662,8 +3662,11 @@ body.is-phone-keyboard {
 .phone-library-sheet {
   display: none;
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--phone-strip-h) + var(--phone-safe-bottom, 0px) + var(--phone-keyboard-inset, 0px));
   z-index: 55;
+  pointer-events: none;
 }
 
 .phone-library-sheet[hidden] {
@@ -3694,6 +3697,15 @@ body.is-phone-keyboard {
 }
 
 .phone-sheet-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  max-height: min(70dvh, 520px);
+  pointer-events: auto;
+  border-top: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  background: var(--surface-1);
+  box-shadow: var(--shadow-overlay);
   transition: transform 220ms var(--ease-out);
 }
 
@@ -3706,32 +3718,6 @@ body.is-phone-keyboard {
   .studio-drawer .phone-sheet-handle {
     display: none;
   }
-}
-
-.phone-sheet-scrim {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  bottom: calc(var(--phone-strip-h) + var(--phone-safe-bottom, 0px) + var(--phone-keyboard-inset, 0px));
-  border: none;
-  padding: 0;
-  background: rgba(6, 13, 24, 0.5);
-  cursor: pointer;
-}
-
-.phone-sheet-panel {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: calc(var(--phone-strip-h) + var(--phone-safe-bottom, 0px) + var(--phone-keyboard-inset, 0px));
-  display: flex;
-  flex-direction: column;
-  max-height: min(70dvh, 520px);
-  border-top: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  background: var(--surface-1);
-  box-shadow: var(--shadow-overlay);
 }
 
 .phone-sheet-head {
@@ -4001,7 +3987,12 @@ body.is-phone-keyboard {
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     transform: translateY(0);
     transition: transform 220ms var(--ease-out);
-    z-index: 46;
+    /* Above CV, below phone strip (60) — same keyboard inset as the strip. */
+    z-index: 55;
+  }
+
+  .drawer-scrim {
+    display: none !important;
   }
 
   .studio-cockpit.is-drawer-collapsed .studio-drawer {

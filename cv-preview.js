@@ -1717,7 +1717,8 @@
     });
 
     document.addEventListener("pointerdown", (event) => {
-      if (!isDrawerOpen()) {
+      // Phone bottom sheet: only dismiss via drag handle, keep CV interactive.
+      if (!isDrawerOpen() || isPhonePreviewViewport()) {
         return;
       }
 
@@ -1730,7 +1731,7 @@
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && isDrawerOpen()) {
+      if (event.key === "Escape" && isDrawerOpen() && !isPhonePreviewViewport()) {
         setDrawerOpen(false);
       }
     });

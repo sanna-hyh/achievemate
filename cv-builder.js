@@ -1003,8 +1003,6 @@
       libraryBtn.classList.add("is-active");
     });
 
-    document.getElementById("phoneLibraryScrim")?.addEventListener("click", closeLibrarySheet);
-
     designBtn?.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
     });
@@ -1047,7 +1045,6 @@
         return;
       }
       closeTypeMenu();
-      closeLibrarySheet();
     });
 
     function syncPhoneChrome() {
