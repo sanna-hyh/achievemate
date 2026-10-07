@@ -1699,22 +1699,10 @@
     }
 
     function setDrawerOpen(isOpen) {
-      const wasOpen = isDrawerOpen();
       cockpit.classList.toggle("is-drawer-collapsed", !isOpen);
       document.body.classList.toggle("layout-drawer-collapsed", !isOpen);
       toggleBtn.setAttribute("aria-expanded", String(isOpen));
       toggleBtn.classList.toggle("is-active", isOpen);
-      if (wasOpen === isOpen) {
-        scheduleFitPreview();
-        return;
-      }
-      // Drawer width is reserved immediately. Fit the final box before paint,
-      // then once more so a scrollbar from that scale cannot pop a frame later.
-      if (!applyPreviewZoom()) {
-        scheduleFitPreview();
-        return;
-      }
-      applyPreviewZoom();
     }
 
     function isDrawerOpen() {
