@@ -2248,6 +2248,15 @@ body.sidebar-open .app-sidebar {
   white-space: nowrap;
 }
 
+.entry-library-meta {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 .entry-actions {
   display: flex;
   align-items: center;
