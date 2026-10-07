@@ -4370,6 +4370,77 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   opacity: 1;
 }
 
+@media (max-width: 900px) {
+  .phone-strip {
+    padding-top: 6px;
+    padding-bottom: calc(6px + var(--phone-safe-bottom, 0px));
+  }
+
+  .phone-strip-add,
+  .phone-type-btn,
+  .phone-strip-action,
+  .phone-sheet-close {
+    height: 44px;
+    min-height: 44px;
+  }
+
+  .phone-strip-add,
+  .phone-sheet-close {
+    width: 44px;
+    min-width: 44px;
+  }
+
+  body.is-phone-keyboard .studio-well .cv-preview-wrap {
+    display: block;
+    overflow: auto;
+  }
+
+  .cv-preview-document [data-edit-key],
+  .cv-skill-input {
+    touch-action: manipulation;
+  }
+
+  .cv-section-handles {
+    left: -68px;
+    top: 0;
+    bottom: 0;
+    width: 44px;
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .cv-section-handles .cv-section-handle,
+  .cv-section-save {
+    width: 44px;
+    height: 44px;
+  }
+
+  .cv-section-save {
+    top: 0;
+    right: -68px;
+  }
+
+  .cv-section-handles .cv-section-remove {
+    width: 22px;
+    height: 22px;
+    margin-top: auto;
+    font-size: 0.75rem;
+    line-height: 1;
+    color: rgba(70, 70, 70, 0.5);
+    background: transparent;
+  }
+
+  .cv-section-remove:hover,
+  .cv-section-remove:focus-visible {
+    color: rgba(70, 70, 70, 0.72);
+    background: transparent;
+  }
+
+  .cv-section-remove:active {
+    color: var(--signal-danger);
+  }
+}
+
 .cv-doc-empty {
   display: flex;
   flex-direction: column;

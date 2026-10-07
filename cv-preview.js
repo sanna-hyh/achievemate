@@ -891,10 +891,83 @@
       return;
     }
 
+    let phoneTouchEdit = false;
+    cvPreview.addEventListener(
+      "touchstart",
+      () => {
+        phoneTouchEdit = true;
+      },
+      { passive: true }
+    );
+
+    cvPreview.addEventListener("touchend", (event) => {
+      if (!isMobileReorderViewport() || event.changedTouches?.length !== 1) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-skill-chip-remove")) {
+        return;
+      }
+      if (target.closest(".cv-skill-input, input, textarea")) {
+        scheduleRevealFocusedField();
+        return;
+      }
+      const editTarget = resolveEditTarget(target);
+      if (!editTarget) {
+        return;
+      }
+      if (
+        editTarget.classList.contains("is-editing") &&
+        editTarget.getAttribute("contenteditable") === "true" &&
+        document.activeElement === editTarget
+      ) {
+        scheduleRevealFocusedField();
+        return;
+      }
+      // Focus from the touch, without preventDefault, so the keyboard can open.
+      activateEdit(editTarget, event.changedTouches[0]);
+      scheduleRevealFocusedField();
+    });
+
     cvPreview.addEventListener("mousedown", (event) => {
       if (event.button !== 0) {
         return;
       }
+
+      if (isMobileReorderViewport()) {
+        const fromTouch = phoneTouchEdit;
+        phoneTouchEdit = false;
+        const target = event.target;
+        if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-skill-chip-remove")) {
+          return;
+        }
+        if (target.closest(".cv-skill-input, input, textarea")) {
+          scheduleRevealFocusedField();
+          return;
+        }
+        const phoneEditTarget = resolveEditTarget(target);
+        if (phoneEditTarget) {
+          if (!target.closest('[contenteditable="true"].is-editing')) {
+            if (fromTouch) {
+              activateEdit(phoneEditTarget, event);
+            } else {
+              tryActivateEdit(event, phoneEditTarget);
+            }
+          }
+          scheduleRevealFocusedField();
+          return;
+        }
+        // Touch scrolls the page. Mouse can still arm a section drag below 900px.
+        if (isEditingPreview || fromTouch) {
+          return;
+        }
+      } else {
+        phoneTouchEdit = false;
+      }
+
       if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save")) {
         return;
       }
@@ -978,6 +1051,9 @@
       }
 
       // Keep selection inside an active editable field — never the CV chrome.
+      if (isMobileReorderViewport() && target.closest("[data-edit-key], .cv-skill-input")) {
+        return;
+      }
       if (!target.closest('[data-edit-key].is-editing, [contenteditable="true"].is-editing')) {
         event.preventDefault();
       }
@@ -1056,7 +1132,15 @@
 
     const wrapStyle = getComputedStyle(wrap);
     const padX = parseFloat(wrapStyle.paddingLeft) + parseFloat(wrapStyle.paddingRight);
-    const padY = parseFloat(wrapStyle.paddingTop) + parseFloat(wrapStyle.paddingBottom);
+    let padY = parseFloat(wrapStyle.paddingTop) + parseFloat(wrapStyle.paddingBottom);
+    // Keyboard clearance is scroll padding. Shrinking the page to it makes type-in-place impossible.
+    if (isMobileReorderViewport()) {
+      const keyboardInset =
+        parseFloat(getComputedStyle(document.body).getPropertyValue("--phone-keyboard-inset")) || 0;
+      if (keyboardInset > 0) {
+        padY = Math.max(parseFloat(wrapStyle.paddingTop) || 0, padY - keyboardInset);
+      }
+    }
     const availableW = Math.max(0, wrap.clientWidth - padX);
     const availableH = Math.max(0, wrap.clientHeight - padY);
     const docW = cvPreview.offsetWidth;
@@ -1200,6 +1284,7 @@
       syncZoomChipLabel();
     }
 
+    revealFocusedFieldAbovePhoneChrome();
     return true;
   }
 
@@ -2761,6 +2846,111 @@
     } else {
       mobileReorderQuery.addListener(onViewportChange);
     }
+
+    cvPreview.addEventListener("focusin", (event) => {
+      if (!isMobileReorderViewport()) {
+        return;
+      }
+      if (event.target?.closest?.("[data-edit-key], .cv-skill-input")) {
+        scheduleRevealFocusedField();
+      }
+    });
+
+    cvPreview.addEventListener("input", (event) => {
+      if (!isMobileReorderViewport()) {
+        return;
+      }
+      if (event.target?.closest?.("[data-edit-key], .cv-skill-input")) {
+        scheduleRevealFocusedField();
+      }
+    });
+
+    const onPhoneViewportShift = () => {
+      if (!isMobileReorderViewport()) {
+        return;
+      }
+      scheduleRevealFocusedField();
+    };
+    window.visualViewport?.addEventListener("resize", onPhoneViewportShift);
+  }
+
+  function phoneEditVisibleBottom() {
+    const viewport = window.visualViewport;
+    let limit = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+    for (const id of ["phoneStrip", "cvMobileReorder"]) {
+      const el = document.getElementById(id);
+      if (!el || el.hidden) {
+        continue;
+      }
+      const style = getComputedStyle(el);
+      if (style.display === "none" || style.visibility === "hidden") {
+        continue;
+      }
+      const top = el.getBoundingClientRect().top;
+      if (top > 0 && top < limit) {
+        limit = top;
+      }
+    }
+    return limit;
+  }
+
+  function revealFocusedFieldAbovePhoneChrome() {
+    if (!isMobileReorderViewport() || !cvPreview) {
+      return;
+    }
+
+    const active = document.activeElement;
+    if (!(active instanceof Element) || !cvPreview.contains(active)) {
+      return;
+    }
+
+    const field = active.matches("[data-edit-key], .cv-skill-input")
+      ? active
+      : active.closest("[data-edit-key], .cv-skill-input");
+    if (!field) {
+      return;
+    }
+
+    const wrap = getPreviewWrap();
+    if (!wrap) {
+      return;
+    }
+
+    const margin = 12;
+    for (let pass = 0; pass < 2; pass += 1) {
+      const fieldRect = field.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      const viewTop = Math.max(wrapRect.top, window.visualViewport?.offsetTop || 0) + margin;
+      const viewBottom = Math.min(wrapRect.bottom, phoneEditVisibleBottom()) - margin;
+      if (viewBottom <= viewTop + 8) {
+        return;
+      }
+
+      const visibleHeight = viewBottom - viewTop;
+      let delta = 0;
+      if (fieldRect.bottom > viewBottom) {
+        delta = fieldRect.bottom - viewBottom;
+        if (fieldRect.top - delta < viewTop && fieldRect.height > visibleHeight) {
+          delta = fieldRect.top - viewTop;
+        }
+      } else if (fieldRect.top < viewTop) {
+        delta = fieldRect.top - viewTop;
+      }
+
+      if (Math.abs(delta) < 1) {
+        return;
+      }
+      wrap.scrollTop += delta;
+    }
+  }
+
+  function scheduleRevealFocusedField() {
+    if (!isMobileReorderViewport()) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(revealFocusedFieldAbovePhoneChrome);
+    });
   }
 
   function bindSectionHandles() {
