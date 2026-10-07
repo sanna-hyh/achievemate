@@ -3737,10 +3737,8 @@ body.is-phone-keyboard {
 .phone-sheet-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
   min-height: 44px;
-  padding: 0 8px 0 16px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-subtle);
   flex-shrink: 0;
 }
@@ -4423,14 +4421,12 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
   .phone-strip-add,
   .phone-type-btn,
-  .phone-strip-action,
-  .phone-sheet-close {
+  .phone-strip-action {
     height: 44px;
     min-height: 44px;
   }
 
-  .phone-strip-add,
-  .phone-sheet-close {
+  .phone-strip-add {
     width: 44px;
     min-width: 44px;
   }

@@ -1004,7 +1004,6 @@
     });
 
     document.getElementById("phoneLibraryScrim")?.addEventListener("click", closeLibrarySheet);
-    document.getElementById("phoneLibraryClose")?.addEventListener("click", closeLibrarySheet);
 
     designBtn?.addEventListener("pointerdown", (event) => {
       event.stopPropagation();
