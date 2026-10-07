@@ -216,21 +216,14 @@
     const modernCobalt = [30, 77, 140];
     const modernGold = [196, 161, 90];
     const accentIsInk = accentColor[0] <= 8 && accentColor[1] <= 8 && accentColor[2] <= 8;
-    let lineHeight = positivePt(model.lineHeight, 1.3);
-    let sectionGap = finitePt(model.sectionGapPt, 9);
-    let sectionMargin = finitePt(model.sectionMarginPt, sectionGap);
-    let itemGap = finitePt(model.itemGapPt, 3);
-    let nameDrawSize = nameSize;
+    const lineHeight = positivePt(model.lineHeight, 1.3);
+    const sectionGap = finitePt(model.sectionGapPt, 9);
+    const sectionMargin = finitePt(model.sectionMarginPt, sectionGap);
+    const itemGap = finitePt(model.itemGapPt, 3);
+    const nameDrawSize = nameSize;
     let nameInk = accentColor;
     let headingInk = accentColor;
-    if (template === "compact") {
-      lineHeight = Math.max(1.1, lineHeight * 0.92);
-      sectionGap = Math.max(1.5, sectionGap * 0.5);
-      sectionMargin = Math.max(1.5, sectionMargin * 0.5);
-      itemGap = Math.max(0.4, itemGap * 0.4);
-    }
     if (template === "modern") {
-      nameDrawSize = Math.min(nameSize * 1.14, 30);
       nameInk = textColor;
       headingInk = accentIsInk ? modernCobalt : accentColor;
     }

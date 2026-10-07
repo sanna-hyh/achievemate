@@ -5345,7 +5345,6 @@ body.is-cv-dragging .cv-preview-document {
 }
 
 .cv-preview-document.cv-template-modern .cv-preview-name {
-  font-size: calc(var(--cv-name-font) * 1.14);
   font-weight: 800;
   letter-spacing: 0.07em;
   color: var(--cv-text-color);
@@ -5360,19 +5359,6 @@ body.is-cv-dragging .cv-preview-document {
   color: var(--cv-modern-heading);
   border-bottom-color: var(--cv-modern-heading);
   letter-spacing: 0.09em;
-}
-
-.cv-preview-document.cv-template-compact {
-  line-height: max(1.1, calc(var(--cv-line-height) * 0.92));
-}
-
-.cv-preview-document.cv-template-compact .cv-preview-layout,
-.cv-preview-document.cv-template-compact .cv-preview-body {
-  gap: calc(var(--cv-section-gap) * 0.45);
-}
-
-.cv-preview-document.cv-template-compact .cv-preview-body > .cv-section-wrap:has(.cv-preview-entry) + .cv-section-wrap:has(.cv-preview-entry) {
-  margin-top: calc((var(--cv-item-gap) - var(--cv-section-gap)) * 0.45);
 }
 
 .cv-preview-document.cv-template-compact .cv-preview-name {
@@ -5395,17 +5381,6 @@ body.is-cv-dragging .cv-preview-document {
 .cv-preview-document.cv-template-compact .cv-preview-cv-item-subrow,
 .cv-preview-document.cv-template-compact .cv-preview-cv-item-location {
   margin-top: 0;
-}
-
-.cv-preview-document.cv-template-compact .cv-preview-bullets li,
-.cv-preview-document.cv-template-compact .cv-preview-description,
-.cv-preview-document.cv-template-compact .cv-preview-contact {
-  line-height: max(1.1, calc(var(--cv-line-height) * 0.92));
-}
-
-.cv-preview-document.cv-template-compact .cv-preview-bullets li + li,
-.cv-preview-document.cv-template-compact .cv-preview-description br {
-  margin-top: max(0px, calc(var(--cv-item-gap) * 0.3));
 }
 
 .cv-preview-document.cv-template-compact .cv-preview-skills-list {

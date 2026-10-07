@@ -215,8 +215,45 @@
     }
   }
 
+  function applyTemplatePreset(templateId) {
+    const id = templateId === "modern" || templateId === "compact" ? templateId : "classic";
+    const preset = window.AchieveMateApp?.CV_TEMPLATE_PRESETS?.[id];
+    if (!preset) {
+      return false;
+    }
+
+    state.cvSettings = {
+      ...state.cvSettings,
+      ...preset,
+      template: id,
+      autoFit: false,
+    };
+    saveCvSettings();
+    saveState();
+    syncFormFromState();
+
+    Object.keys(preset).forEach((key) => {
+      if (outputs[key]) {
+        markOutputLive(key);
+      }
+    });
+    scheduleChipSettle();
+
+    if (window.AchieveMateCvPreview?.scheduleSmartLayout) {
+      window.AchieveMateCvPreview.scheduleSmartLayout();
+    } else if (window.AchieveMateCvPreview?.applyLayoutStyles) {
+      window.AchieveMateCvPreview.applyLayoutStyles();
+    }
+    return true;
+  }
+
   function handleFormUpdate(event) {
     const { name, type } = event.target;
+
+    if (name === "cvTemplate") {
+      applyTemplatePreset(event.target.value);
+      return;
+    }
 
     if (name === "autoFit") {
       syncAutoFitUi();

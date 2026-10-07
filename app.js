@@ -43,6 +43,46 @@ const DEFAULT_CV_SETTINGS = {
   template: "classic",
 };
 
+/** Typography/layout values applied to Design controls when a template is chosen. */
+const CV_TEMPLATE_PRESETS = {
+  classic: {
+    baseFontSize: 11,
+    nameFontSize: 20,
+    headingFontSize: 13,
+    lineHeight: 1.3,
+    sectionGap: 12,
+    itemGap: 4,
+    pageMargin: "normal",
+    headingDivider: "solid",
+    accentColor: "#000000",
+    textColor: "#000000",
+  },
+  modern: {
+    baseFontSize: 11,
+    nameFontSize: 23,
+    headingFontSize: 13,
+    lineHeight: 1.3,
+    sectionGap: 14,
+    itemGap: 4,
+    pageMargin: "normal",
+    headingDivider: "solid",
+    accentColor: "#1e4d8c",
+    textColor: "#000000",
+  },
+  compact: {
+    baseFontSize: 10.5,
+    nameFontSize: 18,
+    headingFontSize: 12,
+    lineHeight: 1.2,
+    sectionGap: 5,
+    itemGap: 2,
+    pageMargin: "compact",
+    headingDivider: "solid",
+    accentColor: "#000000",
+    textColor: "#000000",
+  },
+};
+
 /** Shared Auto-fit / Design / PDF typography floor — keep canvas, Design, and PDF agreed. */
 const CV_TYPOGRAPHY = {
   minBodyPt: 10,
@@ -2014,6 +2054,7 @@ window.AchieveMateApp = {
   saveCustomDefaults,
   getCustomDefaults,
   DEFAULT_CV_SETTINGS,
+  CV_TEMPLATE_PRESETS,
   CV_TYPOGRAPHY,
   createId,
   escapeHtml,
