@@ -4060,11 +4060,6 @@ body.is-phone-keyboard {
   .cv-preview-document {
     min-height: auto;
   }
-
-  .cv-preview-entry-header {
-    flex-direction: column;
-    gap: 0.15rem;
-  }
 }
 
 .cv-preview-wrap {
@@ -5141,6 +5136,8 @@ body.is-cv-dragging .cv-preview-document {
 .cv-preview-entry-header,
 .cv-preview-cv-item-subrow {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: baseline;
   gap: 1rem;

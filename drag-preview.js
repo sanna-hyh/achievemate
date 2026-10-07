@@ -92,10 +92,19 @@
     const article = document.createElement("section");
     article.className = "cv-preview-entry cv-preview-cv-item";
 
+    const titleRow = document.createElement("div");
+    titleRow.className = "cv-preview-entry-header cv-preview-cv-item-title-row";
+
     const title = document.createElement("h3");
     title.className = "cv-preview-entry-title cv-preview-cv-item-title";
     title.textContent = "Title";
-    article.appendChild(title);
+
+    const date = document.createElement("span");
+    date.className = "cv-preview-entry-date cv-preview-cv-item-date";
+    date.textContent = "DATE";
+
+    titleRow.append(title, date);
+    article.appendChild(titleRow);
 
     const subrow = document.createElement("div");
     subrow.className = "cv-preview-cv-item-subrow";
@@ -104,11 +113,7 @@
     subtitle.className = "cv-preview-cv-item-subtitle";
     subtitle.textContent = "Subtitle";
 
-    const date = document.createElement("span");
-    date.className = "cv-preview-entry-date cv-preview-cv-item-date";
-    date.textContent = "DATE";
-
-    subrow.append(subtitle, date);
+    subrow.append(subtitle);
     article.appendChild(subrow);
 
     const location = document.createElement("p");
