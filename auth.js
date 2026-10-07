@@ -11,7 +11,7 @@ const AUTH_MESSAGES = {
   },
   save: {
     title: "Sign in to save",
-    caption: "Create a free account so your logbook and CV are saved for next time.",
+    caption: "Create a free account so your library and CV are saved for next time.",
   },
 };
 
