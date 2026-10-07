@@ -3439,13 +3439,19 @@ body.layout-drawer-collapsed .studio-cockpit,
   border-left: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-overlay);
   transform: translateX(0);
-  transition: transform var(--dur-slow) var(--ease-in-out);
+  visibility: visible;
+  transition:
+    transform var(--dur-slow) var(--ease-in-out),
+    visibility 0s linear 0s;
 }
 
 .studio-cockpit.is-drawer-collapsed .studio-drawer {
   transform: translateX(100%);
   pointer-events: none;
   visibility: hidden;
+  transition:
+    transform var(--dur-slow) var(--ease-in-out),
+    visibility 0s linear var(--dur-slow);
 }
 
 .studio-drawer-inner {
@@ -4068,6 +4074,8 @@ body.is-phone-keyboard {
     /* Keep visible so the slide-up transition can run (base rule uses visibility:hidden). */
     visibility: visible;
     pointer-events: none;
+    /* Stay on the phone timing; don't inherit the desktop visibility delay. */
+    transition: transform 220ms var(--ease-out);
   }
 
   .phone-strip {
