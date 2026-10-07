@@ -224,7 +224,6 @@
     let nameInk = accentColor;
     let headingInk = accentColor;
     if (template === "modern") {
-      nameInk = textColor;
       headingInk = accentIsInk ? modernCobalt : accentColor;
     }
     const divider = ["solid", "dotted", "none"].includes(model.headingDivider)
