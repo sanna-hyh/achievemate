@@ -4415,23 +4415,18 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     touch-action: manipulation;
   }
 
-  .cv-section-wrap.is-mobile-reorder-target,
-  .cv-section-wrap:has([data-edit-key]:focus),
-  .cv-section-wrap:has(.cv-skill-input:focus) {
-    padding-right: 90px;
-  }
-
   .cv-section-wrap .cv-section-handles {
+    /* Outside the 5px brass outline, still inside the page margin. */
     left: auto;
-    right: 12px;
-    top: 2px;
+    right: calc(100% + 6px);
+    top: 0;
     bottom: auto;
-    width: 70px;
-    height: 44px;
-    flex-direction: row;
+    width: min(44px, max(0px, calc(var(--cv-page-padding) - 6px)));
+    height: auto;
+    flex-direction: column;
     align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
+    justify-content: flex-start;
+    gap: 2px;
   }
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
@@ -4441,15 +4436,17 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     pointer-events: auto;
   }
 
-  .cv-section-handles .cv-section-handle,
-  .cv-section-save {
-    width: 44px;
+  .cv-section-handles .cv-section-handle {
+    width: 100%;
+    max-width: 44px;
     height: 44px;
   }
 
   .cv-section-save {
     top: 0;
     right: -68px;
+    width: 44px;
+    height: 44px;
   }
 
   .cv-section-handles .cv-section-remove {
