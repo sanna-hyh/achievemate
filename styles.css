@@ -3980,6 +3980,48 @@ body.is-phone-keyboard {
     outline-offset: 3px;
   }
 
+  /* No sticky :hover chrome on touch — only selected / focused item shows handles. */
+  .cv-section-wrap:hover .cv-section-handles,
+  .cv-section-wrap:hover .cv-section-save {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .cv-section-wrap:hover .cv-section-handles .cv-section-handle,
+  .cv-section-wrap:hover .cv-section-handles .cv-section-remove {
+    pointer-events: none;
+  }
+
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
+  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+    .cv-section-handles {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-handle,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-remove,
+  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-handle,
+  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-remove,
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+    .cv-section-handles
+    .cv-section-handle,
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+    .cv-section-handles
+    .cv-section-remove {
+    pointer-events: auto;
+  }
+
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-save,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-save,
+  .cv-section-wrap:has(.cv-section-save:focus-visible) .cv-section-save {
+    opacity: 1;
+  }
+
   .studio-cockpit:not(.is-drawer-collapsed) .cv-mobile-reorder {
     display: none !important;
   }

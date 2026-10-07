@@ -3055,6 +3055,18 @@
     window.AchieveMateCvBuilder?.moveLayoutItem(currentIndex, currentIndex + 2);
   }
 
+  function clearMobileReorderSelection({ commitEdit = false } = {}) {
+    if (commitEdit) {
+      commitActivePreviewEdit();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && cvPreview?.contains(active)) {
+        active.blur();
+      }
+    }
+    mobileReorderId = null;
+    syncMobileReorder(null);
+  }
+
   function syncMobileReorder(preferredId) {
     const bar = document.getElementById("cvMobileReorder");
     if (!bar || !cvPreview) {
@@ -3073,15 +3085,21 @@
       return;
     }
 
-    const requested = preferredId || mobileReorderId;
-    if (requested && items.some((item) => item.id === requested)) {
-      mobileReorderId = requested;
+    if (preferredId === null) {
+      mobileReorderId = null;
     } else {
-      mobileReorderId = items[0].id;
+      const requested = preferredId !== undefined ? preferredId : mobileReorderId;
+      if (requested && items.some((item) => item.id === requested)) {
+        mobileReorderId = requested;
+      } else {
+        mobileReorderId = null;
+      }
     }
 
-    const index = items.findIndex((item) => item.id === mobileReorderId);
-    bar.hidden = false;
+    const index = mobileReorderId
+      ? items.findIndex((item) => item.id === mobileReorderId)
+      : -1;
+    bar.hidden = index < 0;
     const up = document.getElementById("cvMobileMoveUp");
     const down = document.getElementById("cvMobileMoveDown");
     if (up) {
@@ -3092,7 +3110,7 @@
     }
 
     cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
-      const selected = wrap.dataset.layoutItemId === mobileReorderId;
+      const selected = Boolean(mobileReorderId) && wrap.dataset.layoutItemId === mobileReorderId;
       wrap.classList.toggle("is-mobile-reorder-target", selected);
       if (selected) {
         wrap.setAttribute("aria-current", "true");
@@ -3121,14 +3139,18 @@
         return;
       }
       const wrap = event.target.closest?.(".cv-section-wrap");
-      if (!wrap || !cvPreview.contains(wrap)) {
+      if (wrap && cvPreview.contains(wrap)) {
+        if (event.target.closest(".cv-section-save, .cv-section-remove")) {
+          return;
+        }
+        mobileReorderId = wrap.dataset.layoutItemId || mobileReorderId;
+        syncMobileReorder(mobileReorderId);
         return;
       }
-      if (event.target.closest(".cv-section-save, .cv-section-remove")) {
-        return;
+      // Tap CV whitespace (or header area): dismiss chrome like desktop hover-out.
+      if (event.target.closest?.(".cv-preview-document, .cv-preview-layout, .cv-preview-body")) {
+        clearMobileReorderSelection({ commitEdit: true });
       }
-      mobileReorderId = wrap.dataset.layoutItemId || mobileReorderId;
-      syncMobileReorder(mobileReorderId);
     });
 
     const onViewportChange = () => syncMobileReorder();
