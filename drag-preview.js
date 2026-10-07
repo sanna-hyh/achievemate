@@ -219,7 +219,7 @@
       }
     }
 
-    if (payload?.type === "heading") {
+    if (payload?.type === "heading" || (payload?.type === "add" && payload.addKind === "heading")) {
       shell.appendChild(buildHeadingContent());
       return shell;
     }
