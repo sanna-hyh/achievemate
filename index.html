@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=137" />
+  <link rel="stylesheet" href="styles.css?v=138" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -412,6 +412,73 @@
         </div>
       </aside>
     </div>
+
+    <div class="phone-library-sheet" id="phoneLibrarySheet" hidden>
+      <button type="button" class="phone-sheet-scrim" id="phoneLibraryScrim" aria-label="Close library"></button>
+      <div
+        class="phone-sheet-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="phoneLibraryTitle"
+      >
+        <div class="phone-sheet-head">
+          <h2 class="phone-sheet-title" id="phoneLibraryTitle">Library</h2>
+          <button type="button" class="btn-icon phone-sheet-close" id="phoneLibraryClose" aria-label="Close library">
+            ×
+          </button>
+        </div>
+        <div class="phone-sheet-body" id="phoneLibraryMount"></div>
+      </div>
+    </div>
+
+    <div class="phone-strip" id="phoneStrip">
+      <button type="button" class="phone-strip-add" id="phoneAddBtn" aria-label="Add CV item">+</button>
+      <div class="phone-type">
+        <button
+          type="button"
+          class="phone-type-btn"
+          id="phoneTypeBtn"
+          aria-haspopup="listbox"
+          aria-expanded="false"
+          aria-controls="phoneTypeMenu"
+        >
+          <span class="phone-type-label" id="phoneTypeLabel">+ CV item</span>
+          <span class="phone-type-caret" aria-hidden="true">▴</span>
+        </button>
+        <div class="phone-type-menu" id="phoneTypeMenu" role="listbox" aria-label="Block type" hidden>
+          <button type="button" class="phone-type-option" role="option" data-add-kind="free-text" aria-selected="true">
+            + CV item
+          </button>
+          <button type="button" class="phone-type-option" role="option" data-add-kind="experience" aria-selected="false">
+            + Experience
+          </button>
+          <button type="button" class="phone-type-option" role="option" data-add-kind="education" aria-selected="false">
+            + Education
+          </button>
+          <button type="button" class="phone-type-option" role="option" data-add-kind="skills" aria-selected="false">
+            + Skills
+          </button>
+        </div>
+      </div>
+      <button
+        type="button"
+        class="phone-strip-action"
+        id="phoneLibraryBtn"
+        aria-expanded="false"
+        aria-controls="phoneLibrarySheet"
+      >
+        Library
+      </button>
+      <button
+        type="button"
+        class="phone-strip-action"
+        id="phoneDesignBtn"
+        aria-expanded="false"
+        aria-controls="cvLayoutDrawer"
+      >
+        Design
+      </button>
+    </div>
   </main>
     </div>
   </div>
@@ -454,7 +521,7 @@
   <script src="app.js?v=52"></script>
   <script src="cv-history.js?v=3"></script>
   <script src="drag-preview.js?v=7"></script>
-  <script src="cv-builder.js?v=29"></script>
+  <script src="cv-builder.js?v=30"></script>
   <script src="cv-pdf.js?v=5"></script>
   <script src="cv-preview.js?v=80"></script>
   <script src="cv-layout-panel.js?v=11"></script>

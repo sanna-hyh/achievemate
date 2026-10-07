@@ -763,10 +763,203 @@
     updateClearCvButton();
   }
 
+  function bindPhoneShell() {
+    const addBtn = document.getElementById("phoneAddBtn");
+    const typeBtn = document.getElementById("phoneTypeBtn");
+    const typeLabel = document.getElementById("phoneTypeLabel");
+    const typeMenu = document.getElementById("phoneTypeMenu");
+    const libraryBtn = document.getElementById("phoneLibraryBtn");
+    const librarySheet = document.getElementById("phoneLibrarySheet");
+    const libraryMount = document.getElementById("phoneLibraryMount");
+    const libraryHome = document.getElementById("cvLibrarySection");
+    const designBtn = document.getElementById("phoneDesignBtn");
+    const designToggle = document.getElementById("toggleLayoutDrawerBtn");
+    if (!addBtn || !typeBtn || !typeMenu) {
+      return;
+    }
+
+    const phoneQuery = window.matchMedia("(max-width: 900px)");
+    let selectedKind = "free-text";
+    let keyboardInset = -1;
+
+    function isPhoneShell() {
+      return phoneQuery.matches;
+    }
+
+    function placeLibraryList() {
+      if (!cvLibraryList || !libraryMount || !libraryHome) {
+        return;
+      }
+      const parent = isPhoneShell() ? libraryMount : libraryHome;
+      if (cvLibraryList.parentElement !== parent) {
+        parent.appendChild(cvLibraryList);
+      }
+    }
+
+    function closeTypeMenu() {
+      typeMenu.hidden = true;
+      typeBtn.setAttribute("aria-expanded", "false");
+    }
+
+    function closeLibrarySheet() {
+      if (librarySheet) {
+        librarySheet.hidden = true;
+      }
+      libraryBtn?.setAttribute("aria-expanded", "false");
+      libraryBtn?.classList.remove("is-active");
+    }
+
+    function closeDesignDrawer() {
+      if (designToggle?.getAttribute("aria-expanded") === "true") {
+        designToggle.click();
+      }
+    }
+
+    function selectKind(kind) {
+      const option = typeMenu.querySelector(`[data-add-kind="${kind}"]`);
+      if (!option || !ADD_KINDS[kind]) {
+        return;
+      }
+      selectedKind = kind;
+      const label = option.textContent.replace(/\s+/g, " ").trim();
+      if (typeLabel) {
+        typeLabel.textContent = label;
+      }
+      addBtn.setAttribute("aria-label", `Add ${label.replace(/^\+\s*/, "")}`);
+      typeMenu.querySelectorAll("[data-add-kind]").forEach((button) => {
+        button.setAttribute("aria-selected", String(button === option));
+      });
+    }
+
+    addBtn.addEventListener("click", () => {
+      closeTypeMenu();
+      closeLibrarySheet();
+      addBlockKind(selectedKind);
+    });
+
+    typeBtn.addEventListener("click", () => {
+      const nextOpen = typeMenu.hidden;
+      if (nextOpen) {
+        closeLibrarySheet();
+        closeDesignDrawer();
+      }
+      typeMenu.hidden = !nextOpen;
+      typeBtn.setAttribute("aria-expanded", String(nextOpen));
+    });
+
+    typeMenu.querySelectorAll("[data-add-kind]").forEach((option) => {
+      option.addEventListener("click", () => {
+        selectKind(option.dataset.addKind);
+        closeTypeMenu();
+      });
+    });
+
+    libraryBtn?.addEventListener("click", () => {
+      const nextOpen = Boolean(librarySheet?.hidden);
+      closeTypeMenu();
+      if (!nextOpen) {
+        closeLibrarySheet();
+        return;
+      }
+      closeDesignDrawer();
+      placeLibraryList();
+      if (librarySheet) {
+        librarySheet.hidden = false;
+      }
+      libraryBtn.setAttribute("aria-expanded", "true");
+      libraryBtn.classList.add("is-active");
+    });
+
+    document.getElementById("phoneLibraryScrim")?.addEventListener("click", closeLibrarySheet);
+    document.getElementById("phoneLibraryClose")?.addEventListener("click", closeLibrarySheet);
+
+    designBtn?.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+
+    designBtn?.addEventListener("click", () => {
+      closeTypeMenu();
+      closeLibrarySheet();
+      designToggle?.click();
+    });
+
+    if (designToggle && designBtn) {
+      const syncDesign = () => {
+        const open = designToggle.getAttribute("aria-expanded") === "true";
+        designBtn.setAttribute("aria-expanded", String(open));
+        designBtn.classList.toggle("is-active", open);
+      };
+      new MutationObserver(syncDesign).observe(designToggle, {
+        attributes: true,
+        attributeFilter: ["aria-expanded"],
+      });
+    }
+
+    document.addEventListener("click", (event) => {
+      if (typeMenu.hidden) {
+        return;
+      }
+      if (typeBtn.contains(event.target) || typeMenu.contains(event.target)) {
+        return;
+      }
+      closeTypeMenu();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      closeTypeMenu();
+      closeLibrarySheet();
+    });
+
+    function syncPhoneChrome() {
+      const viewport = window.visualViewport;
+      const nextInset = viewport
+        ? Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))
+        : 0;
+      if (nextInset === keyboardInset) {
+        return;
+      }
+      keyboardInset = nextInset;
+      document.body.style.setProperty("--phone-keyboard-inset", `${nextInset}px`);
+      document.body.classList.toggle("is-phone-keyboard", isPhoneShell() && nextInset >= 100);
+      if (isPhoneShell()) {
+        window.AchieveMateCvPreview?.scheduleFitPreview?.();
+      }
+    }
+
+    function onPhoneShellChange() {
+      if (!isPhoneShell()) {
+        closeTypeMenu();
+        closeLibrarySheet();
+        document.body.classList.remove("is-phone-keyboard");
+      }
+      placeLibraryList();
+      keyboardInset = -1;
+      syncPhoneChrome();
+    }
+
+    if (typeof phoneQuery.addEventListener === "function") {
+      phoneQuery.addEventListener("change", onPhoneShellChange);
+    } else {
+      phoneQuery.addListener(onPhoneShellChange);
+    }
+
+    window.visualViewport?.addEventListener("resize", syncPhoneChrome);
+    window.visualViewport?.addEventListener("scroll", syncPhoneChrome);
+    window.addEventListener("resize", syncPhoneChrome);
+
+    selectKind("free-text");
+    placeLibraryList();
+    syncPhoneChrome();
+  }
+
   bindPaletteHeading();
   bindRailTabs();
   studioClearCvBtn?.addEventListener("click", handleClearCvClick);
   renderRail();
+  bindPhoneShell();
 
   window.AchieveMateCvBuilder = {
     render: renderRail,
