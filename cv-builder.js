@@ -843,7 +843,7 @@
       });
     }
 
-    function bindSheetDrag(panel, { onDismiss, isActive, openDelayMs = 0 }) {
+    function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false }) {
       const handle = panel?.querySelector(".phone-sheet-handle");
       if (!panel || !handle) {
         return { hide: () => {}, show: () => {} };
@@ -859,7 +859,6 @@
       let dragY = 0;
       let restY = 0;
       let pointerId = null;
-      let showTimer = 0;
 
       const measureFullHeight = () => {
         const prevHeight = panel.style.height;
@@ -890,34 +889,38 @@
         paintOffset(restY);
       };
 
+      const snapParkedHeight = () => {
+        panel.classList.add("is-sheet-dragging");
+        if (!fullHeight) {
+          measureFullHeight();
+        }
+        applyY(restY);
+        window.requestAnimationFrame(() => {
+          panel.classList.remove("is-sheet-dragging");
+        });
+      };
+
       const hide = () => {
-        window.clearTimeout(showTimer);
         dragging = false;
         dragY = 0;
         originY = 0;
         pointerId = null;
         panel.classList.remove("is-sheet-dragging");
-        // Clear inline size so CSS can collapse; keep restY for next open.
+        if (persistParkedHeight && restY > 0) {
+          // Keep parked height while off-screen so reopen doesn't flash to max.
+          if (!fullHeight) {
+            measureFullHeight();
+          }
+          paintOffset(restY);
+          return;
+        }
         panel.style.height = "";
         panel.style.maxHeight = "";
       };
 
       const show = () => {
-        window.clearTimeout(showTimer);
-        const run = () => {
-          // Snap parked height without transitioning against the open slide.
-          panel.classList.add("is-sheet-dragging");
-          measureFullHeight();
-          applyY(restY);
-          window.requestAnimationFrame(() => {
-            panel.classList.remove("is-sheet-dragging");
-          });
-        };
-        if (openDelayMs > 0) {
-          showTimer = window.setTimeout(run, openDelayMs);
-        } else {
-          window.requestAnimationFrame(run);
-        }
+        // Apply parked height immediately (before/during slide), never after max open.
+        snapParkedHeight();
       };
 
       const onMove = (event) => {
@@ -1007,8 +1010,8 @@
       {
         isActive: () => designToggle?.getAttribute("aria-expanded") === "true",
         onDismiss: closeDesignDrawer,
-        // Wait for the slide-up transform to finish before applying parked height.
-        openDelayMs: 240,
+        // Keep parked height across close so slide-up never flashes at max height.
+        persistParkedHeight: true,
       }
     ));
 
@@ -1059,6 +1062,11 @@
     designBtn?.addEventListener("click", () => {
       closeTypeMenu();
       closeLibrarySheet();
+      const opening = designToggle?.getAttribute("aria-expanded") !== "true";
+      if (opening) {
+        // Lock parked height before the slide-up starts.
+        showDesignDrawerOffset();
+      }
       designToggle?.click();
     });
 
