@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=153" />
+  <link rel="stylesheet" href="styles.css?v=154" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -293,6 +293,63 @@
             </label>
 
             <section class="drawer-group">
+              <h3 class="drawer-group-heading" id="cv-template-heading">Template</h3>
+              <div class="cv-template-picker" role="radiogroup" aria-labelledby="cv-template-heading">
+                <label class="cv-template-choice">
+                  <input type="radio" name="cvTemplate" value="classic" checked />
+                  <span class="cv-template-sheet cv-template-sheet-classic" aria-hidden="true">
+                    <span class="cv-ts-name"></span>
+                    <span class="cv-ts-contact"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                  </span>
+                  <span class="cv-template-choice-label">Classic</span>
+                </label>
+                <label class="cv-template-choice">
+                  <input type="radio" name="cvTemplate" value="modern" />
+                  <span class="cv-template-sheet cv-template-sheet-modern" aria-hidden="true">
+                    <span class="cv-ts-name"></span>
+                    <span class="cv-ts-contact"></span>
+                    <span class="cv-ts-rule cv-ts-accent-rule"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                  </span>
+                  <span class="cv-template-choice-label">Modern</span>
+                </label>
+                <label class="cv-template-choice">
+                  <input type="radio" name="cvTemplate" value="compact" />
+                  <span class="cv-template-sheet cv-template-sheet-compact" aria-hidden="true">
+                    <span class="cv-ts-name"></span>
+                    <span class="cv-ts-contact"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-head"></span>
+                    <span class="cv-ts-rule"></span>
+                    <span class="cv-ts-line"></span>
+                    <span class="cv-ts-line cv-ts-line-short"></span>
+                    <span class="cv-ts-line"></span>
+                  </span>
+                  <span class="cv-template-choice-label">Compact</span>
+                </label>
+              </div>
+            </section>
+
+            <section class="drawer-group">
               <h3 class="drawer-group-heading">Typography</h3>
               <div class="drawer-group-body">
                 <label class="drawer-field">
@@ -529,13 +586,13 @@
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=53"></script>
   <script src="cv-history.js?v=3"></script>
   <script src="drag-preview.js?v=8"></script>
   <script src="cv-builder.js?v=38"></script>
-  <script src="cv-pdf.js?v=5"></script>
-  <script src="cv-preview.js?v=86"></script>
-  <script src="cv-layout-panel.js?v=11"></script>
+  <script src="cv-pdf.js?v=6"></script>
+  <script src="cv-preview.js?v=87"></script>
+  <script src="cv-layout-panel.js?v=12"></script>
   <script src="sidebar.js?v=6"></script>
   <script src="workspace-tabs.js?v=14"></script>
 </body>
