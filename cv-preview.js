@@ -2648,6 +2648,121 @@
     });
   }
 
+  const mobileReorderQuery = window.matchMedia("(max-width: 900px)");
+  let mobileReorderId = null;
+
+  function isMobileReorderViewport() {
+    return mobileReorderQuery.matches;
+  }
+
+  function stepLayoutItem(layoutItemId, direction) {
+    const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    commitActivePreviewEdit();
+
+    if (direction < 0) {
+      if (currentIndex === 0) {
+        return;
+      }
+      window.AchieveMateCvBuilder?.moveLayoutItem(currentIndex, currentIndex - 1);
+      return;
+    }
+
+    if (currentIndex >= state.cvLayout.length - 1) {
+      return;
+    }
+
+    // moveLayoutItem's toIndex is a pre-removal slot; +2 shifts one place down.
+    window.AchieveMateCvBuilder?.moveLayoutItem(currentIndex, currentIndex + 2);
+  }
+
+  function syncMobileReorder(preferredId) {
+    const bar = document.getElementById("cvMobileReorder");
+    if (!bar || !cvPreview) {
+      return;
+    }
+
+    const items = state.cvLayout || [];
+    const narrow = isMobileReorderViewport() && items.length > 0;
+    if (!narrow) {
+      bar.hidden = true;
+      mobileReorderId = null;
+      cvPreview.querySelectorAll(".cv-section-wrap.is-mobile-reorder-target").forEach((wrap) => {
+        wrap.classList.remove("is-mobile-reorder-target");
+        wrap.removeAttribute("aria-current");
+      });
+      return;
+    }
+
+    const requested = preferredId || mobileReorderId;
+    if (requested && items.some((item) => item.id === requested)) {
+      mobileReorderId = requested;
+    } else {
+      mobileReorderId = items[0].id;
+    }
+
+    const index = items.findIndex((item) => item.id === mobileReorderId);
+    bar.hidden = false;
+    const up = document.getElementById("cvMobileMoveUp");
+    const down = document.getElementById("cvMobileMoveDown");
+    if (up) {
+      up.disabled = index <= 0;
+    }
+    if (down) {
+      down.disabled = index < 0 || index >= items.length - 1;
+    }
+
+    cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
+      const selected = wrap.dataset.layoutItemId === mobileReorderId;
+      wrap.classList.toggle("is-mobile-reorder-target", selected);
+      if (selected) {
+        wrap.setAttribute("aria-current", "true");
+      } else {
+        wrap.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  function bindMobileReorder() {
+    const up = document.getElementById("cvMobileMoveUp");
+    const down = document.getElementById("cvMobileMoveDown");
+    if (!cvPreview || !up || !down) {
+      return;
+    }
+
+    up.addEventListener("click", () => {
+      stepLayoutItem(mobileReorderId, -1);
+    });
+    down.addEventListener("click", () => {
+      stepLayoutItem(mobileReorderId, 1);
+    });
+
+    cvPreview.addEventListener("pointerdown", (event) => {
+      if (!isMobileReorderViewport() || event.button !== 0) {
+        return;
+      }
+      const wrap = event.target.closest?.(".cv-section-wrap");
+      if (!wrap || !cvPreview.contains(wrap)) {
+        return;
+      }
+      if (event.target.closest(".cv-section-save, .cv-section-remove")) {
+        return;
+      }
+      mobileReorderId = wrap.dataset.layoutItemId || mobileReorderId;
+      syncMobileReorder(mobileReorderId);
+    });
+
+    const onViewportChange = () => syncMobileReorder();
+    if (typeof mobileReorderQuery.addEventListener === "function") {
+      mobileReorderQuery.addEventListener("change", onViewportChange);
+    } else {
+      mobileReorderQuery.addListener(onViewportChange);
+    }
+  }
+
   function bindSectionHandles() {
     cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
       const layoutItemId = wrap.dataset.layoutItemId;
@@ -3624,6 +3739,7 @@
     bindEditableNodes();
     bindSkillsSections();
     bindSectionHandles();
+    syncMobileReorder(focusItemId);
     scheduleSmartLayout({
       onComplete: () => {
         restorePreviewScroll(preservedScroll);
@@ -4263,6 +4379,7 @@
   bindPreviewZoomControls();
   bindDocumentDragDrop();
   bindPreviewPointerInteraction();
+  bindMobileReorder();
   applyPreviewZoom();
   scheduleFitPreview();
 
