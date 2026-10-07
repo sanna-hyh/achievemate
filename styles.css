@@ -3889,8 +3889,14 @@ body.is-phone-keyboard {
     padding-right: 0;
   }
 
+  .studio-well .cv-preview-wrap,
+  .studio-well .cv-preview-wrap * {
+    touch-action: none;
+  }
+
   .studio-well .cv-preview-wrap {
     padding-bottom: calc(16px + var(--phone-strip-h) + var(--phone-safe-bottom, 0px) + var(--phone-keyboard-inset, 0px));
+    overscroll-behavior: none;
   }
 
   .studio-well:has(.cv-mobile-reorder:not([hidden])) .cv-preview-wrap {
@@ -4392,6 +4398,10 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
   .studio-well .cv-preview-wrap {
     overflow-x: hidden;
+  }
+
+  .studio-well .cv-preview-wrap.is-zoomed {
+    overflow-x: auto;
   }
 
   body.is-phone-keyboard .studio-well .cv-preview-wrap {

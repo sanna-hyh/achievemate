@@ -1253,15 +1253,13 @@
       return false;
     }
 
-    const { wrap, docW, docH, availableW, baseFitScale: nextBaseFitScale } = metrics;
+    const { wrap, docW, docH, baseFitScale: nextBaseFitScale } = metrics;
+    consumePhoneWidthFit(metrics);
     const preservedScroll = options.resetScroll ? null : capturePreviewScroll();
     baseFitScale = nextBaseFitScale;
     userZoom = Math.max(MIN_USER_ZOOM, Math.min(MAX_USER_ZOOM, userZoom));
 
-    let scale = baseFitScale * userZoom;
-    if (isMobileReorderViewport() && docW > 0) {
-      scale = Math.min(scale, availableW / docW);
-    }
+    const scale = baseFitScale * userZoom;
     cvPreview.style.transform = `scale(${scale})`;
     cvPreview.style.transformOrigin = "top left";
     cvPreviewScaler.style.width = `${docW * scale}px`;
@@ -1280,9 +1278,6 @@
     } else {
       restorePreviewScroll(preservedScroll);
     }
-    if (isMobileReorderViewport()) {
-      wrap.scrollLeft = 0;
-    }
 
     if (isAtDefaultZoomLevel()) {
       updatePreviewZoomChip();
@@ -1294,9 +1289,84 @@
     return true;
   }
 
-  function setUserZoom(nextZoom) {
+  let phoneWidthFitPending = true;
+
+  function isPhonePreviewViewport() {
+    return window.matchMedia("(max-width: 900px)").matches;
+  }
+
+  function consumePhoneWidthFit(metrics) {
+    if (!phoneWidthFitPending) {
+      return;
+    }
+    phoneWidthFitPending = false;
+    if (!isPhonePreviewViewport()) {
+      return;
+    }
+
+    const widthFitZoom = metrics.availableW / metrics.docW / metrics.baseFitScale;
+    if (!Number.isFinite(widthFitZoom) || widthFitZoom <= 0) {
+      return;
+    }
+
+    // Width-fit on the first phone paint. Desktop keeps DEFAULT_USER_ZOOM.
+    userZoom = Math.max(MIN_USER_ZOOM, Math.min(MAX_USER_ZOOM, widthFitZoom));
+  }
+
+  function scalerContentPoint(clientX, clientY) {
+    if (!cvPreviewScaler || !cvPreview) {
+      return null;
+    }
+
+    const rect = cvPreviewScaler.getBoundingClientRect();
+    const docW = cvPreview.offsetWidth;
+    const docH = cvPreview.offsetHeight;
+    if (rect.width <= 0 || rect.height <= 0 || docW <= 0 || docH <= 0) {
+      return null;
+    }
+
+    return {
+      x: ((clientX - rect.left) / rect.width) * docW,
+      y: ((clientY - rect.top) / rect.height) * docH,
+      docW,
+      docH,
+    };
+  }
+
+  function panWrapToContentPoint(wrap, point, clientX, clientY, scale) {
+    const wrapRect = wrap.getBoundingClientRect();
+    const style = getComputedStyle(wrap);
+    const padLeft = parseFloat(style.paddingLeft) || 0;
+    const padTop = parseFloat(style.paddingTop) || 0;
+    const padRight = parseFloat(style.paddingRight) || 0;
+    const padBottom = parseFloat(style.paddingBottom) || 0;
+    const borderLeft = parseFloat(style.borderLeftWidth) || 0;
+    const borderTop = parseFloat(style.borderTopWidth) || 0;
+    const localX = clientX - wrapRect.left - borderLeft - padLeft;
+    const localY = clientY - wrapRect.top - borderTop - padTop;
+    const innerW = wrap.clientWidth - padLeft - padRight;
+    const innerH = wrap.clientHeight - padTop - padBottom;
+
+    if (point.docW * scale > innerW + 0.5) {
+      wrap.scrollLeft = point.x * scale - localX;
+    }
+    if (point.docH * scale > innerH + 0.5) {
+      wrap.scrollTop = point.y * scale - localY;
+    }
+  }
+
+  function setUserZoom(nextZoom, options = {}) {
     userZoom = Math.max(MIN_USER_ZOOM, Math.min(MAX_USER_ZOOM, nextZoom));
     applyPreviewZoom();
+
+    const anchor = options.anchor;
+    if (anchor?.point) {
+      const wrap = getPreviewWrap();
+      if (wrap?.classList.contains("is-zoomed")) {
+        panWrapToContentPoint(wrap, anchor.point, anchor.clientX, anchor.clientY, baseFitScale * userZoom);
+      }
+    }
+
     updatePreviewZoomChip({ reveal: true });
   }
 
@@ -1434,6 +1504,152 @@
         fitPreviewToScreen();
       }
     });
+
+    bindPreviewTouchZoom();
+  }
+
+  function bindPreviewTouchZoom() {
+    const wrap = getPreviewWrap();
+    if (!wrap) {
+      return;
+    }
+
+    let previewTouch = null;
+
+    function touchSkipsPan(target) {
+      return (
+        target instanceof Element &&
+        Boolean(target.closest("button, a, input, textarea, select, [contenteditable='true'].is-editing"))
+      );
+    }
+
+    wrap.addEventListener(
+      "touchstart",
+      (event) => {
+        if (!isPhonePreviewViewport() || !isStudioViewActive()) {
+          return;
+        }
+
+        if (event.touches.length >= 2) {
+          event.preventDefault();
+          const [a, b] = event.touches;
+          const midX = (a.clientX + b.clientX) / 2;
+          const midY = (a.clientY + b.clientY) / 2;
+          previewTouch = {
+            mode: "pinch",
+            distance: Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)),
+            zoom: userZoom,
+            point: scalerContentPoint(midX, midY),
+          };
+          return;
+        }
+
+        if (event.touches.length === 1 && wrap.classList.contains("is-zoomed") && !touchSkipsPan(event.target)) {
+          const touch = event.touches[0];
+          previewTouch = {
+            mode: "pan",
+            x: touch.clientX,
+            y: touch.clientY,
+            scrollLeft: wrap.scrollLeft,
+            scrollTop: wrap.scrollTop,
+            moved: false,
+          };
+        }
+      },
+      { passive: false, capture: true }
+    );
+
+    wrap.addEventListener(
+      "touchmove",
+      (event) => {
+        if (!isPhonePreviewViewport()) {
+          return;
+        }
+
+        if (event.touches.length >= 2) {
+          event.preventDefault();
+        }
+
+        if (!previewTouch) {
+          return;
+        }
+
+        if (previewTouch.mode === "pinch" && event.touches.length >= 2) {
+          const [a, b] = event.touches;
+          const dist = Math.max(1, Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY));
+          const midX = (a.clientX + b.clientX) / 2;
+          const midY = (a.clientY + b.clientY) / 2;
+          setUserZoom(previewTouch.zoom * (dist / previewTouch.distance), {
+            anchor: previewTouch.point
+              ? { point: previewTouch.point, clientX: midX, clientY: midY }
+              : null,
+          });
+          return;
+        }
+
+        if (previewTouch.mode === "pan" && event.touches.length === 1) {
+          const touch = event.touches[0];
+          const dx = touch.clientX - previewTouch.x;
+          const dy = touch.clientY - previewTouch.y;
+          if (!previewTouch.moved && Math.hypot(dx, dy) < 3) {
+            return;
+          }
+          previewTouch.moved = true;
+          event.preventDefault();
+          wrap.scrollLeft = previewTouch.scrollLeft - dx;
+          wrap.scrollTop = previewTouch.scrollTop - dy;
+        }
+      },
+      { passive: false, capture: true }
+    );
+
+    wrap.addEventListener(
+      "touchend",
+      (event) => {
+        if (!previewTouch) {
+          return;
+        }
+        if (event.touches.length >= 2) {
+          return;
+        }
+        const moved = previewTouch.moved;
+        previewTouch = null;
+        if (moved) {
+          event.preventDefault();
+        }
+      },
+      { capture: true }
+    );
+
+    wrap.addEventListener(
+      "touchcancel",
+      () => {
+        previewTouch = null;
+      },
+      { capture: true }
+    );
+
+    wrap.addEventListener(
+      "gesturestart",
+      (event) => {
+        if (!isPhonePreviewViewport()) {
+          return;
+        }
+        event.preventDefault();
+      },
+      { passive: false }
+    );
+
+    wrap.addEventListener(
+      "gesturechange",
+      (event) => {
+        if (!isPhonePreviewViewport()) {
+          return;
+        }
+        event.preventDefault();
+      },
+      { passive: false }
+    );
   }
 
   function bindLayoutDrawerToggle() {
