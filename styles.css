@@ -3422,10 +3422,6 @@ body.layout-drawer-collapsed .studio-cockpit,
   overflow: hidden;
 }
 
-.studio-cockpit:not(.is-drawer-collapsed) .studio-well {
-  padding-right: min(300px, 92vw);
-}
-
 .studio-drawer {
   position: fixed;
   top: 0;
@@ -3930,10 +3926,6 @@ body.is-phone-keyboard {
     display: none;
   }
 
-  .studio-cockpit:not(.is-drawer-collapsed) .studio-well {
-    padding-right: 0;
-  }
-
   .studio-well .cv-preview-wrap,
   .studio-well .cv-preview-wrap * {
     touch-action: none;
@@ -4182,10 +4174,6 @@ body.is-phone-keyboard {
 .preview-zoom-chip.is-visible {
   opacity: 1;
   pointer-events: auto;
-}
-
-.studio-cockpit:not(.is-drawer-collapsed) .preview-zoom-chip {
-  left: calc((100% - min(300px, 92vw)) / 2);
 }
 
 .preview-zoom-chip[hidden] {
