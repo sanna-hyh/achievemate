@@ -1698,13 +1698,41 @@
       drawerScrim.setAttribute("aria-hidden", "true");
     }
 
+    let drawerFitToken = 0;
+
+    function syncFitDuringWellResize() {
+      const token = ++drawerFitToken;
+      if (isPhonePreviewViewport()) {
+        scheduleFitPreview();
+        return;
+      }
+
+      // Padding eases for --dur-slow (260ms). Fit on each frame so scale
+      // tracks the well, instead of popping once the slide finishes.
+      const started = performance.now();
+      const step = (now) => {
+        if (token !== drawerFitToken) {
+          return;
+        }
+        applyPreviewZoom();
+        if (now - started < 280) {
+          requestAnimationFrame(step);
+        }
+      };
+      requestAnimationFrame(step);
+    }
+
     function setDrawerOpen(isOpen) {
+      const wasOpen = isDrawerOpen();
       cockpit.classList.toggle("is-drawer-collapsed", !isOpen);
       document.body.classList.toggle("layout-drawer-collapsed", !isOpen);
       toggleBtn.setAttribute("aria-expanded", String(isOpen));
       toggleBtn.classList.toggle("is-active", isOpen);
-      scheduleFitPreview();
-      window.setTimeout(scheduleFitPreview, 320);
+      if (wasOpen === isOpen) {
+        scheduleFitPreview();
+        return;
+      }
+      syncFitDuringWellResize();
     }
 
     function isDrawerOpen() {
