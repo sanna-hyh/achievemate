@@ -598,16 +598,16 @@
 
       if (block.kind === "cv-item") {
         if (title.length || date.length) {
-          drawSplitRow(title, date, titleSize, bodySize, accentColor, textColor);
+          drawSplitRow(title, date, titleSize, bodySize, textColor, textColor);
         }
         if (subtitle.length) {
           if (title.length || date.length) {
             y += Math.max(1, sectionMargin * 0.08);
           }
-          drawWrapped(subtitle, margin, contentWidth, titleSize, accentColor, { bold: true });
+          drawWrapped(subtitle, margin, contentWidth, titleSize, textColor, { bold: true });
         }
       } else if (title.length || date.length) {
-        drawSplitRow(title, date, titleSize, bodySize, accentColor, textColor);
+        drawSplitRow(title, date, titleSize, bodySize, textColor, textColor);
       }
 
       const location = (block.location || []).filter(lineHasText);

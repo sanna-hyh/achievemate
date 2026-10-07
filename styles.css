@@ -4563,23 +4563,25 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   border: none;
   box-shadow: none;
   max-width: min(540px, 78vw);
-  color: var(--cv-accent-color, #000);
+  color: var(--cv-text-color, #000);
   font-family: var(--cv-font-family, "Times New Roman", Times, serif);
 }
 
-.cv-drag-preview-sheet .cv-preview-section-heading,
+.cv-drag-preview-sheet .cv-preview-section-heading {
+  font-family: inherit;
+  color: var(--cv-accent-color, #111);
+  margin-top: 0;
+  border-bottom-color: var(--cv-accent-color, #111);
+}
+
 .cv-drag-preview-sheet .cv-preview-entry,
 .cv-drag-preview-sheet .cv-preview-entry-title,
 .cv-drag-preview-sheet .cv-preview-entry-date,
+.cv-drag-preview-sheet .cv-preview-cv-item-subtitle,
 .cv-drag-preview-sheet .cv-preview-bullets,
 .cv-drag-preview-sheet .cv-preview-bullets li {
   font-family: inherit;
-  color: var(--cv-accent-color, #111);
-}
-
-.cv-drag-preview-sheet .cv-preview-section-heading {
-  margin-top: 0;
-  border-bottom-color: var(--cv-accent-color, #111);
+  color: var(--cv-text-color, #111);
 }
 
 .cv-drag-preview-sheet .cv-preview-entry {
@@ -5385,7 +5387,7 @@ body.is-cv-dragging .cv-preview-document {
   font-size: var(--cv-header-font);
   font-weight: 700;
   line-height: 1.25;
-  color: var(--cv-accent-color);
+  color: var(--cv-text-color);
 }
 
 .cv-preview-cv-item-location {
@@ -5497,7 +5499,7 @@ body.is-cv-dragging .cv-preview-document {
   font-size: var(--cv-header-font);
   font-weight: 700;
   line-height: 1.25;
-  color: var(--cv-accent-color);
+  color: var(--cv-text-color);
 }
 
 .cv-preview-entry-date {
@@ -5505,6 +5507,7 @@ body.is-cv-dragging .cv-preview-document {
   font-size: var(--cv-body-font);
   font-style: italic;
   white-space: nowrap;
+  color: var(--cv-text-color);
 }
 
 .cv-preview-entry-body {
