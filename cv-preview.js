@@ -828,6 +828,7 @@
     documentDragState = { layoutItemId, handled: false };
     documentDragCancelled = false;
     wrap.classList.add("is-dragging");
+    setPointerDragSelectLock(true);
 
     window.AchieveMateDragPreview?.beginPointer(wrap, {
       variant: "document",
@@ -836,21 +837,45 @@
     });
 
     sectionDragSession = { wrap, layoutItemId };
+    const pointerId = moveEvent.pointerId;
+    try {
+      wrap.setPointerCapture?.(pointerId);
+    } catch {
+      /* ignore */
+    }
 
-    const onMove = (event) => {
-      window.AchieveMateDragPreview?.movePointer(event.clientX, event.clientY);
-      const overLibrary = isPointerOverLibrary(event.clientX, event.clientY);
+    const updateInsertionFromPoint = (clientX, clientY) => {
+      const overLibrary = isPointerOverLibrary(clientX, clientY);
       setLibraryDropActive(overLibrary);
-      if (!overLibrary && isPointerOverDocument(event.clientX, event.clientY)) {
-        showInsertionLine(resolveDropIndex(getPreviewBody(), event.clientY));
+      if (overLibrary) {
+        hideInsertionLine();
+        return;
+      }
+      if (isPointerOverReorderSurface(clientX, clientY)) {
+        showInsertionLine(resolveDropIndex(getPreviewBody(), clientY));
       } else {
         hideInsertionLine();
       }
     };
 
+    updateInsertionFromPoint(moveEvent.clientX, moveEvent.clientY);
+
+    const onMove = (event) => {
+      if (pointerId != null && event.pointerId !== pointerId) {
+        return;
+      }
+      event.preventDefault();
+      window.AchieveMateDragPreview?.movePointer(event.clientX, event.clientY);
+      updateInsertionFromPoint(event.clientX, event.clientY);
+    };
+
     const onUp = (event) => {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      if (pointerId != null && event.pointerId !== pointerId) {
+        return;
+      }
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
 
       const builder = window.AchieveMateCvBuilder;
       hideInsertionLine();
@@ -862,7 +887,7 @@
           documentDragState.handled = true;
           saveLayoutItemToLibrary(layoutItemId);
           refreshLibrarySaveButton(layoutItemId);
-        } else if (currentIndex !== -1 && isPointerOverDocument(event.clientX, event.clientY)) {
+        } else if (currentIndex !== -1 && isPointerOverReorderSurface(event.clientX, event.clientY)) {
           const index = resolveDropIndex(getPreviewBody(), event.clientY);
           documentDragState.handled = true;
           builder.moveLayoutItem(currentIndex, index);
@@ -880,10 +905,16 @@
       window.AchieveMateDrag.payload = null;
       window.AchieveMateDragPreview?.end();
       clearSectionPointer();
+      try {
+        wrap.releasePointerCapture?.(pointerId);
+      } catch {
+        /* ignore */
+      }
     };
 
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove, { passive: false });
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
   }
 
   function bindPreviewPointerInteraction() {
@@ -2626,6 +2657,23 @@
     return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
   }
 
+  function isPointerOverReorderSurface(clientX, clientY) {
+    const surface = getPreviewWrap() || cvPreview;
+    if (!surface) {
+      return false;
+    }
+    const rect = surface.getBoundingClientRect();
+    // Mobile handles sit in the left gutter outside the paper; keep Y-based drops alive there.
+    const leftPad = isMobileReorderViewport() ? 80 : 12;
+    const rightPad = 24;
+    return (
+      clientX >= rect.left - leftPad &&
+      clientX <= rect.right + rightPad &&
+      clientY >= rect.top - 8 &&
+      clientY <= rect.bottom + 8
+    );
+  }
+
   function getInsertionLine() {
     return cvPreview?.querySelector(".cv-insertion-line");
   }
@@ -3183,8 +3231,27 @@
 
       wrap.draggable = false;
 
+      handle?.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !isMobileReorderViewport()) {
+          return;
+        }
+        if (sectionDragSession || documentDragState) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        mobileReorderId = layoutItemId;
+        syncMobileReorder(layoutItemId);
+        startPointerSectionDrag(wrap, layoutItemId, event);
+      });
+
       handle?.addEventListener("dragstart", (event) => {
         event.stopPropagation();
+        if (isMobileReorderViewport()) {
+          // Touch/pointer path owns mobile reorder so the yellow landing line can update.
+          event.preventDefault();
+          return;
+        }
         beginDocumentDrag(wrap, layoutItemId, event, handle);
       });
 

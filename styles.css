@@ -4441,6 +4441,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     max-width: 48px;
     height: 48px;
     font-size: 1.4rem;
+    touch-action: none;
   }
 
   .cv-section-save {
