@@ -424,6 +424,7 @@
     experience: { sectionTitle: "Experience", historyLabel: "Add Experience" },
     education: { sectionTitle: "Education", historyLabel: "Add Education" },
     skills: { historyLabel: "Add Skills", layoutType: "skills" },
+    heading: { historyLabel: "Add heading", layoutType: "heading" },
     "free-text": { sectionTitle: null, historyLabel: "Add CV item" },
   };
 
@@ -435,6 +436,10 @@
 
     if (config.layoutType === "skills") {
       const item = createLayoutItem("skills");
+      next.splice(insertAt, 0, item);
+      focusId = item.id;
+    } else if (config.layoutType === "heading") {
+      const item = createLayoutItem("heading");
       next.splice(insertAt, 0, item);
       focusId = item.id;
     } else {

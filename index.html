@@ -207,6 +207,16 @@
               type="button"
               class="rail-block rail-block-add cv-draggable"
               draggable="true"
+              data-add-kind="heading"
+              data-source="palette"
+              title="Section heading"
+            >
+              <span class="rail-block-label">+ Heading</span>
+            </button>
+            <button
+              type="button"
+              class="rail-block rail-block-add cv-draggable"
+              draggable="true"
               data-add-kind="experience"
               data-source="palette"
             >
@@ -516,6 +526,9 @@
             <button type="button" class="phone-type-option" role="option" data-add-kind="free-text" aria-selected="true">
               + CV item
             </button>
+            <button type="button" class="phone-type-option" role="option" data-add-kind="heading" aria-selected="false">
+              + Heading
+            </button>
             <button type="button" class="phone-type-option" role="option" data-add-kind="experience" aria-selected="false">
               + Experience
             </button>
@@ -588,8 +601,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="app.js?v=53"></script>
   <script src="cv-history.js?v=3"></script>
-  <script src="drag-preview.js?v=8"></script>
-  <script src="cv-builder.js?v=38"></script>
+  <script src="drag-preview.js?v=9"></script>
+  <script src="cv-builder.js?v=39"></script>
   <script src="cv-pdf.js?v=6"></script>
   <script src="cv-preview.js?v=87"></script>
   <script src="cv-layout-panel.js?v=12"></script>
