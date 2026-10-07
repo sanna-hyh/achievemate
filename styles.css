@@ -4400,13 +4400,29 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     touch-action: manipulation;
   }
 
+  .cv-section-wrap.is-mobile-reorder-target,
+  .cv-section-wrap:has([data-edit-key]:focus),
+  .cv-section-wrap:has(.cv-skill-input:focus) {
+    padding-right: 76px;
+  }
+
   .cv-section-handles {
-    left: -68px;
+    left: auto;
+    right: 0;
     top: 0;
-    bottom: 0;
-    width: 44px;
-    align-items: flex-start;
-    justify-content: flex-start;
+    bottom: auto;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+  }
+
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .cv-section-handles .cv-section-handle,
@@ -4423,7 +4439,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   .cv-section-handles .cv-section-remove {
     width: 22px;
     height: 22px;
-    margin-top: auto;
+    margin-top: 0;
     font-size: 0.75rem;
     line-height: 1;
     color: rgba(70, 70, 70, 0.5);
