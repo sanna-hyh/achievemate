@@ -4390,9 +4390,14 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     min-width: 44px;
   }
 
+  .studio-well .cv-preview-wrap {
+    overflow-x: hidden;
+  }
+
   body.is-phone-keyboard .studio-well .cv-preview-wrap {
     display: block;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .cv-preview-document [data-edit-key],

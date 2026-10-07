@@ -1253,12 +1253,15 @@
       return false;
     }
 
-    const { wrap, docW, docH, baseFitScale: nextBaseFitScale } = metrics;
+    const { wrap, docW, docH, availableW, baseFitScale: nextBaseFitScale } = metrics;
     const preservedScroll = options.resetScroll ? null : capturePreviewScroll();
     baseFitScale = nextBaseFitScale;
     userZoom = Math.max(MIN_USER_ZOOM, Math.min(MAX_USER_ZOOM, userZoom));
 
-    const scale = baseFitScale * userZoom;
+    let scale = baseFitScale * userZoom;
+    if (isMobileReorderViewport() && docW > 0) {
+      scale = Math.min(scale, availableW / docW);
+    }
     cvPreview.style.transform = `scale(${scale})`;
     cvPreview.style.transformOrigin = "top left";
     cvPreviewScaler.style.width = `${docW * scale}px`;
@@ -1276,6 +1279,9 @@
       wrap.scrollLeft = 0;
     } else {
       restorePreviewScroll(preservedScroll);
+    }
+    if (isMobileReorderViewport()) {
+      wrap.scrollLeft = 0;
     }
 
     if (isAtDefaultZoomLevel()) {
