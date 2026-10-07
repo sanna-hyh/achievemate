@@ -24,6 +24,7 @@ const CUSTOM_DEFAULT_FIELDS = [
   "itemGap",
   "pageMargin",
   "autoFit",
+  "template",
 ];
 
 const DEFAULT_CV_SETTINGS = {
@@ -39,6 +40,7 @@ const DEFAULT_CV_SETTINGS = {
   itemGap: 4,
   pageMargin: "normal",
   autoFit: false,
+  template: "classic",
 };
 
 /** Shared Auto-fit / Design / PDF typography floor — keep canvas, Design, and PDF agreed. */

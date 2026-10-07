@@ -116,6 +116,13 @@
     }
 
     form.autoFit.checked = styles.autoFit === true;
+
+    const template = styles.template === "modern" || styles.template === "compact" ? styles.template : "classic";
+    const templateInput = form.querySelector(`input[name="cvTemplate"][value="${template}"]`);
+    if (templateInput) {
+      templateInput.checked = true;
+    }
+
     syncColorSwatches();
     syncAutoFitUi();
     updateOutputs();
@@ -174,6 +181,7 @@
     const typography = window.AchieveMateApp?.CV_TYPOGRAPHY;
     const minBody = typography?.minBodyPt ?? 10;
     const maxBody = typography?.maxBodyPt ?? 12;
+    const pickedTemplate = form.querySelector('input[name="cvTemplate"]:checked')?.value;
 
     state.cvSettings = {
       fontFamily: form.fontFamily.value,
@@ -188,6 +196,7 @@
       pageMargin: form.querySelector('input[name="pageMargin"]:checked')?.value || "normal",
       headingDivider: form.querySelector('input[name="headingDivider"]:checked')?.value || "solid",
       autoFit: form.autoFit.checked,
+      template: pickedTemplate === "modern" || pickedTemplate === "compact" ? pickedTemplate : "classic",
     };
     saveCvSettings();
     saveState();

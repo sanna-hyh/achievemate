@@ -2018,6 +2018,17 @@
     "cv-heading-divider-none",
   ];
 
+  const CV_TEMPLATE_CLASSES = ["cv-template-classic", "cv-template-modern", "cv-template-compact"];
+
+  function normalizeCvTemplate(value) {
+    return value === "modern" || value === "compact" ? value : "classic";
+  }
+
+  function accentIsDefaultInk(color) {
+    const hex = String(color || "").trim().toLowerCase();
+    return hex === "#000" || hex === "#000000" || hex === "black";
+  }
+
   function applyHeadingDividerStyles(styles) {
     const divider = styles.headingDivider ?? "solid";
     const normalizedDivider = ["solid", "dotted", "none"].includes(divider) ? divider : "solid";
@@ -2029,8 +2040,17 @@
   function applyLayoutStyles() {
     const styles = getLayoutStyles();
     const pagePadding = PAGE_MARGIN_MAP[styles.pageMargin] || PAGE_MARGIN_MAP.normal;
+    const template = normalizeCvTemplate(styles.template);
 
     applyHeadingDividerStyles(styles);
+    cvPreview.classList.remove(...CV_TEMPLATE_CLASSES);
+    cvPreview.classList.add(`cv-template-${template}`);
+    cvPreview.dataset.cvTemplate = template;
+    if (template === "modern" && !accentIsDefaultInk(styles.accentColor)) {
+      cvPreview.style.setProperty("--cv-modern-heading", styles.accentColor);
+    } else {
+      cvPreview.style.removeProperty("--cv-modern-heading");
+    }
 
     cvPreview.style.setProperty("--cv-font-family", fontFamilyStack(styles.fontFamily));
     cvPreview.style.setProperty("--cv-text-color", styles.textColor || "#000000");
@@ -4777,6 +4797,7 @@
       sectionMarginPt: readCssPt("--cv-section-margin", (styles.sectionGap ?? 12) * 0.75),
       itemGapPt: readCssPt("--cv-item-gap", (styles.itemGap ?? 4) * 0.75),
       headingDivider: styles.headingDivider || "solid",
+      template: normalizeCvTemplate(styles.template),
       name: nameLines,
       contact: exportFieldLines(contactValue, "Phone | Email"),
       blocks,

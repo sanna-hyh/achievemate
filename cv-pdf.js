@@ -210,10 +210,30 @@
     const titleSize = positivePt(model.titlePt, bodySize);
     const nameSize = positivePt(model.namePt, 20);
     const headingSize = positivePt(model.headingPt, 13);
-    const lineHeight = positivePt(model.lineHeight, 1.3);
-    const sectionGap = finitePt(model.sectionGapPt, 9);
-    const sectionMargin = finitePt(model.sectionMarginPt, sectionGap);
-    const itemGap = finitePt(model.itemGapPt, 3);
+    const template = ["classic", "modern", "compact"].includes(model.template)
+      ? model.template
+      : "classic";
+    const modernCobalt = [30, 77, 140];
+    const modernGold = [196, 161, 90];
+    const accentIsInk = accentColor[0] <= 8 && accentColor[1] <= 8 && accentColor[2] <= 8;
+    let lineHeight = positivePt(model.lineHeight, 1.3);
+    let sectionGap = finitePt(model.sectionGapPt, 9);
+    let sectionMargin = finitePt(model.sectionMarginPt, sectionGap);
+    let itemGap = finitePt(model.itemGapPt, 3);
+    let nameDrawSize = nameSize;
+    let nameInk = accentColor;
+    let headingInk = accentColor;
+    if (template === "compact") {
+      lineHeight = Math.max(1.1, lineHeight * 0.92);
+      sectionGap = Math.max(1.5, sectionGap * 0.5);
+      sectionMargin = Math.max(1.5, sectionMargin * 0.5);
+      itemGap = Math.max(0.4, itemGap * 0.4);
+    }
+    if (template === "modern") {
+      nameDrawSize = Math.min(nameSize * 1.14, 30);
+      nameInk = textColor;
+      headingInk = accentIsInk ? modernCobalt : accentColor;
+    }
     const divider = ["solid", "dotted", "none"].includes(model.headingDivider)
       ? model.headingDivider
       : "solid";
@@ -526,14 +546,14 @@
       }
       const box = headingSize * 1.25;
       const padBottom = Math.max(2, sectionMargin * 0.2);
-      drawWrapped(lines, margin, contentWidth, headingSize, accentColor, {
+      drawWrapped(lines, margin, contentWidth, headingSize, headingInk, {
         bold: true,
         leading: 1.25,
       });
       y += Math.max(0, padBottom - (box - headingSize));
       if (divider !== "none") {
         ensureSpace(6);
-        doc.setDrawColor(accentColor[0], accentColor[1], accentColor[2]);
+        doc.setDrawColor(headingInk[0], headingInk[1], headingInk[2]);
         doc.setLineWidth(0.8);
         if (divider === "dotted") {
           doc.setLineDashPattern([1, 1.6], 0);
@@ -612,10 +632,10 @@
       return true;
     }
 
-    const drewName = drawHeader(model.name, nameSize, accentColor, {
+    const drewName = drawHeader(model.name, nameDrawSize, nameInk, {
       bold: true,
       align: "center",
-      leading: 1.15,
+      leading: template === "modern" ? 1.05 : 1.15,
     });
     if (drewName) {
       y += Math.max(1, sectionMargin * 0.15);
@@ -627,6 +647,15 @@
     });
     if (drewContact) {
       headerDrawn = true;
+    }
+    if (template === "modern" && (drewName || drewContact)) {
+      y += 3.5;
+      ensureSpace(5);
+      doc.setDrawColor(modernGold[0], modernGold[1], modernGold[2]);
+      doc.setLineWidth(1.15);
+      doc.setLineDashPattern([], 0);
+      doc.line(margin, y, margin + contentWidth, y);
+      y += 5;
     }
 
     function blockHasContent(block) {
