@@ -831,6 +831,96 @@
       });
     }
 
+    function bindSheetDrag(panel, { onDismiss, isActive }) {
+      const handle = panel?.querySelector(".phone-sheet-handle");
+      if (!panel || !handle) {
+        return;
+      }
+
+      const DISMISS_PX = 112;
+      let dragging = false;
+      let startY = 0;
+      let dragY = 0;
+      let pointerId = null;
+
+      const clearDragTransform = () => {
+        panel.style.transform = "";
+        panel.classList.remove("is-sheet-dragging");
+      };
+
+      const onMove = (event) => {
+        if (!dragging || (pointerId != null && event.pointerId !== pointerId)) {
+          return;
+        }
+        event.preventDefault();
+        dragY = Math.max(0, event.clientY - startY);
+        panel.style.transform = `translateY(${dragY}px)`;
+      };
+
+      const onUp = (event) => {
+        if (!dragging || (pointerId != null && event.pointerId !== pointerId)) {
+          return;
+        }
+        dragging = false;
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup", onUp);
+        document.removeEventListener("pointercancel", onUp);
+        try {
+          handle.releasePointerCapture?.(pointerId);
+        } catch {
+          /* ignore */
+        }
+
+        const shouldDismiss = dragY >= DISMISS_PX;
+        clearDragTransform();
+        dragY = 0;
+        pointerId = null;
+        if (shouldDismiss) {
+          onDismiss?.();
+        }
+      };
+
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !isPhoneShell()) {
+          return;
+        }
+        if (typeof isActive === "function" && !isActive()) {
+          return;
+        }
+        if (dragging) {
+          return;
+        }
+        dragging = true;
+        startY = event.clientY;
+        dragY = 0;
+        pointerId = event.pointerId;
+        panel.classList.add("is-sheet-dragging");
+        panel.style.transform = "translateY(0px)";
+        try {
+          handle.setPointerCapture?.(pointerId);
+        } catch {
+          /* ignore */
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        document.addEventListener("pointermove", onMove, { passive: false });
+        document.addEventListener("pointerup", onUp);
+        document.addEventListener("pointercancel", onUp);
+      });
+    }
+
+    const libraryPanel = librarySheet?.querySelector(".phone-sheet-panel");
+    bindSheetDrag(libraryPanel, {
+      isActive: () => Boolean(librarySheet && !librarySheet.hidden),
+      onDismiss: closeLibrarySheet,
+    });
+
+    const designDrawer = document.getElementById("cvLayoutDrawer");
+    bindSheetDrag(designDrawer, {
+      isActive: () => designToggle?.getAttribute("aria-expanded") === "true",
+      onDismiss: closeDesignDrawer,
+    });
+
     addBtn.addEventListener("click", () => {
       closeTypeMenu();
       closeLibrarySheet();
