@@ -5593,10 +5593,34 @@ body.is-cv-dragging .cv-preview-document {
   font-style: italic;
 }
 
+/* Keep Accent/Content field colors while editing — don't force black/text. */
 .cv-preview-document [contenteditable="true"].is-editing {
-  color: var(--cv-text-color, #000);
   opacity: 1;
+}
+
+.cv-preview-document .cv-preview-name.is-editing,
+.cv-preview-document .cv-preview-section-heading.is-editing {
+  color: var(--cv-accent-color);
   font-style: normal;
+}
+
+.cv-preview-document .cv-preview-entry-title.is-editing,
+.cv-preview-document .cv-preview-entry-date.is-editing,
+.cv-preview-document .cv-preview-cv-item-subtitle.is-editing,
+.cv-preview-document .cv-preview-cv-item-location.is-editing,
+.cv-preview-document .cv-preview-description.is-editing,
+.cv-preview-document .cv-preview-contact.is-editing {
+  color: var(--cv-text-color);
+}
+
+.cv-preview-document .cv-preview-entry-date.is-editing,
+.cv-preview-document .cv-preview-contact.is-editing {
+  font-style: italic;
+}
+
+.cv-preview-document ::selection {
+  background: color-mix(in srgb, var(--cv-text-color, #000) 22%, transparent);
+  color: inherit;
 }
 
 .export-history-panel {
