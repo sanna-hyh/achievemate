@@ -1703,6 +1703,8 @@
       document.body.classList.toggle("layout-drawer-collapsed", !isOpen);
       toggleBtn.setAttribute("aria-expanded", String(isOpen));
       toggleBtn.classList.toggle("is-active", isOpen);
+      scheduleFitPreview();
+      window.setTimeout(scheduleFitPreview, 320);
     }
 
     function isDrawerOpen() {

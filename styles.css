@@ -3420,6 +3420,11 @@ body.layout-drawer-collapsed .studio-cockpit,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  transition: padding-right var(--dur-slow) var(--ease-in-out);
+}
+
+.studio-cockpit:not(.is-drawer-collapsed) .studio-well {
+  padding-right: min(300px, 92vw);
 }
 
 .studio-drawer {
@@ -3434,19 +3439,13 @@ body.layout-drawer-collapsed .studio-cockpit,
   border-left: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-overlay);
   transform: translateX(0);
-  visibility: visible;
-  transition:
-    transform var(--dur-slow) var(--ease-in-out),
-    visibility 0s linear 0s;
+  transition: transform var(--dur-slow) var(--ease-in-out);
 }
 
 .studio-cockpit.is-drawer-collapsed .studio-drawer {
   transform: translateX(100%);
   pointer-events: none;
   visibility: hidden;
-  transition:
-    transform var(--dur-slow) var(--ease-in-out),
-    visibility 0s linear var(--dur-slow);
 }
 
 .studio-drawer-inner {
@@ -3926,6 +3925,10 @@ body.is-phone-keyboard {
     display: none;
   }
 
+  .studio-cockpit:not(.is-drawer-collapsed) .studio-well {
+    padding-right: 0;
+  }
+
   .studio-well .cv-preview-wrap,
   .studio-well .cv-preview-wrap * {
     touch-action: none;
@@ -4065,8 +4068,6 @@ body.is-phone-keyboard {
     /* Keep visible so the slide-up transition can run (base rule uses visibility:hidden). */
     visibility: visible;
     pointer-events: none;
-    /* Stay on the phone timing; don't inherit the desktop visibility delay. */
-    transition: transform 220ms var(--ease-out);
   }
 
   .phone-strip {
@@ -4174,6 +4175,10 @@ body.is-phone-keyboard {
 .preview-zoom-chip.is-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+.studio-cockpit:not(.is-drawer-collapsed) .preview-zoom-chip {
+  left: calc((100% - min(300px, 92vw)) / 2);
 }
 
 .preview-zoom-chip[hidden] {
