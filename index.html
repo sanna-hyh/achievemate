@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=151" />
+  <link rel="stylesheet" href="styles.css?v=152" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -441,32 +441,34 @@
     </div>
 
     <div class="phone-strip" id="phoneStrip">
-      <button type="button" class="phone-strip-add" id="phoneAddBtn" aria-label="Add CV item">+</button>
-      <div class="phone-type">
-        <button
-          type="button"
-          class="phone-type-btn"
-          id="phoneTypeBtn"
-          aria-haspopup="listbox"
-          aria-expanded="false"
-          aria-controls="phoneTypeMenu"
-        >
-          <span class="phone-type-label" id="phoneTypeLabel">+ CV item</span>
-          <span class="phone-type-caret" aria-hidden="true">▴</span>
-        </button>
-        <div class="phone-type-menu" id="phoneTypeMenu" role="listbox" aria-label="Block type" hidden>
-          <button type="button" class="phone-type-option" role="option" data-add-kind="free-text" aria-selected="true">
-            + CV item
+      <div class="phone-strip-add-group">
+        <button type="button" class="phone-strip-add" id="phoneAddBtn" aria-label="Add CV item">+</button>
+        <div class="phone-type">
+          <button
+            type="button"
+            class="phone-type-btn"
+            id="phoneTypeBtn"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            aria-controls="phoneTypeMenu"
+          >
+            <span class="phone-type-label" id="phoneTypeLabel">+ CV item</span>
+            <span class="phone-type-caret" aria-hidden="true">▴</span>
           </button>
-          <button type="button" class="phone-type-option" role="option" data-add-kind="experience" aria-selected="false">
-            + Experience
-          </button>
-          <button type="button" class="phone-type-option" role="option" data-add-kind="education" aria-selected="false">
-            + Education
-          </button>
-          <button type="button" class="phone-type-option" role="option" data-add-kind="skills" aria-selected="false">
-            + Skills
-          </button>
+          <div class="phone-type-menu" id="phoneTypeMenu" role="listbox" aria-label="Block type" hidden>
+            <button type="button" class="phone-type-option" role="option" data-add-kind="free-text" aria-selected="true">
+              + CV item
+            </button>
+            <button type="button" class="phone-type-option" role="option" data-add-kind="experience" aria-selected="false">
+              + Experience
+            </button>
+            <button type="button" class="phone-type-option" role="option" data-add-kind="education" aria-selected="false">
+              + Education
+            </button>
+            <button type="button" class="phone-type-option" role="option" data-add-kind="skills" aria-selected="false">
+              + Skills
+            </button>
+          </div>
         </div>
       </div>
       <button

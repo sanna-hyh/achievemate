@@ -3539,13 +3539,22 @@ body.is-phone-keyboard {
   touch-action: manipulation;
 }
 
+.phone-strip-add-group {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 0;
+}
+
 .phone-strip-add {
   flex: 0 0 auto;
   width: 40px;
   height: 40px;
   padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
+  border: 1px solid var(--brass);
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
   background: var(--brass);
   color: var(--ink-on-brass);
   font-size: 1.5rem;
@@ -3555,6 +3564,7 @@ body.is-phone-keyboard {
 
 .phone-strip-add:active {
   background: var(--brass-bright);
+  border-color: var(--brass-bright);
 }
 
 .phone-type {
@@ -3572,7 +3582,8 @@ body.is-phone-keyboard {
   height: 40px;
   padding: 0 10px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
+  border-left: 1px solid rgba(232, 180, 90, 0.35);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   background: var(--surface-2);
   color: var(--text-primary);
   font-size: 0.8125rem;
@@ -3582,6 +3593,7 @@ body.is-phone-keyboard {
 
 .phone-type-btn[aria-expanded="true"] {
   border-color: rgba(232, 180, 90, 0.45);
+  border-left-color: rgba(232, 180, 90, 0.45);
   color: var(--brass);
 }
 
