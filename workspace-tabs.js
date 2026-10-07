@@ -229,6 +229,9 @@
 
     if (viewId !== activeView) {
       applyViewChange(viewId, { focusTab });
+      if (viewId === LOGBOOK_VIEW) {
+        window.AchieveMateApp?.renderAchievements?.();
+      }
     } else {
       syncChrome(viewId);
       persistView(viewId);

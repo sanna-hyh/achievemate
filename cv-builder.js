@@ -732,6 +732,7 @@
 
     if (!Array.isArray(state.cvLibrary) || state.cvLibrary.length === 0) {
       renderLibraryEmpty();
+      window.AchieveMateApp?.renderAchievements?.();
       return;
     }
 
@@ -753,6 +754,8 @@
       bindLibraryBlock(block, entry);
       cvLibraryList.appendChild(block);
     });
+
+    window.AchieveMateApp?.renderAchievements?.();
   }
 
   function renderRail() {

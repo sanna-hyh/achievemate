@@ -610,11 +610,6 @@ function updateSidebarIdentitySummary() {
   summaryEl.textContent = nameText || emailText || phoneText;
 }
 
-function isPersonalInfoIncomplete() {
-  const { name, email, phone } = state.personalInfo;
-  return !name?.trim() || !email?.trim() || !phone?.trim();
-}
-
 function openPersonalInfoPanel() {
   window.AchieveMateSidebar?.expand({ focusPanel: "personal" });
   window.requestAnimationFrame(() => {
@@ -631,8 +626,8 @@ function updateEntryCount() {
     return;
   }
 
-  const count = state.achievements.length;
-  const nextText = `${count} achievement${count === 1 ? "" : "s"}`;
+  const count = Array.isArray(state.cvLibrary) ? state.cvLibrary.length : 0;
+  const nextText = `${count} item${count === 1 ? "" : "s"}`;
   const countChanged = logbookEntryCount.textContent !== nextText;
 
   logbookEntryCount.textContent = nextText;
@@ -953,24 +948,14 @@ function renderEmptyState() {
   const empty = document.createElement("div");
   empty.className = "empty-state";
 
-  const personalTip = isPersonalInfoIncomplete()
-    ? `
-    <div class="empty-state-personal-tip">
-      <p class="empty-state-personal-tip-title">First, add your CV header</p>
-      <p class="empty-state-personal-tip-body">Your name, phone, and email are edited at the top of your CV.</p>
-      <button type="button" class="btn btn-ghost empty-state-personal-cta">Edit on CV</button>
-    </div>
-  `
-    : "";
-
   empty.innerHTML = `
-    ${personalTip}
-    <div class="empty-state-glyph" aria-hidden="true">◈</div>
+    <div class="empty-state-glyph" aria-hidden="true">★</div>
     <h3 class="empty-state-headline">Your library is empty</h3>
-    <p class="empty-state-body">Every achievement you log becomes a building block for your CV.</p>
+    <p class="empty-state-body">Write on your CV, then press ★ to save the item into Library.</p>
+    <button type="button" class="btn btn-primary empty-state-cta">Write on CV</button>
   `;
 
-  empty.querySelector(".empty-state-personal-cta")?.addEventListener("click", () => {
+  empty.querySelector(".empty-state-cta")?.addEventListener("click", () => {
     window.AchieveMateViews?.setActiveView("studio");
   });
   achievementsList.appendChild(empty);
@@ -1871,6 +1856,54 @@ function createEditEntry(achievement) {
   return card;
 }
 
+function libraryEntryLabel(entry) {
+  const title = String(entry?.title || "").trim();
+  if (title) {
+    return title;
+  }
+  const subtitle = String(entry?.subtitle || "").trim();
+  if (subtitle) {
+    return subtitle;
+  }
+  const description = getDescriptionLines(entry?.description || "")[0];
+  return description || "Saved item";
+}
+
+function libraryEntryMeta(entry, label) {
+  return [entry?.date, entry?.subtitle, entry?.location]
+    .map((value) => String(value || "").trim())
+    .filter((value) => value && value !== label)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .join(" · ");
+}
+
+function createLibraryEntryCard(entry) {
+  const card = document.createElement("article");
+  card.className = "entry";
+  card.dataset.id = entry.id;
+
+  const title = String(entry?.title || "").trim();
+  const subtitle = String(entry?.subtitle || "").trim();
+  const label = libraryEntryLabel(entry);
+  const usedDescriptionAsLabel = !title && !subtitle;
+  const meta = libraryEntryMeta(entry, label);
+  const descriptionLines = getDescriptionLines(entry?.description || "");
+  const lines = usedDescriptionAsLabel ? descriptionLines.slice(1) : descriptionLines;
+  const bulletsMarkup = lines.length
+    ? `<ul class="entry-bullets">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
+    : "";
+
+  card.innerHTML = `
+    <div class="entry-head">
+      <h3 class="entry-title">${escapeHtml(label)}</h3>
+    </div>
+    ${meta ? `<p class="entry-library-meta">${escapeHtml(meta)}</p>` : ""}
+    ${bulletsMarkup}
+  `;
+
+  return card;
+}
+
 function renderAchievements() {
   if (!achievementsList) {
     return;
@@ -1878,6 +1911,7 @@ function renderAchievements() {
 
   const logbookView = document.getElementById("viewLogbook");
   const preservedScrollTop = logbookView?.scrollTop ?? 0;
+  const entries = Array.isArray(state.cvLibrary) ? state.cvLibrary : [];
 
   updateEntryCount();
   achievementsList.innerHTML = "";
@@ -1887,55 +1921,20 @@ function renderAchievements() {
     return;
   }
 
-  if (state.achievements.length === 0) {
+  if (entries.length === 0) {
     renderEmptyState();
     return;
   }
 
-  clampDeckFrontIndex();
+  entries.forEach((entry) => {
+    achievementsList.appendChild(createLibraryEntryCard(entry));
+  });
 
-  if (editingAchievementId) {
-    const editingAchievement = state.achievements.find((item) => item.id === editingAchievementId);
-    if (editingAchievement) {
-      achievementsList.appendChild(createEditEntry(editingAchievement));
+  window.requestAnimationFrame(() => {
+    if (logbookView) {
+      logbookView.scrollTop = preservedScrollTop;
     }
-  } else {
-    achievementsList.appendChild(createDeckStack());
-  }
-
-  const listWrap = document.createElement("section");
-  listWrap.className = "entries-list-all";
-  listWrap.setAttribute("aria-label", "All achievements");
-
-  const listHeader = document.createElement("div");
-  listHeader.className = "entries-list-all-header";
-
-  const listHeading = document.createElement("h2");
-  listHeading.className = "entries-list-all-heading";
-  listHeading.textContent = "All achievements";
-
-  const visibleAchievements = state.achievements.filter(
-    (achievement) => achievement.id !== editingAchievementId
-  );
-
-  listHeader.append(listHeading);
-
-  if (visibleAchievements.length > 0) {
-    listWrap.appendChild(listHeader);
-
-    const listBody = document.createElement("div");
-    listBody.className = "entries-list-all-body";
-    listBody.appendChild(createTimelineList(visibleAchievements));
-
-    listWrap.appendChild(listBody);
-    achievementsList.appendChild(listWrap);
-
-    window.requestAnimationFrame(() => {
-      if (logbookView) {
-        logbookView.scrollTop = preservedScrollTop;
-      }
-    });
-  }
+  });
 }
 
 function addAchievement() {
