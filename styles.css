@@ -4047,7 +4047,8 @@ body.is-phone-keyboard {
     border-top: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     transform: translateY(0);
-    transition: transform 220ms var(--ease-out), height 220ms var(--ease-out);
+    /* Transform only — height changes snap so open/park don't fight. */
+    transition: transform 220ms var(--ease-out);
     /* Above CV, below phone strip (60) — same keyboard inset as the strip. */
     z-index: 55;
   }
@@ -4064,6 +4065,9 @@ body.is-phone-keyboard {
 
   .studio-cockpit.is-drawer-collapsed .studio-drawer {
     transform: translateY(110%);
+    /* Keep visible so the slide-up transition can run (base rule uses visibility:hidden). */
+    visibility: visible;
+    pointer-events: none;
   }
 
   .phone-strip {
