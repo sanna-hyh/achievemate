@@ -837,7 +837,9 @@
         return;
       }
 
-      const DISMISS_PX = 112;
+      // Require a deep pull before dismiss so light drags only lower then snap back.
+      const dismissPx = () =>
+        Math.max(280, Math.round((panel.offsetHeight || 0) * 0.45));
       let dragging = false;
       let startY = 0;
       let dragY = 0;
@@ -871,7 +873,7 @@
           /* ignore */
         }
 
-        const shouldDismiss = dragY >= DISMISS_PX;
+        const shouldDismiss = dragY >= dismissPx();
         clearDragTransform();
         dragY = 0;
         pointerId = null;
