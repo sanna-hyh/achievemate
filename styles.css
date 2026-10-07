@@ -3420,7 +3420,6 @@ body.layout-drawer-collapsed .studio-cockpit,
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  transition: padding-right var(--dur-slow) var(--ease-in-out);
 }
 
 .studio-cockpit:not(.is-drawer-collapsed) .studio-well {

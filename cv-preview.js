@@ -1698,30 +1698,6 @@
       drawerScrim.setAttribute("aria-hidden", "true");
     }
 
-    let drawerFitToken = 0;
-
-    function syncFitDuringWellResize() {
-      const token = ++drawerFitToken;
-      if (isPhonePreviewViewport()) {
-        scheduleFitPreview();
-        return;
-      }
-
-      // Padding eases for --dur-slow (260ms). Fit on each frame so scale
-      // tracks the well, instead of popping once the slide finishes.
-      const started = performance.now();
-      const step = (now) => {
-        if (token !== drawerFitToken) {
-          return;
-        }
-        applyPreviewZoom();
-        if (now - started < 280) {
-          requestAnimationFrame(step);
-        }
-      };
-      requestAnimationFrame(step);
-    }
-
     function setDrawerOpen(isOpen) {
       const wasOpen = isDrawerOpen();
       cockpit.classList.toggle("is-drawer-collapsed", !isOpen);
@@ -1732,7 +1708,13 @@
         scheduleFitPreview();
         return;
       }
-      syncFitDuringWellResize();
+      // Drawer width is reserved immediately. Fit the final box before paint,
+      // then once more so a scrollbar from that scale cannot pop a frame later.
+      if (!applyPreviewZoom()) {
+        scheduleFitPreview();
+        return;
+      }
+      applyPreviewZoom();
     }
 
     function isDrawerOpen() {
