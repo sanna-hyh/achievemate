@@ -801,11 +801,13 @@
       typeBtn.setAttribute("aria-expanded", "false");
     }
 
-    let resetLibrarySheetOffset = () => {};
-    let resetDesignDrawerOffset = () => {};
+    let hideLibrarySheetOffset = () => {};
+    let showLibrarySheetOffset = () => {};
+    let hideDesignDrawerOffset = () => {};
+    let showDesignDrawerOffset = () => {};
 
     function closeLibrarySheet() {
-      resetLibrarySheetOffset();
+      hideLibrarySheetOffset();
       if (librarySheet) {
         librarySheet.hidden = true;
       }
@@ -814,7 +816,7 @@
     }
 
     function closeDesignDrawer() {
-      resetDesignDrawerOffset();
+      hideDesignDrawerOffset();
       if (designToggle?.getAttribute("aria-expanded") === "true") {
         designToggle.click();
       }
@@ -839,10 +841,10 @@
     function bindSheetDrag(panel, { onDismiss, isActive }) {
       const handle = panel?.querySelector(".phone-sheet-handle");
       if (!panel || !handle) {
-        return { reset: () => {} };
+        return { hide: () => {}, show: () => {} };
       }
 
-      // Deep pull from full height dismisses; shorter pulls park at that height.
+      // Deep pull dismisses; shorter pulls park. Parked height is kept across reopen.
       const dismissPx = () =>
         Math.max(280, Math.round((panel.offsetHeight || 0) * 0.45));
       let dragging = false;
@@ -852,19 +854,27 @@
       let restY = 0;
       let pointerId = null;
 
-      const applyY = (y) => {
-        restY = Math.max(0, y);
-        panel.style.transform = restY ? `translateY(${restY}px)` : "";
+      const paintY = (y) => {
+        panel.style.transform = y ? `translateY(${y}px)` : "";
       };
 
-      const reset = () => {
+      const applyY = (y) => {
+        restY = Math.max(0, y);
+        paintY(restY);
+      };
+
+      const hide = () => {
         dragging = false;
-        restY = 0;
         dragY = 0;
         originY = 0;
         pointerId = null;
-        panel.style.transform = "";
         panel.classList.remove("is-sheet-dragging");
+        // Clear inline transform so CSS can collapse; keep restY for next open.
+        panel.style.transform = "";
+      };
+
+      const show = () => {
+        paintY(restY);
       };
 
       const onMove = (event) => {
@@ -874,7 +884,7 @@
         event.preventDefault();
         const maxY = Math.max(dismissPx(), panel.offsetHeight || 0);
         dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
-        panel.style.transform = `translateY(${dragY}px)`;
+        paintY(dragY);
       };
 
       const onUp = (event) => {
@@ -895,7 +905,8 @@
         pointerId = null;
         panel.classList.remove("is-sheet-dragging");
         if (shouldDismiss) {
-          reset();
+          // Keep the height from before this dismiss pull for the next reopen.
+          restY = originY;
           onDismiss?.();
           return;
         }
@@ -918,7 +929,7 @@
         dragY = restY;
         pointerId = event.pointerId;
         panel.classList.add("is-sheet-dragging");
-        panel.style.transform = `translateY(${restY}px)`;
+        paintY(restY);
         try {
           handle.setPointerCapture?.(pointerId);
         } catch {
@@ -931,20 +942,26 @@
         document.addEventListener("pointercancel", onUp);
       });
 
-      return { reset };
+      return { hide, show };
     }
 
     const libraryPanel = librarySheet?.querySelector(".phone-sheet-panel");
-    resetLibrarySheetOffset = bindSheetDrag(libraryPanel, {
-      isActive: () => Boolean(librarySheet && !librarySheet.hidden),
-      onDismiss: closeLibrarySheet,
-    }).reset;
+    ({ hide: hideLibrarySheetOffset, show: showLibrarySheetOffset } = bindSheetDrag(
+      libraryPanel,
+      {
+        isActive: () => Boolean(librarySheet && !librarySheet.hidden),
+        onDismiss: closeLibrarySheet,
+      }
+    ));
 
     const designDrawer = document.getElementById("cvLayoutDrawer");
-    resetDesignDrawerOffset = bindSheetDrag(designDrawer, {
-      isActive: () => designToggle?.getAttribute("aria-expanded") === "true",
-      onDismiss: closeDesignDrawer,
-    }).reset;
+    ({ hide: hideDesignDrawerOffset, show: showDesignDrawerOffset } = bindSheetDrag(
+      designDrawer,
+      {
+        isActive: () => designToggle?.getAttribute("aria-expanded") === "true",
+        onDismiss: closeDesignDrawer,
+      }
+    ));
 
     addBtn.addEventListener("click", () => {
       closeTypeMenu();
@@ -978,10 +995,10 @@
       }
       closeDesignDrawer();
       placeLibraryList();
-      resetLibrarySheetOffset();
       if (librarySheet) {
         librarySheet.hidden = false;
       }
+      showLibrarySheetOffset();
       libraryBtn.setAttribute("aria-expanded", "true");
       libraryBtn.classList.add("is-active");
     });
@@ -1000,17 +1017,15 @@
     });
 
     if (designToggle && designBtn) {
-      let designWasOpen = designToggle.getAttribute("aria-expanded") === "true";
       const syncDesign = () => {
         const open = designToggle.getAttribute("aria-expanded") === "true";
         designBtn.setAttribute("aria-expanded", String(open));
         designBtn.classList.toggle("is-active", open);
-        if (open && !designWasOpen) {
-          resetDesignDrawerOffset();
-        } else if (!open) {
-          resetDesignDrawerOffset();
+        if (open) {
+          showDesignDrawerOffset();
+        } else {
+          hideDesignDrawerOffset();
         }
-        designWasOpen = open;
       };
       new MutationObserver(syncDesign).observe(designToggle, {
         attributes: true,
