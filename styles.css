@@ -4421,12 +4421,12 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     right: calc(100% + 6px);
     top: 0;
     bottom: auto;
-    width: min(44px, max(0px, calc(var(--cv-page-padding) - 6px)));
+    width: min(48px, max(0px, calc(var(--cv-page-padding) - 6px)));
     height: auto;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 2px;
+    gap: 4px;
   }
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
@@ -4438,8 +4438,9 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
   .cv-section-handles .cv-section-handle {
     width: 100%;
-    max-width: 44px;
-    height: 44px;
+    max-width: 48px;
+    height: 48px;
+    font-size: 1.4rem;
   }
 
   .cv-section-save {
@@ -4450,18 +4451,18 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   }
 
   .cv-section-handles .cv-section-remove {
-    width: 22px;
-    height: 22px;
+    width: 40px;
+    height: 40px;
     margin-top: 0;
-    font-size: 0.75rem;
+    font-size: 1.25rem;
     line-height: 1;
-    color: rgba(70, 70, 70, 0.5);
+    color: rgba(70, 70, 70, 0.55);
     background: transparent;
   }
 
   .cv-section-remove:hover,
   .cv-section-remove:focus-visible {
-    color: rgba(70, 70, 70, 0.72);
+    color: rgba(70, 70, 70, 0.78);
     background: transparent;
   }
 
