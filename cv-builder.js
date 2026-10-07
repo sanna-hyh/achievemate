@@ -846,7 +846,7 @@
 
       // Deep pull dismisses; shorter pulls park. Parked height is kept across reopen.
       const dismissPx = () =>
-        Math.max(340, Math.round((panel.offsetHeight || 0) * 0.55));
+        Math.max(380, Math.round((panel.offsetHeight || 0) * 0.62));
       let dragging = false;
       let startY = 0;
       let originY = 0;
