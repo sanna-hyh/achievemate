@@ -357,10 +357,10 @@
     const isPlaceholder = cvItemFieldShowsPlaceholder(node);
 
     if (isPlaceholder) {
-      const lineIndex = event
-        ? descriptionLineIndexAtPoint(node, event.clientX, event.clientY)
-        : 0;
-      selectDescriptionPlaceholderLine(node, lineIndex);
+      // Clear like title fields — selecting placeholder races with the first
+      // keystrokes and auto-capitalize insertText, which can leave gibberish.
+      node.textContent = CV_BULLET_PREFIX;
+      placeCaretAfterFirstBullet(node);
       return;
     }
 
@@ -3680,15 +3680,15 @@
       return false;
     }
 
+    // Never hijack while replacing a selection — that races with placeholder
+    // wipe, focus re-entry, and IME composition and can insert junk characters.
     if (!range.collapsed) {
-      return true;
+      return false;
     }
 
     if (node.classList.contains("cv-preview-description")) {
-      if (!range.collapsed) {
-        return true;
-      }
-      return false;
+      const body = getCaretLineContext(node, range).beforeOnLine.replace(/^\s*•\s*/, "");
+      return body.length === 0;
     }
 
     return getCaretLineContext(node, range).before.length === 0;
@@ -3721,6 +3721,10 @@
   function bindPlaceholderAutoCapitalize(node, onEdit) {
     node.addEventListener("keydown", (event) => {
       if (!node.classList.contains("is-editing")) {
+        return;
+      }
+      // IME composition (Chinese/Japanese/etc.) must not be rewritten.
+      if (event.isComposing || event.keyCode === 229) {
         return;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) {
