@@ -4617,7 +4617,6 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   font-family: inherit;
   color: var(--cv-accent-color, #111);
   margin-top: 0;
-  border-bottom-color: var(--cv-accent-color, #111);
 }
 
 .cv-drag-preview-sheet .cv-preview-entry,
@@ -5301,7 +5300,8 @@ body.is-cv-dragging .cv-preview-document {
   margin-top: calc(var(--cv-item-gap) - var(--cv-section-gap));
 }
 
-.cv-preview-section-heading {
+.cv-preview-document .cv-preview-section-heading {
+  position: relative;
   margin-top: var(--cv-section-margin);
   margin-bottom: calc(var(--cv-section-margin) * 0.4);
   margin-left: 0;
@@ -5310,22 +5310,41 @@ body.is-cv-dragging .cv-preview-document {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--cv-accent-color);
-  /* Editable fields get 2px radius; keep heading underlines square-ended. */
+  /* Draw rule with ::after — border-bottom + edit-field radius made curved caps. */
+  border-bottom: none;
   border-radius: 0;
   padding-bottom: max(2px, calc(var(--cv-section-margin) * 0.25));
   line-height: 1.25;
   color: var(--cv-accent-color);
 }
 
-.cv-preview-document.cv-heading-divider-dotted .cv-preview-section-heading {
-  border-bottom-style: dotted;
+.cv-preview-document .cv-preview-section-heading::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background-color: currentColor;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+.cv-preview-document.cv-heading-divider-dotted .cv-preview-section-heading::after {
+  background-color: transparent;
+  background-image: radial-gradient(circle closest-side, currentColor 45%, transparent 50%);
+  background-size: 3.5px 1px;
+  background-repeat: repeat-x;
+  background-position: left center;
 }
 
 .cv-preview-document.cv-heading-divider-none .cv-preview-section-heading {
-  border-bottom: none;
   padding-bottom: 0;
   margin-bottom: calc(var(--cv-section-margin) * 0.15);
+}
+
+.cv-preview-document.cv-heading-divider-none .cv-preview-section-heading::after {
+  content: none;
 }
 
 .cv-preview-document.cv-template-modern {
@@ -5345,7 +5364,6 @@ body.is-cv-dragging .cv-preview-document {
 
 .cv-preview-document.cv-template-modern .cv-preview-section-heading {
   color: var(--cv-modern-heading);
-  border-bottom-color: var(--cv-modern-heading);
   letter-spacing: 0.09em;
 }
 
