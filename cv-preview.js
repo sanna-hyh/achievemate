@@ -3789,6 +3789,13 @@
     });
   }
 
+  function plainTextToPasteHtml(plain) {
+    return escapeHtml(String(plain || "").replace(/\r\n/g, "\n").replace(/\r/g, "\n")).replace(
+      /\n/g,
+      "<br>"
+    );
+  }
+
   function bindCvPasteHandler(node, onEdit) {
     node.addEventListener("paste", (event) => {
       event.preventDefault();
@@ -3800,17 +3807,29 @@
 
       const html = clipboard.getData("text/html");
       const plain = clipboard.getData("text/plain");
+      const isBullets = node.classList.contains("cv-preview-description");
 
       let insertHtml;
-      if (html?.trim()) {
+      if (isBullets) {
+        // Word/Docs paste often wraps lines in <b>/<strong>; bullets stay plain weight.
+        const source = plain?.length ? plain : html ? editPlainText(html) : "";
+        if (!source) {
+          return;
+        }
+        insertHtml = plainTextToPasteHtml(source);
+      } else if (html?.trim()) {
         insertHtml = sanitizeRichText(html);
       } else if (plain) {
-        insertHtml = escapeHtml(plain).replace(/\r\n/g, "\n").replace(/\n/g, "<br>");
+        insertHtml = plainTextToPasteHtml(plain);
       } else {
         return;
       }
 
       document.execCommand("insertHTML", false, insertHtml);
+      // Clear sticky bold from the clipboard source so following keystrokes stay regular.
+      if (isBullets && document.queryCommandState?.("bold")) {
+        document.execCommand("bold");
+      }
       onEdit?.();
     });
   }
