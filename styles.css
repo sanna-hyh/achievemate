@@ -5311,6 +5311,8 @@ body.is-cv-dragging .cv-preview-document {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   border-bottom: 1px solid var(--cv-accent-color);
+  /* Editable fields get 2px radius; keep heading underlines square-ended. */
+  border-radius: 0;
   padding-bottom: max(2px, calc(var(--cv-section-margin) * 0.25));
   line-height: 1.25;
   color: var(--cv-accent-color);
