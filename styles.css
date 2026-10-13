@@ -5439,6 +5439,7 @@ body.is-cv-dragging .cv-preview-document {
 
 .cv-preview-cv-item-bullets {
   margin-top: calc(var(--cv-section-margin) * 0.45);
+  font-weight: 400;
 }
 
 .cv-preview-skills-heading {
@@ -5558,6 +5559,7 @@ body.is-cv-dragging .cv-preview-document {
   margin-top: calc(var(--cv-section-margin) * 0.25);
   padding-left: 1.1rem;
   line-height: var(--cv-line-height);
+  font-weight: 400;
 }
 
 .cv-preview-description br {
@@ -5569,12 +5571,14 @@ body.is-cv-dragging .cv-preview-document {
 .cv-preview-bullets {
   margin: calc(var(--cv-section-margin) * 0.25) 0 0 1.1rem;
   padding: 0;
+  font-weight: 400;
 }
 
 .cv-preview-bullets li {
   margin: 0;
   padding: 0;
   line-height: var(--cv-line-height);
+  font-weight: 400;
 }
 
 .cv-preview-bullets li + li {
