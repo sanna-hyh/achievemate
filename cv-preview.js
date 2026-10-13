@@ -283,84 +283,50 @@
     selection?.addRange(range);
   }
 
-  function setTextOffsetRange(root, start, end) {
-    const range = document.createRange();
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let pos = 0;
-    let startSet = false;
-    let textNode = walker.nextNode();
-
-    while (textNode) {
-      const len = textNode.textContent?.length || 0;
-      if (!startSet && pos + len >= start) {
-        range.setStart(textNode, Math.max(0, start - pos));
-        startSet = true;
+  function plainTextFromNode(root) {
+    let out = "";
+    const walk = (node) => {
+      if (!node) {
+        return;
       }
-      if (startSet && pos + len >= end) {
-        range.setEnd(textNode, Math.max(0, end - pos));
-        break;
+      if (node.nodeType === Node.TEXT_NODE) {
+        out += node.textContent || "";
+        return;
       }
-      pos += len;
-      textNode = walker.nextNode();
-    }
-
-    if (!startSet) {
-      return;
-    }
-
-    if (range.compareBoundaryPoints(Range.END_TO_START, range) >= 0) {
-      range.collapse(true);
-    }
-
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
+      if (node.nodeName === "BR") {
+        out += "\n";
+        return;
+      }
+      node.childNodes.forEach(walk);
+    };
+    walk(root);
+    return out;
   }
 
-  function descriptionLineIndexAtPoint(node, clientX, clientY) {
-    placeCaretAtPoint(clientX, clientY);
-    const selection = window.getSelection();
-    if (!selection?.rangeCount) {
-      return 0;
-    }
-
-    const range = selection.getRangeAt(0);
+  function plainTextBeforeCaret(node, range) {
     const preRange = document.createRange();
     preRange.selectNodeContents(node);
     preRange.setEnd(range.startContainer, range.startOffset);
-    const textBefore = preRange.toString();
-    return (textBefore.match(/\n/g) || []).length;
+    return plainTextFromNode(preRange.cloneContents());
   }
 
-  function selectDescriptionPlaceholderLine(node, lineIndex) {
-    const fullText = node.textContent || "";
-    const lines = fullText.split("\n");
-    const idx = Math.max(0, Math.min(lineIndex, lines.length - 1));
-    let charStart = 0;
-
-    for (let i = 0; i < idx; i += 1) {
-      charStart += lines[i].length + 1;
-    }
-
-    const line = lines[idx] || "";
-    const match = line.match(/^(\s*•\s*)(.*)$/);
-    if (!match) {
-      setTextOffsetRange(node, charStart, charStart + line.length);
-      return;
-    }
-
-    const prefixLen = match[1].length;
-    setTextOffsetRange(node, charStart + prefixLen, charStart + line.length);
-  }
-
-  function activateDescriptionEdit(node, event) {
-    const isPlaceholder = cvItemFieldShowsPlaceholder(node);
-
-    if (isPlaceholder) {
+  function clearPlaceholderContent(node) {
+    if (node.classList.contains("cv-preview-description")) {
       // Clear like title fields — selecting placeholder races with the first
       // keystrokes and auto-capitalize insertText, which can leave gibberish.
       node.textContent = CV_BULLET_PREFIX;
       placeCaretAfterFirstBullet(node);
+      return;
+    }
+
+    node.textContent = "";
+    placeCaretAtStart(node);
+  }
+
+  function activateDescriptionEdit(node, event) {
+    // Prefer DOM truth — stored edits can lag behind typed-but-unpersisted text.
+    if (nodeShowsPlaceholder(node)) {
+      clearPlaceholderContent(node);
       return;
     }
 
@@ -497,16 +463,6 @@
     }
 
     return { item, field };
-  }
-
-  function cvItemFieldShowsPlaceholder(node) {
-    const parsed = parseCvItemEditKey(node.dataset.editKey);
-    if (!parsed) {
-      return nodeShowsPlaceholder(node);
-    }
-
-    const content = getCvItemFieldContent(parsed.item, parsed.field);
-    return !isCvItemFieldFilled(content, parsed.field, parsed.item);
   }
 
   function syncCvItemWrapAfterEdit(section) {
@@ -695,18 +651,22 @@
     }
 
     // Layout/focus can settle after the user already started typing — never
-    // re-select or wipe an in-progress edit session.
+    // re-select or wipe an in-progress edit session (even if focus hasn't
+    // landed on this node yet).
     if (
       node.classList.contains("is-editing") &&
-      node.getAttribute("contenteditable") === "true" &&
-      document.activeElement === node
+      node.getAttribute("contenteditable") === "true"
     ) {
+      if (document.activeElement !== node) {
+        node.focus({ preventScroll: true });
+      }
       return;
     }
 
     clearSectionPointer();
     beginEditSession(node);
-    const showingPlaceholder = cvItemFieldShowsPlaceholder(node);
+    // Prefer DOM truth — stored edits can lag behind typed-but-unpersisted text.
+    const showingPlaceholder = nodeShowsPlaceholder(node);
     node.setAttribute("contenteditable", "true");
     node.classList.add("is-editing");
     node.classList.remove("cv-preview-placeholder");
@@ -714,14 +674,14 @@
     node.focus({ preventScroll: true });
 
     if (showingPlaceholder) {
-      if (node.classList.contains("cv-preview-description")) {
-        activateDescriptionEdit(node, event);
-      } else {
-        // Clear placeholder and leave an empty caret — selectAll eats early keystrokes
-        // when focus is re-applied after layout settle.
-        node.textContent = "";
-        placeCaretAtStart(node);
-      }
+      // Clear placeholder and leave a caret — selecting placeholder eats early
+      // keystrokes when focus is re-applied after layout settle.
+      clearPlaceholderContent(node);
+      return;
+    }
+
+    if (node.classList.contains("cv-preview-description")) {
+      activateDescriptionEdit(node, event);
       return;
     }
 
@@ -1836,6 +1796,17 @@
     return template.innerHTML.trim();
   }
 
+  function decodeHtmlEntities(value) {
+    const str = String(value ?? "");
+    if (!str || !str.includes("&")) {
+      return str;
+    }
+    // Decode entities that were wrongly persisted as literal text (e.g. &quot;).
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = str;
+    return textarea.value;
+  }
+
   function richTextToHtml(value) {
     const str = String(value ?? "").trim();
     if (!str) {
@@ -1843,7 +1814,7 @@
     }
 
     if (!/<[a-z][\s\S]*>/i.test(str)) {
-      return escapeHtml(str);
+      return escapeHtml(decodeHtmlEntities(str));
     }
 
     return sanitizeRichText(str);
@@ -1859,7 +1830,7 @@
     if (/<[a-z][\s\S]*>/i.test(source)) {
       template.innerHTML = sanitizeRichText(source.replace(/\n/g, "<br>"));
     } else {
-      template.innerHTML = escapeHtml(source).replace(/\n/g, "<br>");
+      template.innerHTML = escapeHtml(decodeHtmlEntities(source)).replace(/\n/g, "<br>");
     }
 
     const lines = [[]];
@@ -1967,7 +1938,12 @@
   }
 
   function getEditableContent(node) {
-    return sanitizeRichText(node.innerHTML);
+    const html = sanitizeRichText(node.innerHTML);
+    // Plain text: store characters, not entities — richTextToHtml escapes once on render.
+    if (!/<[a-z][\s\S]*>/i.test(html)) {
+      return node.textContent || "";
+    }
+    return html;
   }
 
   function splitDescriptionLineHtml(node) {
@@ -1984,7 +1960,13 @@
       }
 
       if (child.nodeType === Node.TEXT_NODE) {
-        append(escapeHtml(child.textContent || ""));
+        // Escape only & < > for mixed HTML lines. Do not escape " — that became visible &quot;.
+        append(
+          String(child.textContent || "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+        );
         return;
       }
 
@@ -3663,10 +3645,9 @@
   }
 
   function getCaretLineContext(node, range) {
-    const preRange = document.createRange();
-    preRange.selectNodeContents(node);
-    preRange.setEnd(range.startContainer, range.startOffset);
-    const before = preRange.toString();
+    // Description lines are separated by <br>; Range#toString() omits those,
+    // so walk the cloned contents and treat BR as "\n".
+    const before = plainTextBeforeCaret(node, range);
     const lineStart = before.lastIndexOf("\n") + 1;
 
     return {
@@ -3694,6 +3675,14 @@
     return getCaretLineContext(node, range).before.length === 0;
   }
 
+  function isImeComposingEvent(event, node) {
+    return Boolean(
+      event.isComposing ||
+        event.keyCode === 229 ||
+        node?.dataset?.cvComposing === "1"
+    );
+  }
+
   function insertDescriptionBulletLine(node) {
     const selection = window.getSelection();
     if (!selection?.rangeCount) {
@@ -3718,13 +3707,22 @@
     selection.addRange(selectRange);
   }
 
+  function bindCompositionGuard(node) {
+    node.addEventListener("compositionstart", () => {
+      node.dataset.cvComposing = "1";
+    });
+    node.addEventListener("compositionend", () => {
+      delete node.dataset.cvComposing;
+    });
+  }
+
   function bindPlaceholderAutoCapitalize(node, onEdit) {
     node.addEventListener("keydown", (event) => {
       if (!node.classList.contains("is-editing")) {
         return;
       }
       // IME composition (Chinese/Japanese/etc.) must not be rewritten.
-      if (event.isComposing || event.keyCode === 229) {
+      if (isImeComposingEvent(event, node)) {
         return;
       }
       if (event.ctrlKey || event.metaKey || event.altKey) {
@@ -3759,6 +3757,9 @@
       if (event.key !== "Enter" || event.shiftKey) {
         return;
       }
+      if (isImeComposingEvent(event, node)) {
+        return;
+      }
 
       event.preventDefault();
       insertDescriptionBulletLine(node);
@@ -3768,6 +3769,9 @@
 
   function bindRichTextShortcuts(node, onEdit) {
     node.addEventListener("keydown", (event) => {
+      if (isImeComposingEvent(event, node)) {
+        return;
+      }
       const mod = event.metaKey || event.ctrlKey;
       if (!mod) {
         return;
@@ -3826,6 +3830,14 @@
         beginEditSession(node);
         node.classList.add("is-editing");
         node.classList.remove("cv-preview-placeholder");
+        // Focus can land without activateEdit (e.g. restore/tab). Clear
+        // placeholder text so the first keystroke isn't replacing a selection.
+        if (
+          node.getAttribute("contenteditable") === "true" &&
+          nodeShowsPlaceholder(node)
+        ) {
+          clearPlaceholderContent(node);
+        }
       });
 
       node.addEventListener("blur", () => {
@@ -3844,6 +3856,7 @@
       });
 
       node.addEventListener("input", () => persistEdit());
+      bindCompositionGuard(node);
       bindRichTextShortcuts(node, () => persistEdit());
       bindCvPasteHandler(node, () => persistEdit());
       bindPlaceholderAutoCapitalize(node, () => persistEdit());
