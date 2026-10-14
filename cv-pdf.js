@@ -233,6 +233,7 @@
     let y = margin;
     let headerDrawn = false;
     let blockDrawn = false;
+    let previousKind = "";
 
     function setFill(color) {
       doc.setTextColor(color[0], color[1], color[2]);
@@ -491,10 +492,7 @@
       const bulletWidth = measure(bullet, bodySize, "normal");
       const textWidth = Math.max(48, contentWidth - bulletWidth);
       const box = lineBox(bodySize, lineHeight);
-      bullets.filter(lineHasText).forEach((line, bulletIndex) => {
-        if (bulletIndex > 0 && itemGap > 0) {
-          y += Math.min(itemGap, 4);
-        }
+      bullets.filter(lineHasText).forEach((line) => {
         const wrapped = wrapLine(line, textWidth, bodySize, false, false);
         wrapped.forEach((wrappedLine, lineIndex) => {
           ensureSpace(box);
@@ -520,12 +518,20 @@
       return line.map((run) => ({ ...run, text: String(run.text || "").toUpperCase() }));
     }
 
+    function isEntryKind(kind) {
+      return kind === "cv-item" || kind === "achievement" || kind === "skills";
+    }
+
     function gapBefore(block) {
-      let gap = 0;
-      if (headerDrawn || blockDrawn) {
-        gap += sectionGap;
+      if (!(headerDrawn || blockDrawn)) {
+        return 0;
       }
-      if (block.kind === "heading" && (headerDrawn || blockDrawn)) {
+      // Consecutive entries: flex gap + (itemGap - sectionGap) margin = item gap.
+      if (isEntryKind(previousKind) && isEntryKind(block.kind)) {
+        return itemGap;
+      }
+      let gap = sectionGap;
+      if (block.kind === "heading") {
         gap += sectionMargin * 0.35;
       }
       return gap;
@@ -537,7 +543,7 @@
         return;
       }
       const box = headingSize * 1.25;
-      const padBottom = Math.max(2, sectionMargin * 0.2);
+      const padBottom = sectionMargin * 0.25;
       drawWrapped(lines, margin, contentWidth, headingSize, headingInk, {
         bold: true,
         leading: 1.25,
@@ -556,7 +562,7 @@
         doc.setLineDashPattern([], 0);
         y += 4;
       }
-      y += Math.max(2, sectionMargin * 0.15);
+      y += sectionMargin * 0.15;
     }
 
     function drawEntry(block) {
@@ -570,7 +576,7 @@
           return;
         }
         if (title.length) {
-          y += Math.max(1, sectionMargin * 0.12);
+          y += sectionMargin * 0.12;
         }
         const skillLine = [
           {
@@ -594,7 +600,7 @@
         }
         if (subtitle.length) {
           if (title.length || date.length) {
-            y += Math.max(1, sectionMargin * 0.08);
+            y += sectionMargin * 0.08;
           }
           drawWrapped(subtitle, margin, contentWidth, titleSize, textColor, { bold: true });
         }
@@ -604,13 +610,13 @@
 
       const location = (block.location || []).filter(lineHasText);
       if (location.length) {
-        y += Math.max(1, sectionMargin * 0.12);
+        y += sectionMargin * 0.12;
         drawWrapped(location, margin, contentWidth, bodySize, textColor);
       }
 
       const bullets = (block.bullets || []).filter(lineHasText);
       if (bullets.length) {
-        y += Math.max(2, sectionMargin * 0.2);
+        y += sectionMargin * 0.25;
         drawBullets(bullets);
       }
     }
@@ -630,7 +636,7 @@
       leading: template === "modern" ? 1.05 : 1.15,
     });
     if (drewName) {
-      y += Math.max(1, sectionMargin * 0.15);
+      y += sectionMargin * 0.15;
       headerDrawn = true;
     }
     const drewContact = drawHeader(model.contact, bodySize, textColor, {
@@ -680,6 +686,7 @@
       } else {
         drawEntry(block);
       }
+      previousKind = block.kind;
       blockDrawn = true;
     });
 
