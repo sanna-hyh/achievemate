@@ -1728,7 +1728,7 @@
     const stacks = {
       "Times New Roman": '"Times New Roman", Times, serif',
       Arial: "Arial, Helvetica, sans-serif",
-      Calibri: "Calibri, Candara, Segoe, sans-serif",
+      Calibri: "Carlito, Calibri, Candara, Segoe, sans-serif",
       Garamond: "Garamond, 'Times New Roman', serif",
     };
 

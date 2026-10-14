@@ -22,9 +22,11 @@
     if (value.includes("courier") || value.includes("mono")) {
       return "courier";
     }
+    if (value.includes("calibri")) {
+      return "Carlito";
+    }
     if (
       value.includes("arial") ||
-      value.includes("calibri") ||
       value.includes("helvetica") ||
       value.includes("segoe") ||
       value.includes("candara")
@@ -56,6 +58,20 @@
       "https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-tc@5.2.8/chinese-traditional-700-normal.ttf",
   };
   let unicodeFontPromise = null;
+
+  const CARLITO_FONT_URLS = {
+    normal: "fonts/Carlito-Regular.ttf",
+    bold: "fonts/Carlito-Bold.ttf",
+    italic: "fonts/Carlito-Italic.ttf",
+    bolditalic: "fonts/Carlito-BoldItalic.ttf",
+  };
+  const CARLITO_FONT_FILES = {
+    normal: "Carlito-Regular.ttf",
+    bold: "Carlito-Bold.ttf",
+    italic: "Carlito-Italic.ttf",
+    bolditalic: "Carlito-BoldItalic.ttf",
+  };
+  let carlitoFontPromise = null;
 
   function sanitizeText(value) {
     let out = "";
@@ -161,6 +177,26 @@
     return unicodeFontPromise;
   }
 
+  function loadCarlitoFonts() {
+    if (!carlitoFontPromise) {
+      carlitoFontPromise = Promise.all(
+        ["normal", "bold", "italic", "bolditalic"].map(async (style) => {
+          const response = await fetch(CARLITO_FONT_URLS[style]);
+          if (!response.ok) {
+            throw new Error("Carlito font failed to load");
+          }
+          return arrayBufferToBinary(await response.arrayBuffer());
+        })
+      )
+        .then(([normal, bold, italic, bolditalic]) => ({ normal, bold, italic, bolditalic }))
+        .catch((error) => {
+          carlitoFontPromise = null;
+          throw error;
+        });
+    }
+    return carlitoFontPromise;
+  }
+
   function lineHasText(line) {
     return Array.isArray(line) && line.some((run) => String(run?.text || "").trim());
   }
@@ -190,19 +226,30 @@
     });
   }
 
-  function renderCvPdf(doc, model, unicodeFont) {
+  function renderCvPdf(doc, model, unicodeFont, carlitoFont) {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = Math.max(36, Number(model.marginPt) || 54);
     const contentWidth = Math.max(72, pageWidth - margin * 2);
     const bottom = pageHeight - margin;
 
-    const font = pdfFontName(model.fontFamily);
+    let font = pdfFontName(model.fontFamily);
     if (unicodeFont) {
       doc.addFileToVFS("NotoSansTC-Regular.ttf", unicodeFont.normal);
       doc.addFont("NotoSansTC-Regular.ttf", "NotoSansTC", "normal");
       doc.addFileToVFS("NotoSansTC-Bold.ttf", unicodeFont.bold);
       doc.addFont("NotoSansTC-Bold.ttf", "NotoSansTC", "bold");
+    }
+    if (font === "Carlito") {
+      if (carlitoFont) {
+        ["normal", "bold", "italic", "bolditalic"].forEach((style) => {
+          const filename = CARLITO_FONT_FILES[style];
+          doc.addFileToVFS(filename, carlitoFont[style]);
+          doc.addFont(filename, "Carlito", style);
+        });
+      } else {
+        font = "helvetica";
+      }
     }
     const textColor = model.textColor || [0, 0, 0];
     const accentColor = model.accentColor || [0, 0, 0];
@@ -705,9 +752,9 @@
 
   const fitByDoc = new WeakMap();
 
-  function countCvPdfPages(model, unicodeFont) {
+  function countCvPdfPages(model, unicodeFont, carlitoFont) {
     const doc = createPdfDocument();
-    renderCvPdf(doc, model, unicodeFont || null);
+    renderCvPdf(doc, model, unicodeFont || null, carlitoFont || null);
     return doc.getNumberOfPages();
   }
 
@@ -745,6 +792,7 @@
 
   function shrinkPdfModelToOnePage(model, options = {}) {
     const unicodeFont = options.unicodeFont || null;
+    const carlitoFont = options.carlitoFont || null;
     const alsoFits = typeof options.alsoFits === "function" ? options.alsoFits : null;
     const minBodyPt = getMinBodyPt();
     const baseBody = Math.max(Number(model.bodyPt) || minBodyPt, minBodyPt);
@@ -752,7 +800,7 @@
     const minScale = Math.min(1, minBodyPt / baseBody);
 
     const fits = (candidate) => {
-      if (countCvPdfPages(candidate, unicodeFont) > 1) {
+      if (countCvPdfPages(candidate, unicodeFont, carlitoFont) > 1) {
         return false;
       }
       if (alsoFits && !alsoFits(candidate)) {
@@ -805,11 +853,16 @@
       }
     }
 
+    let carlitoFont = null;
+    if (pdfFontName(model.fontFamily) === "Carlito") {
+      carlitoFont = await loadCarlitoFonts();
+    }
+
     const paintModel = model?.autoFit
-      ? shrinkPdfModelToOnePage(model, { unicodeFont })
+      ? shrinkPdfModelToOnePage(model, { unicodeFont, carlitoFont })
       : model;
     const doc = createPdfDocument();
-    renderCvPdf(doc, paintModel, unicodeFont);
+    renderCvPdf(doc, paintModel, unicodeFont, carlitoFont);
     fitByDoc.set(doc, paintModel);
     return doc;
   }
