@@ -536,8 +536,10 @@
 
     function drawBullets(bullets) {
       const bullet = "\u2022 ";
+      // Preview list margin is 1.1rem. Export px→pt is ×0.75 (1rem = 16px = 12pt).
+      const indent = 1.1 * 16 * 0.75;
       const bulletWidth = measure(bullet, bodySize, "normal");
-      const textWidth = Math.max(48, contentWidth - bulletWidth);
+      const textWidth = Math.max(48, contentWidth - indent);
       const box = lineBox(bodySize, lineHeight);
       bullets.filter(lineHasText).forEach((line) => {
         const wrapped = wrapLine(line, textWidth, bodySize, false, false);
@@ -547,7 +549,7 @@
           if (lineIndex === 0) {
             drawRuns(
               [{ text: bullet, bold: false, italic: false, underline: false }],
-              margin,
+              margin + Math.max(0, indent - bulletWidth),
               baseline,
               bodySize,
               textColor,
@@ -555,7 +557,7 @@
               false
             );
           }
-          drawRuns(wrappedLine, margin + bulletWidth, baseline, bodySize, textColor, false, false);
+          drawRuns(wrappedLine, margin + indent, baseline, bodySize, textColor, false, false);
           y += box;
         });
       });
@@ -607,9 +609,10 @@
         }
         doc.line(margin, y, margin + contentWidth, y);
         doc.setLineDashPattern([], 0);
-        y += 4;
+        y += sectionMargin * 0.4;
+      } else {
+        y += sectionMargin * 0.15;
       }
-      y += sectionMargin * 0.15;
     }
 
     function drawEntry(block) {
