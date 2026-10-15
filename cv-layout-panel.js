@@ -116,6 +116,7 @@
     }
 
     form.autoFit.checked = styles.autoFit === true;
+    form.underlineLinks.checked = styles.underlineLinks !== false;
 
     const template = styles.template === "modern" || styles.template === "compact" ? styles.template : "classic";
     const templateInput = form.querySelector(`input[name="cvTemplate"][value="${template}"]`);
@@ -196,6 +197,7 @@
       pageMargin: form.querySelector('input[name="pageMargin"]:checked')?.value || "normal",
       headingDivider: form.querySelector('input[name="headingDivider"]:checked')?.value || "solid",
       autoFit: form.autoFit.checked,
+      underlineLinks: form.underlineLinks.checked,
       template: pickedTemplate === "modern" || pickedTemplate === "compact" ? pickedTemplate : "classic",
     };
     saveCvSettings();

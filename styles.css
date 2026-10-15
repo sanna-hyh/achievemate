@@ -5733,6 +5733,15 @@ body.is-cv-dragging .cv-preview-document {
   text-decoration-color: #475569 !important;
 }
 
+.cv-preview-document.cv-underline-links-off [data-edit-key] a[href],
+.cv-preview-document.cv-underline-links-off [data-edit-key] a[href]:visited,
+.cv-preview-document.cv-underline-links-off [contenteditable="true"] a[href],
+.cv-preview-document.cv-underline-links-off [contenteditable="true"] a[href]:visited,
+.cv-preview-document.cv-underline-links-off .is-editing a[href],
+.cv-preview-document.cv-underline-links-off .is-editing a[href]:visited {
+  text-decoration-line: none !important;
+}
+
 .cv-preview-document [data-edit-key] a[href]:hover::after {
   content: attr(href);
   position: absolute;

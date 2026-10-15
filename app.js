@@ -24,6 +24,7 @@ const CUSTOM_DEFAULT_FIELDS = [
   "itemGap",
   "pageMargin",
   "autoFit",
+  "underlineLinks",
   "template",
 ];
 
@@ -40,6 +41,7 @@ const DEFAULT_CV_SETTINGS = {
   itemGap: 4,
   pageMargin: "normal",
   autoFit: false,
+  underlineLinks: true,
   template: "classic",
 };
 

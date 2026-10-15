@@ -2128,6 +2128,8 @@
       cvPreview.classList.remove("cv-preview-manual-layout");
     }
 
+    cvPreview.classList.toggle("cv-underline-links-off", styles.underlineLinks === false);
+
     if (styles.autoFit !== true) {
       const typography = manualTypographyFromBase(styles.baseFontSize ?? 11);
       cvPreview.style.setProperty("--cv-body-font", `${typography.bodyFontPt}pt`);
@@ -5546,6 +5548,7 @@
       sectionMarginPt: readCssPt("--cv-section-margin", (styles.sectionGap ?? 12) * 0.75),
       itemGapPt: readCssPt("--cv-item-gap", (styles.itemGap ?? 4) * 0.75),
       headingDivider: styles.headingDivider || "solid",
+      underlineLinks: styles.underlineLinks !== false,
       template: normalizeCvTemplate(styles.template),
       name: nameLines,
       contact: exportFieldLines(contactValue, "Phone | Email"),

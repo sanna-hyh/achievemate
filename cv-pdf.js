@@ -432,6 +432,7 @@
     const divider = ["solid", "dotted", "none"].includes(model.headingDivider)
       ? model.headingDivider
       : "solid";
+    const underlineLinks = model.underlineLinks !== false;
 
     let y = margin;
     let headerDrawn = false;
@@ -563,12 +564,14 @@
         const width = drawnWidth(text.slice(start, end), size, style);
         if (width > 0) {
           doc.link(x, top, width, size, { url: link.url });
-          // #475569 at 70% on white — same cue as the preview underline.
-          doc.setDrawColor(126, 136, 150);
-          doc.setLineWidth(0.75);
-          doc.setLineDashPattern([], 0);
-          const underlineY = baseline + size * 0.15;
-          doc.line(x, underlineY, x + width, underlineY);
+          if (underlineLinks) {
+            // #475569 at 70% on white — same cue as the preview underline.
+            doc.setDrawColor(126, 136, 150);
+            doc.setLineWidth(0.75);
+            doc.setLineDashPattern([], 0);
+            const underlineY = baseline + size * 0.15;
+            doc.line(x, underlineY, x + width, underlineY);
+          }
         }
       });
     }
