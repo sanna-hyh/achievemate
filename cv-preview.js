@@ -1081,6 +1081,228 @@
       }
     });
   }
+
+  // Fine-pointer only: one entry keeps its controls while the pointer stays inside
+  // the safe triangle from the last point on that entry to its handle / ★ cluster.
+  // Leaving the triangle switches to the entry under the pointer after ~150ms.
+  function bindSectionHoverIntent() {
+    if (!cvPreview) {
+      return;
+    }
+
+    const finePointerQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const HOVER_INTENT_MS = 150;
+    let activeWrap = null;
+    let anchor = null;
+    let overWrap = null;
+    let pointer = null;
+    let pendingWrap = null;
+    let pendingTimer = 0;
+
+    function intentEnabled() {
+      return finePointerQuery.matches;
+    }
+
+    function clearPending() {
+      pendingWrap = null;
+      window.clearTimeout(pendingTimer);
+      pendingTimer = 0;
+    }
+
+    function setActive(wrap) {
+      const next = wrap && wrap.isConnected ? wrap : null;
+      if (activeWrap === next) {
+        return;
+      }
+      activeWrap?.classList.remove("is-hover-active");
+      cvPreview.querySelectorAll(".cv-section-wrap.is-hover-active").forEach((el) => {
+        if (el !== next) {
+          el.classList.remove("is-hover-active");
+        }
+      });
+      activeWrap = next;
+      if (activeWrap) {
+        activeWrap.classList.add("is-hover-active");
+      }
+      clearPending();
+    }
+
+    function clearActive() {
+      setActive(null);
+      anchor = null;
+    }
+
+    function cross(origin, a, b) {
+      return (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+    }
+
+    function pointInTriangle(p, a, b, c) {
+      const ab = cross(a, b, p);
+      const bc = cross(b, c, p);
+      const ca = cross(c, a, p);
+      const hasNeg = ab < -0.01 || bc < -0.01 || ca < -0.01;
+      const hasPos = ab > 0.01 || bc > 0.01 || ca > 0.01;
+      return !(hasNeg && hasPos);
+    }
+
+    function pointInRect(p, rect) {
+      return p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom;
+    }
+
+    function clusterRects(wrap) {
+      const rects = [];
+      wrap.querySelectorAll(".cv-section-handles, .cv-section-save").forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          rects.push(rect);
+        }
+      });
+      return rects;
+    }
+
+    function movingTowardRect(p, origin, rect) {
+      if (pointInRect(p, rect)) {
+        return true;
+      }
+      const corners = [
+        { x: rect.left, y: rect.top },
+        { x: rect.right, y: rect.top },
+        { x: rect.right, y: rect.bottom },
+        { x: rect.left, y: rect.bottom },
+      ];
+      const tangents = [];
+      for (let i = 0; i < corners.length; i += 1) {
+        let sign = 0;
+        let tangent = true;
+        for (let j = 0; j < corners.length; j += 1) {
+          if (i === j) {
+            continue;
+          }
+          const side = cross(origin, corners[i], corners[j]);
+          if (Math.abs(side) <= 0.01) {
+            continue;
+          }
+          const nextSign = side > 0 ? 1 : -1;
+          if (sign === 0) {
+            sign = nextSign;
+          } else if (sign !== nextSign) {
+            tangent = false;
+            break;
+          }
+        }
+        if (tangent) {
+          tangents.push(corners[i]);
+        }
+      }
+      if (tangents.length < 2) {
+        return false;
+      }
+      let bestA = tangents[0];
+      let bestB = tangents[1];
+      let bestArea = Math.abs(cross(origin, bestA, bestB));
+      for (let i = 0; i < tangents.length; i += 1) {
+        for (let j = i + 1; j < tangents.length; j += 1) {
+          const area = Math.abs(cross(origin, tangents[i], tangents[j]));
+          if (area > bestArea) {
+            bestArea = area;
+            bestA = tangents[i];
+            bestB = tangents[j];
+          }
+        }
+      }
+      return pointInTriangle(p, origin, bestA, bestB);
+    }
+
+    function inSafeTriangle(p) {
+      if (!activeWrap?.isConnected || !anchor) {
+        return false;
+      }
+      return clusterRects(activeWrap).some((rect) => movingTowardRect(p, anchor, rect));
+    }
+
+    function pointerInCluster(p) {
+      if (!activeWrap?.isConnected) {
+        return false;
+      }
+      return clusterRects(activeWrap).some((rect) => pointInRect(p, rect));
+    }
+
+    function schedule(nextWrap) {
+      if (pendingTimer && pendingWrap === nextWrap) {
+        return;
+      }
+      clearPending();
+      pendingWrap = nextWrap;
+      pendingTimer = window.setTimeout(() => {
+        pendingTimer = 0;
+        const target = pendingWrap;
+        pendingWrap = null;
+        if (!intentEnabled() || !pointer || inSafeTriangle(pointer) || overWrap !== target) {
+          return;
+        }
+        if (!target) {
+          clearActive();
+          return;
+        }
+        setActive(target);
+        anchor = { x: pointer.x, y: pointer.y };
+      }, HOVER_INTENT_MS);
+    }
+
+    function onPointerMove(event) {
+      if (event.pointerType === "touch" || !intentEnabled()) {
+        if (activeWrap) {
+          clearActive();
+        }
+        return;
+      }
+
+      pointer = { x: event.clientX, y: event.clientY };
+      const hit = event.target instanceof Element ? event.target.closest(".cv-section-wrap") : null;
+      overWrap = hit && cvPreview.contains(hit) ? hit : null;
+
+      if (!activeWrap?.isConnected) {
+        if (overWrap) {
+          setActive(overWrap);
+          anchor = { x: pointer.x, y: pointer.y };
+        } else {
+          activeWrap = null;
+        }
+        return;
+      }
+
+      if (overWrap === activeWrap) {
+        // Keep the approach point so the triangle still covers a diagonal that
+        // clips the neighbour while the pointer is on this entry's controls.
+        if (!anchor || !pointerInCluster(pointer)) {
+          anchor = { x: pointer.x, y: pointer.y };
+        }
+        clearPending();
+        return;
+      }
+
+      if (inSafeTriangle(pointer)) {
+        clearPending();
+        return;
+      }
+
+      schedule(overWrap);
+    }
+
+    document.addEventListener("pointermove", onPointerMove);
+
+    const onFinePointerChange = () => {
+      if (!intentEnabled()) {
+        clearActive();
+      }
+    };
+    if (typeof finePointerQuery.addEventListener === "function") {
+      finePointerQuery.addEventListener("change", onFinePointerChange);
+    } else {
+      finePointerQuery.addListener(onFinePointerChange);
+    }
+  }
+
   const DEFAULT_USER_ZOOM = 1.72;
   const MIN_USER_ZOOM = 1;
   const MAX_USER_ZOOM = 3;
@@ -5795,6 +6017,7 @@
   bindDocumentDragDrop();
   bindRichLinkUi();
   bindPreviewPointerInteraction();
+  bindSectionHoverIntent();
   bindMobileReorder();
   applyPreviewZoom();
   scheduleFitPreview();
