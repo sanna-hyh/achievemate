@@ -4290,11 +4290,17 @@ body.is-phone-keyboard {
   cursor: default;
 }
 
-.cv-section-wrap:hover,
+.cv-section-wrap.is-hover-active,
 .cv-section-wrap:has([data-edit-key]:focus),
 .cv-section-wrap:has(.cv-skill-input:focus),
 .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) {
   z-index: 2;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cv-section-wrap:hover {
+    z-index: 2;
+  }
 }
 
 .cv-section-wrap.is-drag-armed {
@@ -4377,11 +4383,17 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   pointer-events: auto;
 }
 
-.cv-section-wrap:hover .cv-section-handles,
+.cv-section-wrap.is-hover-active .cv-section-handles,
 .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) .cv-section-handles {
   opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cv-section-wrap:hover .cv-section-handles {
+    opacity: 1;
+  }
 }
 
 .cv-section-handles .cv-section-handle,
@@ -4468,10 +4480,16 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   display: block;
 }
 
-.cv-section-wrap:hover .cv-section-save,
+.cv-section-wrap.is-hover-active .cv-section-save,
 .cv-section-wrap:has([data-edit-key]:focus) .cv-section-save,
 .cv-section-wrap:has(.cv-section-save:focus-visible) .cv-section-save {
   opacity: 1;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .cv-section-wrap:hover .cv-section-save {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 900px) {
