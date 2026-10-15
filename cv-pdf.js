@@ -73,13 +73,22 @@
   };
   let carlitoFontPromise = null;
 
-  function sanitizeText(value) {
+  function isBuiltinPdfFont(name) {
+    const value = String(name || "").toLowerCase();
+    return value === "helvetica" || value === "times" || value === "courier";
+  }
+
+  function sanitizeText(value, fontName) {
+    const applyWinAnsi = fontName == null || isBuiltinPdfFont(fontName);
     let out = "";
     const text = String(value ?? "");
     for (const ch of text) {
       if (Object.prototype.hasOwnProperty.call(WIN_ANSI_REPLACEMENTS, ch)) {
-        out += WIN_ANSI_REPLACEMENTS[ch];
-        continue;
+        const replacement = WIN_ANSI_REPLACEMENTS[ch];
+        if (applyWinAnsi || replacement === "") {
+          out += replacement;
+          continue;
+        }
       }
       const code = ch.codePointAt(0);
       if (code < 32 || code === 127) {
@@ -98,8 +107,21 @@
     return (code >= 32 && code <= 126) || (code >= 160 && code <= 255);
   }
 
-  function textSegments(value) {
-    const cleaned = sanitizeText(value);
+  function isBaseFontChar(ch, fontName) {
+    if (isWinAnsiChar(ch)) {
+      return true;
+    }
+    if (!fontName || isBuiltinPdfFont(fontName)) {
+      return false;
+    }
+    return (
+      Object.prototype.hasOwnProperty.call(WIN_ANSI_REPLACEMENTS, ch) &&
+      WIN_ANSI_REPLACEMENTS[ch] !== ""
+    );
+  }
+
+  function textSegments(value, fontName) {
+    const cleaned = sanitizeText(value, fontName);
     const segments = [];
     let buffer = "";
     let unicode = false;
@@ -113,7 +135,7 @@
     };
 
     for (const ch of cleaned) {
-      const nextUnicode = !isWinAnsiChar(ch);
+      const nextUnicode = !isBaseFontChar(ch, fontName);
       if (buffer && nextUnicode !== unicode) {
         flush();
       }
@@ -144,7 +166,8 @@
     if (model?.documentTitle) {
       chunks.push(model.documentTitle);
     }
-    return chunks.some((text) => textSegments(text).some((segment) => segment.unicode));
+    const fontName = pdfFontName(model?.fontFamily);
+    return chunks.some((text) => textSegments(text, fontName).some((segment) => segment.unicode));
   }
 
   function arrayBufferToBinary(buffer) {
@@ -443,7 +466,7 @@
 
     function measure(text, size, style) {
       let width = 0;
-      textSegments(text).forEach((segment) => {
+      textSegments(text, font).forEach((segment) => {
         const face = faceFor(style, segment.unicode);
         if (!face) {
           width += Array.from(segment.text).length * size;
@@ -476,7 +499,7 @@
       let cursor = x;
       runs.forEach((run) => {
         const style = fontStyle(run, forceBold, forceItalic);
-        const segments = textSegments(run.text);
+        const segments = textSegments(run.text, font);
         if (segments.length === 0) {
           return;
         }
@@ -498,7 +521,7 @@
           doc.setLineDashPattern([], 0);
           doc.line(start, baseline + 1.15, start + width, baseline + 1.15);
         }
-        const text = sanitizeText(run.text);
+        const text = sanitizeText(run.text, font);
         const links = Array.isArray(run.links) ? run.links : linkSpans(text);
         annotateLinks(text, links, start, baseline, size, style);
       });
@@ -507,7 +530,7 @@
 
     function drawnWidth(text, size, style) {
       let width = 0;
-      textSegments(text).forEach((segment) => {
+      textSegments(text, font).forEach((segment) => {
         const face = faceFor(style, segment.unicode);
         if (!face) {
           return;
@@ -541,7 +564,7 @@
     }
 
     function runWidth(run, size, forceBold, forceItalic) {
-      const text = sanitizeText(run.text);
+      const text = sanitizeText(run.text, font);
       if (!text) {
         return 0;
       }
@@ -551,7 +574,7 @@
     function tokenize(line) {
       const tokens = [];
       (line || []).forEach((run) => {
-        const text = sanitizeText(run.text);
+        const text = sanitizeText(run.text, font);
         if (!text) {
           return;
         }
@@ -1211,7 +1234,7 @@
     }
 
     if (model.documentTitle) {
-      const latinTitle = textSegments(model.documentTitle)
+      const latinTitle = textSegments(model.documentTitle, font)
         .filter((segment) => !segment.unicode)
         .map((segment) => segment.text)
         .join("")
