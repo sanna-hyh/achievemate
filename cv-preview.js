@@ -4744,6 +4744,123 @@
     ];
   }
 
+  function measureLineTopsPt(element, originTopPx, pxToPt) {
+    const raw = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.textContent || !/\S/.test(node.textContent)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        const parent = node.parentElement;
+        if (parent?.closest(".cv-skill-chip-remove, .cv-skill-input, .cv-section-handles")) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    let node = walker.nextNode();
+    while (node) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      Array.from(range.getClientRects()).forEach((rect) => {
+        if (rect.width >= 0.5 && rect.height >= 0.5) {
+          raw.push(pxToPt(rect.top - originTopPx));
+        }
+      });
+      node = walker.nextNode();
+    }
+    raw.sort((left, right) => left - right);
+    const tops = [];
+    raw.forEach((top) => {
+      if (!tops.length || top - tops[tops.length - 1] > 4) {
+        tops.push(top);
+      }
+    });
+    return tops;
+  }
+
+  function previewGeometryElement(block) {
+    const body = cvPreview?.querySelector(".cv-preview-body");
+    const id = String(block?.sourceId || "");
+    if (!body || !id || /["\\]/.test(id)) {
+      return null;
+    }
+    if (block.kind === "heading") {
+      return body.querySelector(`h2.cv-preview-section-heading[data-item-id="${id}"]`);
+    }
+    if (block.kind === "skills") {
+      return body.querySelector(`section.cv-preview-skills[data-item-id="${id}"]`);
+    }
+    return body.querySelector(
+      `section.cv-preview-entry[data-item-id="${id}"]:not(.cv-preview-skills)`
+    );
+  }
+
+  function measurePdfBlockGeometry(model) {
+    const blocks = model?.blocks || [];
+    const body = cvPreview?.querySelector(".cv-preview-body");
+    if (!body || !cvPreview || !blocks.length) {
+      return;
+    }
+    const bodyRect = body.getBoundingClientRect();
+    const scale = bodyRect.width / body.offsetWidth;
+    if (!(scale > 0.01) || !Number.isFinite(scale)) {
+      return;
+    }
+    const docRect = cvPreview.getBoundingClientRect();
+    const pxToPt = (px) => (px / scale) * 0.75;
+    const bodyTopPt = pxToPt(bodyRect.top - docRect.top);
+    if (!Number.isFinite(bodyTopPt)) {
+      return;
+    }
+
+    const measured = [];
+    for (let index = 0; index < blocks.length; index += 1) {
+      const block = blocks[index];
+      const element = previewGeometryElement(block);
+      if (!element || !body.contains(element)) {
+        return;
+      }
+      const rect = element.getBoundingClientRect();
+      if (!(rect.width > 0) || !(rect.height > 0)) {
+        return;
+      }
+      const topPt = pxToPt(rect.top - bodyRect.top);
+      const heightPt = pxToPt(rect.height);
+      if (!Number.isFinite(topPt) || !(heightPt > 0)) {
+        return;
+      }
+      const geom = { topPt, heightPt, lineTopsPt: [] };
+      if (block.kind === "skills") {
+        const heading = element.querySelector("h2.cv-preview-section-heading");
+        if (heading) {
+          const headingRect = heading.getBoundingClientRect();
+          geom.dividerFromTopPt = pxToPt(headingRect.bottom - rect.top);
+          geom.lineTopsPt = measureLineTopsPt(heading, rect.top, pxToPt);
+        }
+        const list = element.querySelector(".cv-preview-skills-list");
+        if (list) {
+          geom.skillsTopPt = pxToPt(list.getBoundingClientRect().top - rect.top);
+        }
+      } else {
+        geom.lineTopsPt = measureLineTopsPt(element, rect.top, pxToPt);
+        if (block.kind === "heading") {
+          geom.dividerFromTopPt = heightPt;
+        }
+      }
+      measured.push(geom);
+    }
+
+    if (measured.length !== blocks.length) {
+      return;
+    }
+    measured.forEach((geom, index) => {
+      Object.assign(blocks[index], geom);
+    });
+    model.geometryBodyTopPt = bodyTopPt;
+    model.previewGeometry = true;
+  }
+
   function buildPdfModel() {
     const styles = getLayoutStyles();
     const manual = manualTypographyFromBase(styles.baseFontSize ?? 11);
@@ -4760,7 +4877,7 @@
           "Section Title"
         );
         if (title.length) {
-          blocks.push({ kind: "heading", title });
+          blocks.push({ kind: "heading", sourceId: item.id, title });
         }
         return;
       }
@@ -4769,6 +4886,7 @@
         const placeholders = getCvItemPlaceholders(item);
         const block = {
           kind: "cv-item",
+          sourceId: item.id,
           title: [],
           subtitle: [],
           date: [],
@@ -4806,6 +4924,7 @@
         );
         blocks.push({
           kind: "skills",
+          sourceId: item.id,
           title,
           skills,
         });
@@ -4830,6 +4949,7 @@
       }
       blocks.push({
         kind: "achievement",
+        sourceId: item.id,
         title,
         subtitle: [],
         date,
@@ -4887,7 +5007,15 @@
       pdfFitOverride = null;
       applyLayoutStyles();
     }
+    if (document.fonts?.ready) {
+      try {
+        await document.fonts.ready;
+      } catch (error) {
+        console.warn("Fonts were not ready before PDF geometry measurement.", error);
+      }
+    }
     const model = buildPdfModel();
+    measurePdfBlockGeometry(model);
     const doc = await window.AchieveMatePdf.createCvPdf(model);
     const fit = window.AchieveMatePdf.getCvPdfFit?.(doc);
     if (model.autoFit && (fit?.fitChanged || fit?.fitOverflow)) {
