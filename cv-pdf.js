@@ -282,6 +282,17 @@
     let headerDrawn = false;
     let blockDrawn = false;
     let previousKind = "";
+    let geometryPin = false;
+    const linePin = { tops: null, index: 0, blockTop: 0 };
+
+    function takePinnedTop() {
+      if (!geometryPin || !Array.isArray(linePin.tops) || linePin.index >= linePin.tops.length) {
+        return null;
+      }
+      const top = linePin.blockTop + linePin.tops[linePin.index];
+      linePin.index += 1;
+      return top;
+    }
 
     function setFill(color) {
       doc.setTextColor(color[0], color[1], color[2]);
@@ -314,6 +325,9 @@
     }
 
     function ensureSpace(height) {
+      if (geometryPin) {
+        return;
+      }
       if (y + height <= bottom + breakSlack) {
         return;
       }
@@ -447,8 +461,12 @@
       lines.forEach((sourceLine) => {
         const wrapped = wrapLine(sourceLine, maxWidth, size, options.bold, options.italic);
         wrapped.forEach((line) => {
-          ensureSpace(box);
-          const baseline = y + size;
+          const pinnedTop = takePinnedTop();
+          if (pinnedTop == null) {
+            ensureSpace(box);
+          }
+          const lineTop = pinnedTop == null ? y : pinnedTop;
+          const baseline = lineTop + size;
           const lineWidth = line.reduce(
             (sum, run) => sum + runWidth(run, size, options.bold, options.italic),
             0
@@ -460,7 +478,7 @@
             startX = margin + contentWidth - lineWidth;
           }
           drawRuns(line, startX, baseline, size, color, options.bold, options.italic);
-          y += box;
+          y = lineTop + box;
           drawn += 1;
         });
       });
@@ -511,8 +529,12 @@
 
       const rowCount = Math.max(leftWrapped.length, rightWrapped.length, 1);
       for (let index = 0; index < rowCount; index += 1) {
-        ensureSpace(box);
-        const baseline = y + rowSize;
+        const pinnedTop = takePinnedTop();
+        if (pinnedTop == null) {
+          ensureSpace(box);
+        }
+        const lineTop = pinnedTop == null ? y : pinnedTop;
+        const baseline = lineTop + rowSize;
         if (leftWrapped[index]) {
           drawRuns(leftWrapped[index], margin, baseline, leftSize, leftColor, true, false);
         }
@@ -531,7 +553,7 @@
             true
           );
         }
-        y += box;
+        y = lineTop + box;
       }
     }
 
@@ -545,8 +567,12 @@
       bullets.filter(lineHasText).forEach((line) => {
         const wrapped = wrapLine(line, textWidth, bodySize, false, false);
         wrapped.forEach((wrappedLine, lineIndex) => {
-          ensureSpace(box);
-          const baseline = y + bodySize;
+          const pinnedTop = takePinnedTop();
+          if (pinnedTop == null) {
+            ensureSpace(box);
+          }
+          const lineTop = pinnedTop == null ? y : pinnedTop;
+          const baseline = lineTop + bodySize;
           if (lineIndex === 0) {
             drawRuns(
               [{ text: bullet, bold: false, italic: false, underline: false }],
@@ -559,7 +585,7 @@
             );
           }
           drawRuns(wrappedLine, margin + indent, baseline, bodySize, textColor, false, false);
-          y += box;
+          y = lineTop + box;
         });
       });
     }
@@ -598,6 +624,22 @@
         bold: true,
         leading: 1.25,
       });
+      if (geometryPin && Number.isFinite(Number(block.dividerFromTopPt))) {
+        const dividerY = linePin.blockTop + Number(block.dividerFromTopPt);
+        if (divider !== "none") {
+          doc.setDrawColor(headingInk[0], headingInk[1], headingInk[2]);
+          doc.setLineWidth(0.8);
+          if (divider === "dotted") {
+            doc.setLineDashPattern([1, 1.6], 0);
+          } else {
+            doc.setLineDashPattern([], 0);
+          }
+          doc.line(margin, dividerY, margin + contentWidth, dividerY);
+          doc.setLineDashPattern([], 0);
+        }
+        y = dividerY;
+        return;
+      }
       y += Math.max(0, padBottom - (box - headingSize));
       if (divider !== "none") {
         ensureSpace(6);
@@ -620,13 +662,17 @@
       if (block.kind === "skills") {
         const title = (block.title || []).filter(lineHasText);
         if (title.length) {
-          drawHeading({ title });
+          drawHeading(
+            geometryPin ? { title, dividerFromTopPt: block.dividerFromTopPt } : { title }
+          );
         }
         const skills = (block.skills || []).map((skill) => String(skill || "").trim()).filter(Boolean);
         if (!skills.length) {
           return;
         }
-        if (title.length) {
+        if (geometryPin && Number.isFinite(Number(block.skillsTopPt))) {
+          y = linePin.blockTop + Number(block.skillsTopPt);
+        } else if (title.length) {
           y += sectionMargin * 0.12;
         }
         const skillLine = [
@@ -721,41 +767,269 @@
       return groups.some((group) => (group || []).some(lineHasText));
     }
 
-    const contentBlocks = (model.blocks || []).filter(blockHasContent);
-    contentBlocks.forEach((block, index) => {
-      const gap = gapBefore(block);
-      let probe = bodySize * lineHeight;
-      if (block.kind === "heading") {
-        const headingBox = headingSize * 1.25;
-        const padBottom = sectionMargin * 0.25;
-        const spacingAfterHeading =
-          Math.max(0, padBottom - (headingBox - headingSize)) +
-          sectionMargin * (divider === "none" ? 0.15 : 0.4);
-        const next = contentBlocks[index + 1];
-        let nextGap = 0;
-        if (next) {
-          nextGap = sectionGap;
-          if (next.kind === "heading") {
-            nextGap += sectionMargin * 0.35;
-          }
-        }
-        probe = headingBox + spacingAfterHeading + nextGap + bodySize * lineHeight;
+    function countWrappedRows(lines, maxWidth, size, bold, italic) {
+      let count = 0;
+      (lines || [])
+        .filter(lineHasText)
+        .forEach((line) => {
+          count += wrapLine(line, maxWidth, size, bold, italic).length;
+        });
+      return count;
+    }
+
+    function countHeadingPaintRows(titleLines) {
+      const lines = (titleLines || []).filter(lineHasText).map(uppercaseLine);
+      return countWrappedRows(lines, contentWidth, headingSize, true, false);
+    }
+
+    function countSplitPaintRows(leftLines, rightLines, leftSize, rightSize) {
+      const usableRight = (rightLines || []).filter(lineHasText);
+      const usableLeft = (leftLines || []).filter(lineHasText);
+      if (usableLeft.length === 0 && usableRight.length === 0) {
+        return 0;
       }
-      if (gap > 0 && y + gap + probe > bottom + breakSlack && y > margin + 0.25) {
-        doc.addPage();
-        y = margin;
-      } else {
-        y += gap;
+      const columnGap = 10;
+      const rightMax = contentWidth * 0.42;
+      const rightWidth = usableRight.length
+        ? pairWidth(usableRight, rightMax, rightSize, false, true)
+        : 0;
+      const leftMax = usableRight.length
+        ? Math.max(48, contentWidth - rightWidth - columnGap)
+        : contentWidth;
+      let leftCount = 0;
+      usableLeft.forEach((line) => {
+        leftCount += wrapLine(line, leftMax, leftSize, true, false).length;
+      });
+      let rightCount = 0;
+      usableRight.forEach((line) => {
+        rightCount += wrapLine(line, Math.max(rightWidth, 24), rightSize, false, true).length;
+      });
+      return Math.max(leftCount, rightCount, 1);
+    }
+
+    function countBlockPaintRows(block) {
+      if (block.kind === "heading" || block.kind === "skills") {
+        return countHeadingPaintRows(block.title);
+      }
+      const title = (block.title || []).filter(lineHasText);
+      const date = (block.date || []).filter(lineHasText);
+      const subtitle = (block.subtitle || []).filter(lineHasText);
+      const location = (block.location || []).filter(lineHasText);
+      const bullets = (block.bullets || []).filter(lineHasText);
+      let count = 0;
+      if (block.kind === "cv-item") {
+        if (title.length || date.length) {
+          count += countSplitPaintRows(title, date, titleSize, bodySize);
+        }
+        if (subtitle.length) {
+          count += countWrappedRows(subtitle, contentWidth, titleSize, true, false);
+        }
+      } else if (title.length || date.length) {
+        count += countSplitPaintRows(title, date, titleSize, bodySize);
+      }
+      if (location.length) {
+        count += countWrappedRows(location, contentWidth, bodySize, false, false);
+      }
+      if (bullets.length) {
+        const textWidth = Math.max(48, contentWidth - 1.1 * 16 * 0.75);
+        count += countWrappedRows(bullets, textWidth, bodySize, false, false);
+      }
+      return count;
+    }
+
+    function skillsPaintFits(block) {
+      const skills = (block.skills || []).map((skill) => String(skill || "").trim()).filter(Boolean);
+      if (!skills.length) {
+        return true;
+      }
+      const skillLine = [{ text: skills.join(" · "), bold: false, italic: false, underline: false }];
+      const rows = wrapLine(skillLine, contentWidth, bodySize, false, false).length;
+      const title = (block.title || []).filter(lineHasText);
+      let start = Number(block.skillsTopPt);
+      if (!Number.isFinite(start)) {
+        start = (Number(block.dividerFromTopPt) || 0) + (title.length ? sectionMargin * 0.12 : 0);
+      }
+      return start + rows * lineBox(bodySize, lineHeight) <= block.heightPt + breakSlack;
+    }
+
+    function pinnedRowsMatch(block) {
+      const tops = block.lineTopsPt;
+      if (!Array.isArray(tops) || tops.some((value) => !Number.isFinite(value))) {
+        return false;
+      }
+      if (tops.some((value) => value < -8 || value > block.heightPt + 8)) {
+        return false;
+      }
+      const painted = countBlockPaintRows(block);
+      if (painted !== tops.length) {
+        return false;
+      }
+      if (block.kind === "skills") {
+        return skillsPaintFits(block);
+      }
+      return true;
+    }
+
+    function resolvePreviewGeometry(blocks) {
+      if (!blocks.length || model.previewGeometry !== true || model.fitChanged) {
+        return null;
+      }
+      const fitScale = Number(model.fitScale);
+      if (Number.isFinite(fitScale) && fitScale < 1) {
+        return null;
+      }
+      const bodyTopPt = Number(model.geometryBodyTopPt);
+      if (!Number.isFinite(bodyTopPt)) {
+        return null;
       }
 
-      if (block.kind === "heading") {
-        drawHeading(block);
-      } else {
-        drawEntry(block);
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        if (!Number.isFinite(block.topPt) || !(block.heightPt > 0) || block.heightPt > pageHeight) {
+          return null;
+        }
+        if (index > 0 && block.topPt + 0.75 < blocks[index - 1].topPt) {
+          return null;
+        }
+        if (!pinnedRowsMatch(block)) {
+          return null;
+        }
       }
-      previousKind = block.kind;
-      blockDrawn = true;
-    });
+
+      const positions = [];
+      let relocated = false;
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        const absTop = bodyTopPt + block.topPt;
+        if (absTop < -1) {
+          return null;
+        }
+        let page = Math.floor(absTop / pageHeight);
+        let yOnPage = absTop - page * pageHeight;
+        if (absTop + block.heightPt > (page + 1) * pageHeight + breakSlack) {
+          page += 1;
+          yOnPage = margin;
+          relocated = true;
+        }
+        positions.push({ page, y: yOnPage });
+      }
+
+      for (let index = 0; index < blocks.length - 1; index += 1) {
+        const block = blocks[index];
+        if (block.kind !== "heading" || positions[index].page >= positions[index + 1].page) {
+          continue;
+        }
+        const next = blocks[index + 1];
+        const nextPos = positions[index + 1];
+        const gap = next.topPt - block.topPt - block.heightPt;
+        const safeGap = Number.isFinite(gap) ? Math.max(0, gap) : 0;
+        let headingY = nextPos.y - safeGap - block.heightPt;
+        if (headingY < margin) {
+          const shift = margin - headingY;
+          headingY = margin;
+          for (let follow = index + 1; follow < positions.length; follow += 1) {
+            if (positions[follow].page !== nextPos.page) {
+              continue;
+            }
+            positions[follow].y += shift;
+          }
+        }
+        positions[index].page = nextPos.page;
+        positions[index].y = headingY;
+        relocated = true;
+      }
+
+      if (relocated) {
+        for (let index = 0; index < positions.length; index += 1) {
+          const top = positions[index].y;
+          const blockBottom = top + blocks[index].heightPt;
+          if (!(top >= -0.5) || blockBottom > pageHeight + breakSlack) {
+            return null;
+          }
+        }
+        for (let index = 0; index < positions.length; index += 1) {
+          for (let other = index + 1; other < positions.length; other += 1) {
+            if (positions[index].page !== positions[other].page) {
+              continue;
+            }
+            const aTop = positions[index].y;
+            const aBottom = aTop + blocks[index].heightPt;
+            const bTop = positions[other].y;
+            const bBottom = bTop + blocks[other].heightPt;
+            if (aTop < bBottom - 0.75 && bTop < aBottom - 0.75) {
+              return null;
+            }
+          }
+        }
+      }
+
+      return positions;
+    }
+
+    const contentBlocks = (model.blocks || []).filter(blockHasContent);
+    let geometryPositions = resolvePreviewGeometry(contentBlocks);
+    if (geometryPositions?.[0]?.page === 0 && geometryPositions[0].y + 0.75 < y) {
+      geometryPositions = null;
+    }
+    if (geometryPositions) {
+      geometryPin = true;
+      contentBlocks.forEach((block, index) => {
+        const pos = geometryPositions[index];
+        while (doc.getNumberOfPages() < pos.page + 1) {
+          doc.addPage();
+        }
+        doc.setPage(pos.page + 1);
+        const pageOffset = margin + block.topPt - pos.y;
+        y = margin + block.topPt - pageOffset;
+        linePin.blockTop = y;
+        linePin.tops = block.lineTopsPt;
+        linePin.index = 0;
+        if (block.kind === "heading") {
+          drawHeading(block);
+        } else {
+          drawEntry(block);
+        }
+        previousKind = block.kind;
+        blockDrawn = true;
+      });
+      geometryPin = false;
+      linePin.tops = null;
+    } else {
+      contentBlocks.forEach((block, index) => {
+        const gap = gapBefore(block);
+        let probe = bodySize * lineHeight;
+        if (block.kind === "heading") {
+          const headingBox = headingSize * 1.25;
+          const padBottom = sectionMargin * 0.25;
+          const spacingAfterHeading =
+            Math.max(0, padBottom - (headingBox - headingSize)) +
+            sectionMargin * (divider === "none" ? 0.15 : 0.4);
+          const next = contentBlocks[index + 1];
+          let nextGap = 0;
+          if (next) {
+            nextGap = sectionGap;
+            if (next.kind === "heading") {
+              nextGap += sectionMargin * 0.35;
+            }
+          }
+          probe = headingBox + spacingAfterHeading + nextGap + bodySize * lineHeight;
+        }
+        if (gap > 0 && y + gap + probe > bottom + breakSlack && y > margin + 0.25) {
+          doc.addPage();
+          y = margin;
+        } else {
+          y += gap;
+        }
+
+        if (block.kind === "heading") {
+          drawHeading(block);
+        } else {
+          drawEntry(block);
+        }
+        previousKind = block.kind;
+        blockDrawn = true;
+      });
+    }
 
     if (model.documentTitle) {
       const latinTitle = textSegments(model.documentTitle)
