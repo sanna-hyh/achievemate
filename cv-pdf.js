@@ -522,7 +522,11 @@
           doc.line(start, baseline + 1.15, start + width, baseline + 1.15);
         }
         const text = sanitizeText(run.text, font);
-        const links = Array.isArray(run.links) ? run.links : linkSpans(text);
+        const links = run.href
+          ? [{ start: 0, end: text.length, url: run.href }]
+          : Array.isArray(run.links)
+            ? run.links
+            : linkSpans(text);
         annotateLinks(text, links, start, baseline, size, style);
       });
       return cursor - x;
