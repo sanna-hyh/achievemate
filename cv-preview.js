@@ -706,7 +706,7 @@
   }
 
   function tryActivateEdit(event, explicitTarget = null) {
-    if (event.target.closest(".cv-section-remove, .cv-section-handle")) {
+    if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-deep-edit")) {
       return false;
     }
     if (event.target.closest('[contenteditable="true"].is-editing')) {
@@ -914,7 +914,7 @@
       if (!(target instanceof Element)) {
         return;
       }
-      if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-skill-chip-remove")) {
+      if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit, .cv-skill-chip-remove")) {
         return;
       }
       if (target.closest(".cv-skill-input, input, textarea")) {
@@ -947,7 +947,7 @@
         const fromTouch = phoneTouchEdit;
         phoneTouchEdit = false;
         const target = event.target;
-        if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-skill-chip-remove")) {
+        if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit, .cv-skill-chip-remove")) {
           return;
         }
         if (target.closest(".cv-skill-input, input, textarea")) {
@@ -974,7 +974,7 @@
         phoneTouchEdit = false;
       }
 
-      if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save")) {
+      if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit")) {
         return;
       }
       if (event.target.closest('[contenteditable="true"].is-editing')) {
@@ -3330,6 +3330,147 @@
     });
   }
 
+  const CV_ITEM_DEEP_EDIT_HOLD_MS = 480;
+
+  function setCvItemDeepEdit(wrap, on) {
+    if (!wrap) {
+      return;
+    }
+    if (on) {
+      cvPreview.querySelectorAll(".cv-section-wrap.is-cv-item-deep-edit").forEach((other) => {
+        if (other !== wrap) {
+          setCvItemDeepEdit(other, false);
+        }
+      });
+    }
+    wrap.classList.toggle("is-cv-item-deep-edit", on);
+    const button = wrap.querySelector(".cv-section-deep-edit");
+    if (button) {
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+  }
+
+  function focusStillInCvItem(wrap) {
+    const active = document.activeElement;
+    if (!(active instanceof Element)) {
+      return false;
+    }
+    if (wrap.contains(active)) {
+      return true;
+    }
+    return Boolean(active.closest(".cv-link-ui"));
+  }
+
+  function bindCvItemDeepEdit(wrap) {
+    const button = wrap.querySelector(".cv-section-deep-edit");
+    const entry = wrap.querySelector(".cv-preview-cv-item");
+    if (!button || !entry) {
+      return;
+    }
+
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
+    });
+
+    wrap.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || event.isComposing) {
+        return;
+      }
+      if (!wrap.classList.contains("is-cv-item-deep-edit")) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      setCvItemDeepEdit(wrap, false);
+    });
+
+    wrap.addEventListener("focusout", () => {
+      window.setTimeout(() => {
+        if (!wrap.isConnected || !wrap.classList.contains("is-cv-item-deep-edit")) {
+          return;
+        }
+        if (focusStillInCvItem(wrap)) {
+          return;
+        }
+        setCvItemDeepEdit(wrap, false);
+      }, 0);
+    });
+
+    let holdTimer = 0;
+    let holdFired = false;
+    let holdX = 0;
+    let holdY = 0;
+
+    const cancelHold = () => {
+      window.clearTimeout(holdTimer);
+      holdTimer = 0;
+    };
+
+    entry.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" || event.button !== 0) {
+        return;
+      }
+      if (
+        event.target.closest(
+          ".cv-section-handle, .cv-section-remove, .cv-section-save, .cv-section-deep-edit, [contenteditable='true'].is-editing"
+        )
+      ) {
+        return;
+      }
+      holdFired = false;
+      holdX = event.clientX;
+      holdY = event.clientY;
+      cancelHold();
+      holdTimer = window.setTimeout(() => {
+        holdTimer = 0;
+        holdFired = true;
+        setCvItemDeepEdit(wrap, true);
+      }, CV_ITEM_DEEP_EDIT_HOLD_MS);
+    });
+
+    entry.addEventListener("pointermove", (event) => {
+      if (!holdTimer) {
+        return;
+      }
+      if (Math.hypot(event.clientX - holdX, event.clientY - holdY) > 10) {
+        cancelHold();
+      }
+    });
+
+    entry.addEventListener("pointerup", () => {
+      const fired = holdFired;
+      cancelHold();
+      if (!fired) {
+        return;
+      }
+      window.setTimeout(() => {
+        if (!wrap.isConnected || !wrap.classList.contains("is-cv-item-deep-edit")) {
+          return;
+        }
+        if (focusStillInCvItem(wrap)) {
+          return;
+        }
+        button.focus({ preventScroll: true });
+      }, 0);
+      window.setTimeout(() => {
+        holdFired = false;
+      }, 600);
+    });
+
+    entry.addEventListener("pointercancel", () => {
+      cancelHold();
+      holdFired = false;
+    });
+
+    entry.addEventListener("contextmenu", (event) => {
+      if (holdTimer || holdFired) {
+        event.preventDefault();
+      }
+    });
+  }
+
   function bindSectionHandles() {
     cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
       const layoutItemId = wrap.dataset.layoutItemId;
@@ -3410,6 +3551,8 @@
         setLibraryStarButtonState(saveBtn, isLayoutItemInLibrary(layoutItemId));
         saveBtn.blur();
       });
+
+      bindCvItemDeepEdit(wrap);
     });
   }
 
@@ -4804,10 +4947,21 @@
         ? libraryStarButtonMarkup(isLayoutItemInLibrary(item.id))
         : "";
 
+    const deepEditButton =
+      item.type === "cv-item" &&
+      !options.publish &&
+      wrapExtraClass.includes("is-cv-item-collapsed") &&
+      getCvItemFieldKeys(item).some(
+        (field) => !isCvItemFieldFilled(getCvItemFieldContent(item, field), field, item)
+      )
+        ? `<button type="button" class="btn-icon cv-section-deep-edit" aria-label="Show empty fields" aria-pressed="false">⋯</button>`
+        : "";
+
     return `
       <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
         <div class="cv-section-handles">
           <button type="button" class="btn-icon cv-section-handle" draggable="true" aria-label="Drag to reorder section">⠿</button>
+          ${deepEditButton}
           <button type="button" class="btn-icon cv-section-remove" aria-label="Remove section from CV">×</button>
         </div>
         ${saveButton}

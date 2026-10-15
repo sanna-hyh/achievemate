@@ -3990,6 +3990,7 @@ body.is-phone-keyboard {
   .cv-section-wrap .cv-section-handles,
   .cv-section-wrap .cv-section-handles .cv-section-handle,
   .cv-section-wrap .cv-section-handles .cv-section-remove,
+  .cv-section-wrap .cv-section-handles .cv-section-deep-edit,
   .cv-section-wrap .cv-section-save {
     pointer-events: none;
   }
@@ -4002,7 +4003,7 @@ body.is-phone-keyboard {
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
   .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
   .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
     .cv-section-handles {
     opacity: 1;
     pointer-events: auto;
@@ -4010,16 +4011,22 @@ body.is-phone-keyboard {
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove,
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-deep-edit,
   .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-handle,
   .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-remove,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-deep-edit,
   .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-handle,
   .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-remove,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-deep-edit,
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
     .cv-section-handles
     .cv-section-handle,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible)
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
     .cv-section-handles
-    .cv-section-remove {
+    .cv-section-remove,
+  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
+    .cv-section-handles
+    .cv-section-deep-edit {
     pointer-events: auto;
   }
 
@@ -4286,7 +4293,7 @@ body.is-phone-keyboard {
 .cv-section-wrap:hover,
 .cv-section-wrap:has([data-edit-key]:focus),
 .cv-section-wrap:has(.cv-skill-input:focus),
-.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible) {
+.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) {
   z-index: 2;
 }
 
@@ -4373,18 +4380,28 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 .cv-section-wrap:hover .cv-section-handles,
 .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
-.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible) .cv-section-handles {
+.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) .cv-section-handles {
   opacity: 1;
 }
 
 .cv-section-handles .cv-section-handle,
-.cv-section-handles .cv-section-remove {
+.cv-section-handles .cv-section-remove,
+.cv-section-handles .cv-section-deep-edit {
   position: relative;
   z-index: 1;
   flex-shrink: 0;
   width: 26px;
   height: 22px;
   pointer-events: auto;
+}
+
+.cv-section-deep-edit {
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+.cv-section-wrap.is-cv-item-deep-edit .cv-section-deep-edit {
+  color: var(--brass-bright);
 }
 
 .cv-section-handle {
@@ -4510,7 +4527,8 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove {
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove,
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-deep-edit {
     opacity: 1;
     pointer-events: auto;
   }
@@ -4538,6 +4556,12 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     line-height: 1;
     color: rgba(70, 70, 70, 0.55);
     background: transparent;
+  }
+
+  .cv-section-handles .cv-section-deep-edit {
+    width: 40px;
+    height: 40px;
+    font-size: 1.35rem;
   }
 
   .cv-section-remove:hover,
@@ -5548,15 +5572,37 @@ body.is-cv-dragging .cv-preview-document {
   border-bottom-color: var(--cv-accent-color);
 }
 
-.cv-section-wrap.is-cv-item-collapsed:not(:hover):not(:has([data-edit-key]:focus)) .cv-cv-item-field-hidden {
+.cv-section-wrap.is-cv-item-collapsed:not(.is-cv-item-deep-edit) .cv-cv-item-field-hidden:not(:focus-within) {
   display: none !important;
 }
 
-.cv-section-wrap.is-cv-item-collapsed:not(:hover):not(:has([data-edit-key]:focus))
-  .cv-preview-cv-item-title-row:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))),
-.cv-section-wrap.is-cv-item-collapsed:not(:hover):not(:has([data-edit-key]:focus))
-  .cv-preview-cv-item-subrow:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))) {
+.cv-section-wrap.is-cv-item-collapsed:not(.is-cv-item-deep-edit)
+  .cv-preview-cv-item-title-row:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))):not(:has(:focus)),
+.cv-section-wrap.is-cv-item-collapsed:not(.is-cv-item-deep-edit)
+  .cv-preview-cv-item-subrow:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))):not(:has(:focus)) {
   display: none;
+}
+
+.cv-section-wrap.is-cv-item-collapsed.is-cv-item-deep-edit .cv-cv-item-field-hidden,
+.cv-section-wrap.is-cv-item-collapsed.is-cv-item-deep-edit
+  .cv-preview-cv-item-title-row:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))),
+.cv-section-wrap.is-cv-item-collapsed.is-cv-item-deep-edit
+  .cv-preview-cv-item-subrow:has(> .cv-cv-item-field-hidden):not(:has(> :not(.cv-cv-item-field-hidden))) {
+  animation: cvItemDeepEditExpand 180ms var(--ease-out);
+}
+
+@keyframes cvItemDeepEditExpand {
+  from {
+    overflow: hidden;
+    opacity: 0;
+    max-height: 0;
+    margin-top: 0;
+  }
+  to {
+    overflow: hidden;
+    opacity: 1;
+    max-height: 16rem;
+  }
 }
 
 .cv-preview-cv-item-title-row:has(> .cv-preview-cv-item-date:only-child) {
