@@ -201,6 +201,138 @@
     return Array.isArray(line) && line.some((run) => String(run?.text || "").trim());
   }
 
+  const LINK_FILE_EXT = new Set(
+    "js jsx mjs cjs ts tsx css scss less json md py rb go rs java c cpp h hpp cs php html htm xml yml yaml svg png jpg jpeg gif webp pdf zip gz tar mp3 mp4 wav txt csv ttf woff woff2 map sh vue svelte lock".split(
+      " "
+    )
+  );
+  const LINK_WEB_TLD = new Set(
+    "com net org io dev app me co ai xyz page site design studio work tech info edu gov uk tw hk jp de fr ca au nz sg kr cn us eu nl se ch in tv cc pro jobs cv link live cloud online store blog portfolio".split(
+      " "
+    )
+  );
+  const LINK_MULTI_SUFFIX = new Set(
+    "co.uk org.uk ac.uk com.tw com.hk com.sg com.au co.jp com.cn co.nz com.br co.kr com.my co.in".split(" ")
+  );
+
+  function trimLinkEnd(text, start, end) {
+    const trailing = /[),.;:!?\]>'"，。、；：！？）】》」』]/;
+    while (end > start && trailing.test(text.charAt(end - 1))) {
+      if (text.charAt(end - 1) === ")") {
+        const slice = text.slice(start, end);
+        const open = (slice.match(/\(/g) || []).length;
+        const close = (slice.match(/\)/g) || []).length;
+        if (close <= open) {
+          break;
+        }
+      }
+      end -= 1;
+    }
+    return end;
+  }
+
+  function bareUrlOk(raw) {
+    const slash = raw.indexOf("/");
+    const host = slash === -1 ? raw : raw.slice(0, slash);
+    if (!host || /[^A-Za-z0-9.-]/.test(host)) {
+      return false;
+    }
+    const labels = host.split(".");
+    if (
+      labels.length < 2 ||
+      labels.some((label) => !label || label.length > 63 || !/^[A-Za-z0-9-]+$/.test(label))
+    ) {
+      return false;
+    }
+    const lower = labels.map((label) => label.toLowerCase());
+    const tld = lower[lower.length - 1];
+    if (!/^[a-z]{2,24}$/.test(tld)) {
+      return false;
+    }
+    if (LINK_FILE_EXT.has(tld) && !LINK_WEB_TLD.has(tld)) {
+      return false;
+    }
+    const lastTwo = lower.slice(-2).join(".");
+    const suffixCount = LINK_MULTI_SUFFIX.has(lastTwo) ? 2 : 1;
+    if (lower.length <= suffixCount) {
+      return false;
+    }
+    const name = lower[lower.length - suffixCount - 1];
+    if (name.length < 3) {
+      return false;
+    }
+    if (suffixCount === 2) {
+      return true;
+    }
+    return LINK_WEB_TLD.has(tld) || slash !== -1;
+  }
+
+  function linkSpans(text) {
+    const spans = [];
+    const occupied = (start, end) => spans.some((span) => start < span.end && end > span.start);
+    const push = (start, end, url) => {
+      if (!(end > start) || !url || occupied(start, end)) {
+        return;
+      }
+      spans.push({ start, end, url });
+    };
+    const source = String(text || "");
+    const body = "[^\\s<>\"'`|，。、；：！？）】》」』]+";
+
+    for (const match of source.matchAll(new RegExp("(?:https?:\\/\\/|www\\.)" + body, "gi"))) {
+      const end = trimLinkEnd(source, match.index, match.index + match[0].length);
+      const raw = source.slice(match.index, end);
+      if (!raw || /^www\.?$/i.test(raw) || /^https?:\/\/$/i.test(raw)) {
+        continue;
+      }
+      const url = /^https?:\/\//i.test(raw) ? raw.replace(/^https?:\/\//i, (scheme) => scheme.toLowerCase()) : "https://" + raw;
+      push(match.index, end, url);
+    }
+
+    for (const match of source.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)) {
+      const end = trimLinkEnd(source, match.index, match.index + match[0].length);
+      const raw = source.slice(match.index, end);
+      const tld = raw.split(".").pop().toLowerCase();
+      if (!raw.includes("@") || !tld || LINK_FILE_EXT.has(tld)) {
+        continue;
+      }
+      push(match.index, end, "mailto:" + raw);
+    }
+
+    for (const match of source.matchAll(
+      new RegExp(
+        "\\b(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z]{2,24}(?:\\/" + body + ")?",
+        "g"
+      )
+    )) {
+      const end = trimLinkEnd(source, match.index, match.index + match[0].length);
+      const raw = source.slice(match.index, end);
+      if (!bareUrlOk(raw)) {
+        continue;
+      }
+      push(match.index, end, "https://" + raw);
+    }
+
+    spans.sort((a, b) => a.start - b.start);
+    return spans;
+  }
+
+  function sliceLinkedRun(run, start, end) {
+    const text = run.text.slice(start, end);
+    if (!Array.isArray(run.links) || run.links.length === 0) {
+      return { ...run, text };
+    }
+    const links = [];
+    run.links.forEach((link) => {
+      const from = Math.max(link.start, start);
+      const to = Math.min(link.end, end);
+      if (to > from) {
+        links.push({ start: from - start, end: to - start, url: link.url });
+      }
+    });
+    return { ...run, text, links };
+  }
+
   function finitePt(value, fallback) {
     const number = Number(value);
     return Number.isFinite(number) ? number : fallback;
@@ -366,8 +498,46 @@
           doc.setLineDashPattern([], 0);
           doc.line(start, baseline + 1.15, start + width, baseline + 1.15);
         }
+        const text = sanitizeText(run.text);
+        const links = Array.isArray(run.links) ? run.links : linkSpans(text);
+        annotateLinks(text, links, start, baseline, size, style);
       });
       return cursor - x;
+    }
+
+    function drawnWidth(text, size, style) {
+      let width = 0;
+      textSegments(text).forEach((segment) => {
+        const face = faceFor(style, segment.unicode);
+        if (!face) {
+          return;
+        }
+        doc.setFont(face.family, face.style);
+        doc.setFontSize(size);
+        width += doc.getTextWidth(segment.text);
+      });
+      return width;
+    }
+
+    function annotateLinks(text, links, originX, baseline, size, style) {
+      if (!links || links.length === 0) {
+        return;
+      }
+      const factor = typeof doc.getLineHeightFactor === "function" ? doc.getLineHeightFactor() : 1.15;
+      const descent = size * (factor - 1);
+      const top = baseline - (size - descent);
+      links.forEach((link) => {
+        const start = Math.max(0, Number(link.start) || 0);
+        const end = Math.min(text.length, Number(link.end) || 0);
+        if (end <= start || !link.url) {
+          return;
+        }
+        const x = originX + drawnWidth(text.slice(0, start), size, style);
+        const width = drawnWidth(text.slice(start, end), size, style);
+        if (width > 0) {
+          doc.link(x, top, width, size, { url: link.url });
+        }
+      });
     }
 
     function runWidth(run, size, forceBold, forceItalic) {
@@ -386,9 +556,15 @@
           return;
         }
         text.split(/(\s+)/).forEach((part) => {
-          if (part) {
-            tokens.push({ ...run, text: part });
+          if (!part) {
+            return;
           }
+          const token = { ...run, text: part };
+          const links = linkSpans(part);
+          if (links.length) {
+            token.links = links;
+          }
+          tokens.push(token);
         });
       });
       return tokens;
@@ -421,22 +597,25 @@
         }
         if (!isSpace && pieceWidth > widthLimit) {
           let buffer = "";
+          let bufferStart = 0;
           for (const ch of run.text) {
             const next = buffer + ch;
             const nextWidth = runWidth({ ...run, text: next }, size, forceBold, forceItalic);
             if (nextWidth > widthLimit && buffer) {
-              appendPiece({ ...run, text: buffer });
+              appendPiece(sliceLinkedRun(run, bufferStart, bufferStart + buffer.length));
+              bufferStart += buffer.length;
               buffer = ch;
             } else {
               buffer = next;
             }
           }
           if (buffer) {
-            const bufferWidth = runWidth({ ...run, text: buffer }, size, forceBold, forceItalic);
+            const piece = sliceLinkedRun(run, bufferStart, bufferStart + buffer.length);
+            const bufferWidth = runWidth(piece, size, forceBold, forceItalic);
             if (width + bufferWidth > widthLimit && current.length > 0) {
               pushCurrent();
             }
-            current.push({ ...run, text: buffer });
+            current.push(piece);
             width += bufferWidth;
           }
           return;
