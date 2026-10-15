@@ -563,6 +563,12 @@
         const width = drawnWidth(text.slice(start, end), size, style);
         if (width > 0) {
           doc.link(x, top, width, size, { url: link.url });
+          // #3B82F6 at 70% on white — same cue as the preview underline.
+          doc.setDrawColor(118, 168, 249);
+          doc.setLineWidth(0.75);
+          doc.setLineDashPattern([], 0);
+          const underlineY = baseline + size * 0.15;
+          doc.line(x, underlineY, x + width, underlineY);
         }
       });
     }
