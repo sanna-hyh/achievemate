@@ -5702,20 +5702,35 @@ body.is-cv-dragging .cv-preview-document {
 .cv-preview-document [data-edit-key] a[href],
 .cv-preview-document [data-edit-key] a[href]:visited {
   position: relative;
-  color: var(--cv-accent-color);
+  color: inherit;
   text-decoration-line: underline;
-  text-decoration-color: var(--cv-accent-color);
-  text-underline-offset: 0.12em;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, #3b82f6 70%, transparent);
+  text-underline-offset: 0.15em;
   cursor: pointer;
+}
+
+.cv-preview-document [data-edit-key] a[href]:hover,
+.cv-preview-document [data-edit-key] a[href]:visited:hover {
+  text-decoration-color: #3b82f6;
 }
 
 .cv-preview-document [contenteditable="true"] a[href],
 .cv-preview-document [contenteditable="true"] a[href]:visited,
 .cv-preview-document .is-editing a[href],
 .cv-preview-document .is-editing a[href]:visited {
-  color: var(--cv-accent-color) !important;
+  color: inherit !important;
   text-decoration-line: underline !important;
-  text-decoration-color: var(--cv-accent-color) !important;
+  text-decoration-thickness: 1px !important;
+  text-decoration-color: color-mix(in srgb, #3b82f6 70%, transparent) !important;
+  text-underline-offset: 0.15em !important;
+}
+
+.cv-preview-document [contenteditable="true"] a[href]:hover,
+.cv-preview-document [contenteditable="true"] a[href]:visited:hover,
+.cv-preview-document .is-editing a[href]:hover,
+.cv-preview-document .is-editing a[href]:visited:hover {
+  text-decoration-color: #3b82f6 !important;
 }
 
 .cv-preview-document [data-edit-key] a[href]:hover::after {
