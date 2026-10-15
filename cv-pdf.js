@@ -232,6 +232,7 @@
     const margin = Math.max(36, Number(model.marginPt) || 54);
     const contentWidth = Math.max(72, pageWidth - margin * 2);
     const bottom = pageHeight - margin;
+    const breakSlack = 2;
 
     let font = pdfFontName(model.fontFamily);
     if (unicodeFont) {
@@ -313,7 +314,7 @@
     }
 
     function ensureSpace(height) {
-      if (y + height <= bottom + 0.25) {
+      if (y + height <= bottom + breakSlack) {
         return;
       }
       if (y <= margin + 0.25) {
@@ -720,11 +721,27 @@
       return groups.some((group) => (group || []).some(lineHasText));
     }
 
-    (model.blocks || []).filter(blockHasContent).forEach((block) => {
+    const contentBlocks = (model.blocks || []).filter(blockHasContent);
+    contentBlocks.forEach((block, index) => {
       const gap = gapBefore(block);
-      const probe =
-        block.kind === "heading" ? headingSize * 1.25 + bodySize * lineHeight : bodySize * lineHeight;
-      if (gap > 0 && y + gap + probe > bottom && y > margin + 0.25) {
+      let probe = bodySize * lineHeight;
+      if (block.kind === "heading") {
+        const headingBox = headingSize * 1.25;
+        const padBottom = sectionMargin * 0.25;
+        const spacingAfterHeading =
+          Math.max(0, padBottom - (headingBox - headingSize)) +
+          sectionMargin * (divider === "none" ? 0.15 : 0.4);
+        const next = contentBlocks[index + 1];
+        let nextGap = 0;
+        if (next) {
+          nextGap = sectionGap;
+          if (next.kind === "heading") {
+            nextGap += sectionMargin * 0.35;
+          }
+        }
+        probe = headingBox + spacingAfterHeading + nextGap + bodySize * lineHeight;
+      }
+      if (gap > 0 && y + gap + probe > bottom + breakSlack && y > margin + 0.25) {
         doc.addPage();
         y = margin;
       } else {
