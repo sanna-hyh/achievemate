@@ -38,6 +38,14 @@
   let sectionDragSession = null;
   let cvItemEnterNavSource = null;
   const editSessionDirty = new WeakMap();
+  let linkUi = null;
+  let linkUiInput = null;
+  let linkUiMode = null;
+  let activeLinkField = null;
+  let activeLinkAnchor = null;
+  let linkComposeTarget = null;
+  let linkSavedRange = null;
+  let linkPress = null;
 
   function markEditSessionDirty(node) {
     if (node) {
@@ -541,6 +549,9 @@
   }
 
   function finishFieldEdit(node) {
+    if (activeLinkField === node) {
+      hideLinkUi();
+    }
     node.classList.remove("is-editing");
     node.setAttribute("contenteditable", "false");
     if (node.classList.contains("cv-preview-description")) {
@@ -573,6 +584,10 @@
 
   function updateEditingPreviewFlag() {
     const active = document.activeElement;
+    if (active instanceof Element && active.closest(".cv-link-ui")) {
+      isEditingPreview = true;
+      return;
+    }
     if (active && cvPreview.contains(active) && active.matches("[data-edit-key]")) {
       isEditingPreview = true;
       return;
@@ -1755,11 +1770,53 @@
     return Math.max(12, Math.min(16, styles.headingFontSize ?? 13));
   }
 
+  function unwrapElement(element) {
+    const parent = element.parentNode;
+    if (!parent) {
+      return;
+    }
+    while (element.firstChild) {
+      parent.insertBefore(element.firstChild, element);
+    }
+    element.remove();
+  }
+
+  function safeHref(value) {
+    const href = String(value ?? "").trim();
+    if (!href || /[\u0000-\u001F\u007F\s]/.test(href)) {
+      return "";
+    }
+    if (!/^(https?:\/\/|mailto:)/i.test(href)) {
+      return "";
+    }
+    try {
+      const protocol = new URL(href).protocol.toLowerCase();
+      if (protocol !== "http:" && protocol !== "https:" && protocol !== "mailto:") {
+        return "";
+      }
+    } catch {
+      return "";
+    }
+    return href;
+  }
+
+  function linkFromInput(raw) {
+    let value = String(raw ?? "").trim();
+    if (!value) {
+      return "";
+    }
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+      return safeHref(value.replace(/\s+/g, "%20"));
+    }
+    value = value.replace(/^\/+/, "");
+    return safeHref(`https://${value.replace(/\s+/g, "%20")}`);
+  }
+
   function sanitizeRichText(html) {
     const template = document.createElement("div");
     template.innerHTML = String(html ?? "");
 
-    const allowedTags = new Set(["B", "STRONG", "I", "EM", "U", "BR"]);
+    const allowedTags = new Set(["B", "STRONG", "I", "EM", "U", "BR", "A"]);
 
     function cleanNode(node) {
       [...node.childNodes].forEach((child) => {
@@ -1777,12 +1834,24 @@
         }
 
         if (!allowedTags.has(child.tagName)) {
-          const fragment = document.createDocumentFragment();
-          while (child.firstChild) {
-            fragment.appendChild(child.firstChild);
-          }
-          child.replaceWith(fragment);
+          unwrapElement(child);
           cleanNode(node);
+          return;
+        }
+
+        if (child.tagName === "A") {
+          const href = safeHref(child.getAttribute("href"));
+          const nested = Boolean(child.parentElement?.closest("a"));
+          if (!href || nested) {
+            unwrapElement(child);
+            cleanNode(node);
+            return;
+          }
+          [...child.attributes].forEach((attr) => {
+            child.removeAttribute(attr.name);
+          });
+          child.setAttribute("href", href);
+          cleanNode(child);
           return;
         }
 
@@ -1845,12 +1914,16 @@
           lines.push([]);
         }
         if (part) {
-          lines[lines.length - 1].push({
+          const run = {
             text: part,
             bold: style.bold,
             italic: style.italic,
             underline: style.underline,
-          });
+          };
+          if (style.href) {
+            run.href = style.href;
+          }
+          lines[lines.length - 1].push(run);
         }
       });
     };
@@ -1877,6 +1950,12 @@
         }
         if (child.tagName === "U") {
           next.underline = true;
+        }
+        if (child.tagName === "A") {
+          const href = safeHref(child.getAttribute("href"));
+          if (href) {
+            next.href = href;
+          }
         }
         walk(child, next);
       });
@@ -3433,7 +3512,7 @@
   }
 
   function hasInlineFormatting(value) {
-    return /<(b|strong|i|em|u)\b/i.test(String(value ?? ""));
+    return /<(b|strong|i|em|u|a)\b/i.test(String(value ?? ""));
   }
 
   function comparableEditText(value) {
@@ -3835,6 +3914,474 @@
     });
   }
 
+  function prepareRichLinks(root) {
+    root?.querySelectorAll?.("a").forEach((anchor) => {
+      const href = safeHref(anchor.getAttribute("href"));
+      const nested = Boolean(anchor.parentElement?.closest("a"));
+      if (!href || nested) {
+        unwrapElement(anchor);
+        return;
+      }
+      [...anchor.attributes].forEach((attr) => {
+        if (attr.name.toLowerCase() !== "href") {
+          anchor.removeAttribute(attr.name);
+        }
+      });
+      if (anchor.getAttribute("href") !== href) {
+        anchor.setAttribute("href", href);
+      }
+    });
+  }
+
+  function persistRichField(field) {
+    if (!field?.isConnected || !field.dataset.editKey) {
+      return;
+    }
+    const value = normalizeSavedEditValue(field, getNodeEditContent(field));
+    const changed = commitEditKey(field.dataset.editKey, value);
+    if (!changed) {
+      return;
+    }
+    if (field.classList.contains("is-editing")) {
+      markEditSessionDirty(field);
+      return;
+    }
+    recordCvHistory("Edit link");
+  }
+
+  function focusFieldKeepingDirty(field) {
+    if (!field?.isConnected) {
+      return;
+    }
+    const dirty = Boolean(editSessionDirty.get(field));
+    field.focus({ preventScroll: true });
+    if (dirty) {
+      editSessionDirty.set(field, true);
+    }
+  }
+
+  function ensureFieldEditing(field) {
+    if (field.getAttribute("contenteditable") === "true" && field.classList.contains("is-editing")) {
+      return;
+    }
+    beginEditSession(field);
+    field.setAttribute("contenteditable", "true");
+    field.classList.add("is-editing");
+    field.classList.remove("cv-preview-placeholder");
+    isEditingPreview = true;
+  }
+
+  function hideLinkUi() {
+    linkUiMode = null;
+    linkComposeTarget = null;
+    activeLinkField = null;
+    activeLinkAnchor = null;
+    linkSavedRange = null;
+    if (linkUi) {
+      linkUi.hidden = true;
+    }
+    if (linkUiInput) {
+      linkUiInput.value = "";
+    }
+    document.body.classList.remove("cv-link-ui-open");
+  }
+
+  function richTextSelection() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      return null;
+    }
+    if (!String(selection.toString() || "").trim()) {
+      return null;
+    }
+    const range = selection.getRangeAt(0);
+    let node = range.commonAncestorContainer;
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      node = node.parentElement;
+    }
+    const field = node?.closest?.("[data-edit-key]");
+    if (!field || !cvPreview?.contains(field)) {
+      return null;
+    }
+    if (field.getAttribute("contenteditable") !== "true") {
+      return null;
+    }
+    if (!field.contains(range.startContainer) || !field.contains(range.endContainer)) {
+      return null;
+    }
+    return { field, range };
+  }
+
+  function rangeClientRect(range) {
+    if (!range) {
+      return null;
+    }
+    const rects = range.getClientRects();
+    for (const rect of rects) {
+      if (rect.width >= 1 && rect.height >= 1) {
+        return rect;
+      }
+    }
+    const rect = range.getBoundingClientRect();
+    if (rect.width >= 1 || rect.height >= 1) {
+      return rect;
+    }
+    return null;
+  }
+
+  function linkUiRect() {
+    if ((linkUiMode === "anchor" || linkComposeTarget === "anchor") && activeLinkAnchor?.isConnected) {
+      return activeLinkAnchor.getBoundingClientRect();
+    }
+    if (linkUiMode === "compose" && linkSavedRange) {
+      return rangeClientRect(linkSavedRange);
+    }
+    const found = richTextSelection();
+    if (found) {
+      return rangeClientRect(found.range);
+    }
+    if (linkSavedRange) {
+      return rangeClientRect(linkSavedRange);
+    }
+    return null;
+  }
+
+  function placeLinkUi() {
+    if (!linkUi) {
+      return;
+    }
+    const rect = linkUiRect();
+    if (!rect) {
+      return;
+    }
+    linkUi.hidden = false;
+    document.body.classList.add("cv-link-ui-open");
+    const margin = 8;
+    const width = linkUi.offsetWidth;
+    const height = linkUi.offsetHeight;
+    let top = rect.top - height - 6;
+    if (top < margin) {
+      top = rect.bottom + 6;
+    }
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const left = Math.min(Math.max(rect.left, margin), maxLeft);
+    linkUi.style.top = `${Math.round(top)}px`;
+    linkUi.style.left = `${Math.round(left)}px`;
+  }
+
+  function showLinkParts({ link = false, form = false, actions = false } = {}) {
+    if (!linkUi) {
+      return;
+    }
+    linkUi.querySelector("[data-link-part='link']").hidden = !link;
+    linkUi.querySelector("[data-link-part='form']").hidden = !form;
+    linkUi.querySelector("[data-link-part='actions']").hidden = !actions;
+    placeLinkUi();
+  }
+
+  function showInsertLinkButton(found) {
+    linkUiMode = "insert";
+    linkComposeTarget = null;
+    activeLinkAnchor = null;
+    activeLinkField = found.field;
+    linkSavedRange = found.range.cloneRange();
+    showLinkParts({ link: true });
+  }
+
+  function showAnchorPopover(anchor, field) {
+    linkUiMode = "anchor";
+    linkComposeTarget = null;
+    activeLinkAnchor = anchor;
+    activeLinkField = field;
+    linkSavedRange = null;
+    showLinkParts({ actions: true });
+  }
+
+  function openLinkComposer(target) {
+    linkUiMode = "compose";
+    linkComposeTarget = target;
+    if (linkUiInput) {
+      linkUiInput.value = target === "anchor" ? activeLinkAnchor?.getAttribute("href") || "" : "";
+    }
+    showLinkParts({ form: true });
+    linkUiInput?.focus();
+    linkUiInput?.select();
+  }
+
+  function applyComposerLink() {
+    const href = linkFromInput(linkUiInput?.value || "");
+    if (!href) {
+      return false;
+    }
+    const field = activeLinkField;
+    if (!field?.isConnected) {
+      return false;
+    }
+    if (linkComposeTarget === "anchor" && activeLinkAnchor?.isConnected) {
+      [...activeLinkAnchor.attributes].forEach((attr) => {
+        if (attr.name.toLowerCase() !== "href") {
+          activeLinkAnchor.removeAttribute(attr.name);
+        }
+      });
+      activeLinkAnchor.setAttribute("href", href);
+      persistRichField(field);
+      return true;
+    }
+    const range = linkSavedRange;
+    if (!range) {
+      return false;
+    }
+    const dirty = Boolean(editSessionDirty.get(field));
+    ensureFieldEditing(field);
+    field.focus({ preventScroll: true });
+    if (dirty) {
+      editSessionDirty.set(field, true);
+    }
+    const selection = window.getSelection();
+    if (!selection) {
+      return false;
+    }
+    selection.removeAllRanges();
+    try {
+      selection.addRange(range);
+    } catch {
+      return false;
+    }
+    document.execCommand("createLink", false, href);
+    prepareRichLinks(field);
+    persistRichField(field);
+    return true;
+  }
+
+  function removeActiveLink() {
+    const anchor = activeLinkAnchor;
+    const field = activeLinkField;
+    if (!anchor?.isConnected || !field?.isConnected) {
+      return;
+    }
+    const parent = anchor.parentNode;
+    unwrapElement(anchor);
+    parent?.normalize();
+    persistRichField(field);
+  }
+
+  function bindRichLinkUi() {
+    if (!cvPreview || linkUi) {
+      return;
+    }
+
+    linkUi = document.createElement("div");
+    linkUi.className = "cv-link-ui";
+    linkUi.hidden = true;
+    linkUi.innerHTML = `
+      <button type="button" class="cv-link-ui-btn" data-link-part="link" aria-label="Add link">🔗</button>
+      <div data-link-part="form" hidden>
+        <input type="text" class="cv-link-ui-input" placeholder="https://" aria-label="Link URL" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="cv-link-ui-actions" data-link-part="actions" hidden>
+        <button type="button" class="cv-link-ui-btn" data-link-action="edit" aria-label="Edit link">✎</button>
+        <button type="button" class="cv-link-ui-btn" data-link-action="remove" aria-label="Remove link">×</button>
+      </div>
+    `;
+    document.body.appendChild(linkUi);
+    linkUiInput = linkUi.querySelector(".cv-link-ui-input");
+
+    linkUi.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      if (event.target === linkUiInput) {
+        return;
+      }
+      event.preventDefault();
+    });
+
+    linkUi.querySelector("[data-link-part='link']").addEventListener("click", (event) => {
+      event.preventDefault();
+      const found = richTextSelection();
+      if (found) {
+        activeLinkField = found.field;
+        linkSavedRange = found.range.cloneRange();
+      }
+      if (!linkSavedRange || !activeLinkField) {
+        return;
+      }
+      activeLinkAnchor = null;
+      openLinkComposer("selection");
+    });
+
+    linkUi.querySelector("[data-link-action='edit']").addEventListener("click", (event) => {
+      event.preventDefault();
+      if (!activeLinkAnchor?.isConnected) {
+        return;
+      }
+      openLinkComposer("anchor");
+    });
+
+    linkUi.querySelector("[data-link-action='remove']").addEventListener("click", (event) => {
+      event.preventDefault();
+      const field = activeLinkField;
+      removeActiveLink();
+      hideLinkUi();
+      if (field?.classList.contains("is-editing")) {
+        focusFieldKeepingDirty(field);
+      }
+    });
+
+    linkUiInput.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        const field = activeLinkField;
+        hideLinkUi();
+        if (field?.classList.contains("is-editing")) {
+          focusFieldKeepingDirty(field);
+        }
+        return;
+      }
+      if (event.key !== "Enter") {
+        return;
+      }
+      event.preventDefault();
+      const field = activeLinkField;
+      if (!applyComposerLink()) {
+        return;
+      }
+      hideLinkUi();
+      if (field?.isConnected && field.classList.contains("is-editing")) {
+        focusFieldKeepingDirty(field);
+      }
+    });
+
+    document.addEventListener(
+      "selectionchange",
+      () => {
+        if (linkUiMode === "compose") {
+          return;
+        }
+        if (linkUiMode === "anchor" && activeLinkAnchor?.isConnected) {
+          const selection = window.getSelection();
+          const inside =
+            !selection ||
+            selection.isCollapsed ||
+            (activeLinkAnchor.contains(selection.anchorNode) &&
+              activeLinkAnchor.contains(selection.focusNode));
+          if (inside) {
+            return;
+          }
+        }
+        const found = richTextSelection();
+        if (found) {
+          showInsertLinkButton(found);
+          return;
+        }
+        if (linkUiMode === "insert") {
+          hideLinkUi();
+        }
+      }
+    );
+
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) {
+          if (linkUiMode) {
+            const field = activeLinkField;
+            hideLinkUi();
+            if (field?.isConnected && field.classList.contains("is-editing")) {
+              finishFieldEdit(field);
+            }
+          }
+          return;
+        }
+        if (target.closest(".cv-link-ui")) {
+          return;
+        }
+        const anchor = target.closest("a[href]");
+        const field = anchor?.closest("[data-edit-key]");
+        if (anchor && field && cvPreview.contains(field) && event.button === 0) {
+          linkPress = {
+            x: event.clientX,
+            y: event.clientY,
+            anchor,
+            field,
+            pointerId: event.pointerId,
+          };
+          return;
+        }
+        if (!linkUiMode) {
+          return;
+        }
+        const editingField = activeLinkField;
+        const stayInField = Boolean(editingField?.contains(target));
+        hideLinkUi();
+        if (!stayInField && editingField?.isConnected && editingField.classList.contains("is-editing")) {
+          finishFieldEdit(editingField);
+        }
+      },
+      true
+    );
+
+    document.addEventListener(
+      "pointercancel",
+      (event) => {
+        if (linkPress?.pointerId === event.pointerId) {
+          linkPress = null;
+        }
+      },
+      true
+    );
+
+    document.addEventListener(
+      "pointerup",
+      (event) => {
+        const press = linkPress;
+        linkPress = null;
+        if (!press || press.pointerId !== event.pointerId) {
+          return;
+        }
+        if (Math.hypot(event.clientX - press.x, event.clientY - press.y) > 5) {
+          return;
+        }
+        const selection = window.getSelection();
+        const insideAnchor =
+          !selection ||
+          selection.isCollapsed ||
+          (press.anchor.contains(selection.anchorNode) && press.anchor.contains(selection.focusNode));
+        if (!insideAnchor) {
+          return;
+        }
+        if (!press.anchor.isConnected) {
+          return;
+        }
+        showAnchorPopover(press.anchor, press.field);
+      },
+      true
+    );
+
+    const blockNavigation = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const anchor = target.closest("a[href]");
+      if (!anchor || !cvPreview.contains(anchor) || !anchor.closest("[data-edit-key]")) {
+        return;
+      }
+      event.preventDefault();
+    };
+    cvPreview.addEventListener("click", blockNavigation);
+    cvPreview.addEventListener("auxclick", blockNavigation);
+
+    const reposition = () => {
+      if (!linkUi || linkUi.hidden) {
+        return;
+      }
+      placeLinkUi();
+    };
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+  }
+
   function bindEditableNodes() {
     cvPreview.querySelectorAll("[data-edit-key]").forEach((node) => {
       const persistEdit = (options = {}) => {
@@ -3847,7 +4394,9 @@
 
       node.addEventListener("focus", () => {
         isEditingPreview = true;
-        beginEditSession(node);
+        if (!node.classList.contains("is-editing")) {
+          beginEditSession(node);
+        }
         node.classList.add("is-editing");
         node.classList.remove("cv-preview-placeholder");
         // Focus can land without activateEdit (e.g. restore/tab). Clear
@@ -3860,10 +4409,29 @@
         }
       });
 
-      node.addEventListener("blur", () => {
+      node.addEventListener("blur", (event) => {
         if (cvItemEnterNavSource === node) {
           cvItemEnterNavSource = null;
           window.requestAnimationFrame(() => {
+            updateEditingPreviewFlag();
+          });
+          return;
+        }
+
+        const next = event.relatedTarget;
+        if (next instanceof Element && next.closest(".cv-link-ui")) {
+          return;
+        }
+        if (!next && linkUi && !linkUi.hidden) {
+          window.requestAnimationFrame(() => {
+            const active = document.activeElement;
+            if (active instanceof Element && active.closest(".cv-link-ui")) {
+              return;
+            }
+            if (!node.classList.contains("is-editing")) {
+              return;
+            }
+            finishFieldEdit(node);
             updateEditingPreviewFlag();
           });
           return;
@@ -4260,10 +4828,11 @@
     if (!options.force && isEditingPreview) {
       const active = document.activeElement;
       const stillEditing =
-        active &&
-        cvPreview.contains(active) &&
-        active.matches("[data-edit-key]") &&
-        active.getAttribute("contenteditable") === "true";
+        (active instanceof Element && Boolean(active.closest(".cv-link-ui"))) ||
+        (active &&
+          cvPreview.contains(active) &&
+          active.matches("[data-edit-key]") &&
+          active.getAttribute("contenteditable") === "true");
       if (stillEditing) {
         return;
       }
@@ -4276,6 +4845,7 @@
       healPreviewEdits();
     }
 
+    hideLinkUi();
     const preservedScroll = capturePreviewScroll();
     const focusItemId = options.focusItemId || options.flashItemId || null;
 
@@ -5066,6 +5636,7 @@
   bindLayoutDrawerToggle();
   bindPreviewZoomControls();
   bindDocumentDragDrop();
+  bindRichLinkUi();
   bindPreviewPointerInteraction();
   bindMobileReorder();
   applyPreviewZoom();
