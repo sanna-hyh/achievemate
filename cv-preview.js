@@ -1715,6 +1715,7 @@
 
   const PAGE_MARGIN_MAP = {
     compact: "0.5in",
+    snug: "0.6in",
     cozy: "0.65in",
     normal: "0.75in",
     spacious: "1.0in",
