@@ -80,6 +80,8 @@
       missing: raw === undefined,
       raw,
       personalName: editKey === "personal.name" ? state.personalInfo?.name ?? "" : null,
+      personalPhone: editKey === "personal.contact" ? state.personalInfo?.phone ?? "" : null,
+      personalEmail: editKey === "personal.contact" ? state.personalInfo?.email ?? "" : null,
     });
   }
 
@@ -101,6 +103,18 @@
     }
     if (snap.personalName != null && (state.personalInfo?.name ?? "") !== snap.personalName) {
       state.personalInfo.name = snap.personalName;
+      window.AchieveMateApp?.refreshPersonalForm?.();
+      window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+      changed = true;
+    }
+    if (
+      snap.personalPhone != null &&
+      snap.personalEmail != null &&
+      ((state.personalInfo?.phone ?? "") !== snap.personalPhone ||
+        (state.personalInfo?.email ?? "") !== snap.personalEmail)
+    ) {
+      state.personalInfo.phone = snap.personalPhone;
+      state.personalInfo.email = snap.personalEmail;
       window.AchieveMateApp?.refreshPersonalForm?.();
       window.AchieveMateApp?.updateSidebarIdentitySummary?.();
       changed = true;
