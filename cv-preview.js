@@ -36,6 +36,15 @@
   let documentDragCancelled = false;
   let sectionPointer = null;
   let sectionDragSession = null;
+  let liftPointer = null;
+  let liftSession = null;
+  let liftEditOwned = false;
+  let liftScrollRaf = 0;
+  const LIFT_HOLD_MS_FINE = 200;
+  const LIFT_HOLD_MS_TOUCH = 300;
+  const LIFT_DIM_MS = 150;
+  const LIFT_CANCEL_PX = 6;
+  const HOLD_TIP_KEY = "achievemate-hold-to-move";
   let cvItemEnterNavSource = null;
   const editSessionDirty = new WeakMap();
   const editSessionHtml = new WeakMap();
@@ -127,7 +136,6 @@
     editSessionHtml.delete(node);
     editSessionValue.delete(node);
   }
-  const SECTION_DRAG_THRESHOLD_PX = 8;
   const CV_ITEM_PLACEHOLDERS = {
     title: "Title",
     subtitle: "Subtitle",
@@ -615,22 +623,19 @@
   }
 
   function syncCvItemDeepEditControl(wrap, item) {
-    const handles = wrap.querySelector(":scope > .cv-section-handles");
-    if (!handles) {
+    const menu = wrap.querySelector(":scope > .cv-section-handles .cv-section-menu");
+    if (!menu) {
       return;
     }
 
     const needsButton = wrap.classList.contains("is-cv-item-collapsed") && cvItemHasEmptyField(item);
-    const button = handles.querySelector(":scope > .cv-section-deep-edit");
+    const button = menu.querySelector(":scope > .cv-section-deep-edit");
 
     if (!needsButton) {
       if (wrap.classList.contains("is-cv-item-deep-edit")) {
         setCvItemDeepEdit(wrap, false);
       }
-      if (button) {
-        button.remove();
-        fitSectionHandles(wrap);
-      }
+      button?.remove();
       return;
     }
 
@@ -639,15 +644,14 @@
     }
 
     const pressed = wrap.classList.contains("is-cv-item-deep-edit") ? "true" : "false";
-    const markup = `<button type="button" class="btn-icon cv-section-deep-edit" aria-label="Show empty fields" aria-pressed="${pressed}">⋯</button>`;
-    const removeBtn = handles.querySelector(":scope > .cv-section-remove");
-    if (removeBtn) {
-      removeBtn.insertAdjacentHTML("beforebegin", markup);
+    const markup = `<button type="button" role="menuitem" class="cv-section-menu-item cv-section-deep-edit" aria-pressed="${pressed}">Show empty fields</button>`;
+    const star = menu.querySelector(":scope > .cv-section-save");
+    if (star) {
+      star.insertAdjacentHTML("afterend", markup);
     } else {
-      handles.insertAdjacentHTML("beforeend", markup);
+      menu.insertAdjacentHTML("afterbegin", markup);
     }
     bindCvItemDeepEdit(wrap);
-    fitSectionHandles(wrap);
   }
 
   function getCvItemEditableFields(section) {
@@ -889,7 +893,7 @@
   }
 
   function tryActivateEdit(event, explicitTarget = null) {
-    if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-deep-edit")) {
+    if (event.target.closest(".cv-section-handles, .cv-section-menu")) {
       return false;
     }
     if (event.target.closest('[contenteditable="true"].is-editing')) {
@@ -937,148 +941,1030 @@
     }, 450);
   }
 
-  function beginDocumentDrag(wrap, layoutItemId, event, previewSource) {
-    const layoutIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-    window.AchieveMateDrag.payload = {
-      source: "document",
-      layoutItemId,
-      layoutIndex,
-    };
-    event.dataTransfer.effectAllowed = "copyMove";
-    event.dataTransfer.setData("application/json", JSON.stringify(window.AchieveMateDrag.payload));
-    documentDragState = { layoutItemId, handled: false };
-    documentDragCancelled = false;
-    wrap.classList.add("is-dragging");
-    window.AchieveMateDragPreview?.begin(event, previewSource || wrap, { variant: "document" });
+  function prefersReducedLiftMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
-  function finishDocumentDrag(event) {
-    const wrap = cvPreview?.querySelector(
-      `.cv-section-wrap[data-layout-item-id="${documentDragState?.layoutItemId || ""}"]`
-    );
-    wrap?.classList.remove("is-dragging");
-    hideInsertionLine();
-    setLibraryDropActive(false);
-    removeDraggedSectionIfDroppedOutside(event);
-    documentDragState = null;
-    documentDragCancelled = false;
-    window.AchieveMateDrag.payload = null;
-    window.AchieveMateDragPreview?.end();
-    sectionDragSession = null;
-    clearSectionPointer();
+  function previewScale() {
+    if (!cvPreview) {
+      return 1;
+    }
+    const layoutWidth = cvPreview.offsetWidth;
+    if (!layoutWidth) {
+      return 1;
+    }
+    const scale = cvPreview.getBoundingClientRect().width / layoutWidth;
+    return scale > 0 ? scale : 1;
   }
 
-  function startPointerSectionDrag(wrap, layoutItemId, moveEvent) {
-    if (sectionDragSession || !wrap) {
-      return;
+  function announceCv(message) {
+    let region = document.getElementById("cvLiftAnnouncer");
+    if (!region) {
+      region = document.createElement("div");
+      region.id = "cvLiftAnnouncer";
+      region.className = "cv-lift-announcer";
+      region.setAttribute("aria-live", "polite");
+      region.setAttribute("aria-atomic", "true");
+      document.body.appendChild(region);
     }
-
-    const layoutIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-    if (layoutIndex === -1) {
-      return;
-    }
-
-    window.AchieveMateDrag.payload = {
-      source: "document",
-      layoutItemId,
-      layoutIndex,
-    };
-    documentDragState = { layoutItemId, handled: false };
-    documentDragCancelled = false;
-    wrap.classList.add("is-dragging");
-    setPointerDragSelectLock(true);
-
-    window.AchieveMateDragPreview?.beginPointer(wrap, {
-      variant: "document",
-      clientX: moveEvent.clientX,
-      clientY: moveEvent.clientY,
+    region.textContent = "";
+    window.requestAnimationFrame(() => {
+      if (region.isConnected) {
+        region.textContent = message;
+      }
     });
+  }
 
-    sectionDragSession = { wrap, layoutItemId };
-    const pointerId = moveEvent.pointerId;
+  function closeSectionMenus(except) {
+    if (!cvPreview) {
+      return false;
+    }
+    let closed = false;
+    document.querySelectorAll(".cv-section-menu").forEach((menu) => {
+      const wasOpen = !menu.hidden || menu.classList.contains("is-portaled");
+      if (!wasOpen) {
+        return;
+      }
+      const ownerId = menu.dataset.layoutItemId || "";
+      const wrap =
+        menu.closest(".cv-section-wrap") ||
+        (ownerId ? cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${ownerId}"]`) : null);
+      if (except && wrap === except) {
+        return;
+      }
+      menu.hidden = true;
+      menu.classList.remove("is-drop-up", "is-portaled");
+      menu.style.position = "";
+      menu.style.left = "";
+      menu.style.top = "";
+      menu.style.right = "";
+      menu.style.bottom = "";
+      const home = menu._cvMenuHome;
+      if (home?.isConnected && menu.parentElement !== home) {
+        home.appendChild(menu);
+      }
+      if (wrap) {
+        wrap.classList.remove("is-menu-open");
+        wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn")?.setAttribute("aria-expanded", "false");
+      }
+      closed = true;
+    });
+    cvPreview.querySelectorAll(".cv-section-wrap.is-menu-open").forEach((wrap) => {
+      if (except && wrap === except) {
+        return;
+      }
+      wrap.classList.remove("is-menu-open");
+      wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn")?.setAttribute("aria-expanded", "false");
+      closed = true;
+    });
+    return closed;
+  }
+
+  function placePortaledMenu(menu, wrap) {
+    const page = cvPreview.getBoundingClientRect();
+    const entry = wrap.getBoundingClientRect();
+    const width = menu.offsetWidth || 196;
+    const height = menu.offsetHeight || 160;
+    const gap = 8;
+    const leftRoom = page.left - gap;
+    const rightRoom = window.innerWidth - page.right - gap;
+    let left;
+    if (leftRoom >= width) {
+      left = page.left - gap - width;
+    } else if (rightRoom >= width) {
+      left = page.right + gap;
+    } else {
+      left = Math.min(Math.max(8, entry.left), Math.max(8, window.innerWidth - width - 8));
+    }
+    let top = entry.top;
+    const maxTop = Math.max(8, window.innerHeight - height - 8);
+    if (top > maxTop) {
+      top = maxTop;
+    }
+    if (top < 8) {
+      top = 8;
+    }
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  function openSectionMenu(layoutItemId) {
+    const wrap = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    const menu = wrap?.querySelector(":scope > .cv-section-handles .cv-section-menu");
+    const menuBtn = wrap?.querySelector(":scope > .cv-section-handles .cv-section-menu-btn");
+    if (!wrap || !menu || !menuBtn) {
+      return;
+    }
+    closeSectionMenus(wrap);
+    const index = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    const up = menu.querySelector('[data-menu-action="up"]');
+    const down = menu.querySelector('[data-menu-action="down"]');
+    if (up) {
+      up.disabled = index <= 0;
+    }
+    if (down) {
+      down.disabled = index < 0 || index >= state.cvLayout.length - 1;
+    }
+    menu.dataset.layoutItemId = layoutItemId;
+    menu._cvMenuHome = menu.parentElement;
+    menu.hidden = false;
+    menu.classList.add("is-portaled");
+    menu.classList.remove("is-drop-up");
+    document.body.appendChild(menu);
+    placePortaledMenu(menu, wrap);
+    wrap.classList.add("is-menu-open");
+    menuBtn.setAttribute("aria-expanded", "true");
+  }
+
+  function ensureLiftBin() {
+    let bin = document.getElementById("cvLiftBin");
+    if (bin) {
+      return bin;
+    }
+    bin = document.createElement("button");
+    bin.type = "button";
+    bin.id = "cvLiftBin";
+    bin.className = "cv-lift-bin";
+    bin.tabIndex = -1;
+    bin.setAttribute("aria-label", "Delete entry");
+    bin.setAttribute("aria-hidden", "true");
+    bin.innerHTML = `
+      <span class="cv-lift-bin-lid" aria-hidden="true"></span>
+      <span class="cv-lift-bin-can" aria-hidden="true"></span>
+    `;
+    document.body.appendChild(bin);
+    return bin;
+  }
+
+  function setLiftBinShown(shown) {
+    const bin = ensureLiftBin();
+    bin.classList.toggle("is-shown", shown);
+    bin.setAttribute("aria-hidden", shown ? "false" : "true");
+    if (!shown) {
+      bin.classList.remove("is-hot", "is-open");
+    }
+  }
+
+  function isPointerOverBin(clientX, clientY) {
+    const bin = document.getElementById("cvLiftBin");
+    if (!bin?.classList.contains("is-shown")) {
+      return false;
+    }
+    const rect = bin.getBoundingClientRect();
+    return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+  }
+
+  function setBinHot(hot) {
+    const bin = document.getElementById("cvLiftBin");
+    bin?.classList.toggle("is-hot", hot);
+    bin?.classList.toggle("is-open", hot);
+  }
+
+  function liftBlockedTarget(target) {
+    if (!(target instanceof Element)) {
+      return true;
+    }
+    if (
+      target.closest(
+        ".cv-section-handles, .cv-section-menu, .cv-skill-chip-remove, .cv-link-ui, button, a, input, textarea, .cv-skill-input"
+      )
+    ) {
+      return true;
+    }
+    return Boolean(target.closest('[contenteditable="true"].is-editing'));
+  }
+
+  function clearLiftArmTimers(gesture) {
+    if (!gesture) {
+      return;
+    }
+    window.clearTimeout(gesture.dimTimer);
+    window.clearTimeout(gesture.liftTimer);
+    gesture.dimTimer = 0;
+    gesture.liftTimer = 0;
+  }
+
+  function stopLiftScroll() {
+    if (liftScrollRaf) {
+      cancelAnimationFrame(liftScrollRaf);
+      liftScrollRaf = 0;
+    }
+  }
+
+  function clearLiftGap() {
+    getPreviewBody()?.querySelector(":scope > .cv-lift-gap")?.remove();
+  }
+
+  function ensureLiftGap(height) {
+    const body = getPreviewBody();
+    if (!body) {
+      return null;
+    }
+    let gap = body.querySelector(":scope > .cv-lift-gap");
+    if (!gap) {
+      gap = document.createElement("div");
+      gap.className = "cv-lift-gap";
+      gap.setAttribute("aria-hidden", "true");
+    }
+    gap.style.height = `${Math.max(0, height)}px`;
+    return gap;
+  }
+
+  function measureEntryStride(wrap) {
+    const next = wrap.nextElementSibling;
+    if (next?.classList.contains("cv-section-wrap")) {
+      const delta = next.offsetTop - wrap.offsetTop;
+      if (delta > 0) {
+        return delta;
+      }
+    }
+    const prev = wrap.previousElementSibling;
+    if (prev?.classList.contains("cv-section-wrap")) {
+      const delta = wrap.offsetTop - prev.offsetTop;
+      if (delta > 0) {
+        return delta;
+      }
+    }
+    return wrap.offsetHeight;
+  }
+
+  function placeLiftGap(toIndex, { animate = true } = {}) {
+    const body = getPreviewBody();
+    const session = liftSession;
+    if (!body || !session) {
+      return;
+    }
+    const gap = ensureLiftGap(session.stride);
+    if (!gap) {
+      return;
+    }
+    const wraps = [...body.querySelectorAll(":scope > .cv-section-wrap")];
+    const others = wraps.filter((el) => el !== session.wrap);
+    const motion = animate && !prefersReducedLiftMotion();
+    const first = motion ? new Map(others.map((el) => [el, el.getBoundingClientRect().top])) : null;
+    if (toIndex >= wraps.length) {
+      body.appendChild(gap);
+    } else {
+      body.insertBefore(gap, wraps[toIndex]);
+    }
+    if (!first) {
+      return;
+    }
+    const scale = previewScale();
+    others.forEach((el) => {
+      const dy = (first.get(el) - el.getBoundingClientRect().top) / scale;
+      if (Math.abs(dy) < 0.5) {
+        return;
+      }
+      el.classList.add("is-lift-shift");
+      el.style.transition = "none";
+      el.style.transform = `translateY(${dy}px)`;
+      window.requestAnimationFrame(() => {
+        if (!el.isConnected) {
+          return;
+        }
+        el.style.transition = "transform 150ms var(--ease-out)";
+        el.style.transform = "";
+      });
+    });
+  }
+
+  function positionLiftLine() {
+    const gap = getPreviewBody()?.querySelector(":scope > .cv-lift-gap");
+    const line = getInsertionLine();
+    if (!line || !gap) {
+      hideInsertionLine();
+      return;
+    }
+    line.style.top = `${gap.offsetTop}px`;
+    line.classList.add("is-visible");
+    line.removeAttribute("aria-hidden");
+  }
+
+  function resolveLiftDropIndex(clientY) {
+    const body = getPreviewBody();
+    if (!body) {
+      return 0;
+    }
+    const items = [...body.querySelectorAll(":scope > .cv-section-wrap")];
+    if (!items.length) {
+      return 0;
+    }
+    for (let index = 0; index < items.length; index += 1) {
+      const el = items[index];
+      if (el.classList.contains("is-lifted")) {
+        continue;
+      }
+      const rect = el.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        return index;
+      }
+    }
+    return items.length;
+  }
+
+  function copyPreviewCustomProps(target) {
+    if (!cvPreview || !target) {
+      return;
+    }
+    for (let index = 0; index < cvPreview.style.length; index += 1) {
+      const prop = cvPreview.style.item(index);
+      if (prop && prop.startsWith("--")) {
+        target.style.setProperty(prop, cvPreview.style.getPropertyValue(prop));
+      }
+    }
+  }
+
+  function mountLiftFloat(wrap, rect) {
+    const host = document.createElement("div");
+    host.id = "cvLiftFloat";
+    host.className = cvPreview?.className || "cv-preview-document";
+    host.classList.remove(
+      "cv-preview-single-page",
+      "cv-preview-multipage",
+      "is-layout-running",
+      "is-exporting"
+    );
+    host.classList.add("cv-lift-float-host");
+    host.setAttribute("aria-hidden", "true");
+    copyPreviewCustomProps(host);
+    host.style.left = `${rect.left}px`;
+    host.style.top = `${rect.top}px`;
+    host.style.width = `${wrap.offsetWidth}px`;
+    host.style.transform = `scale(${previewScale()})`;
+
+    const float = wrap.cloneNode(true);
+    float.classList.add("cv-lift-float");
+    float.classList.remove("is-lifted", "is-lift-arming", "is-menu-open", "is-hover-active", "is-hold-wiggle");
+    float.removeAttribute("id");
+    float.removeAttribute("tabindex");
+    float.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+    normalizeLiftBullets(float);
+    const pose = liftPoseFor(rect);
+    float.classList.toggle("is-thin", pose.thin);
+    host.appendChild(float);
+    if ("inert" in host) {
+      host.inert = true;
+    }
+    document.body.appendChild(host);
+
+    const tracker = document.createElement("div");
+    tracker.id = "cvLiftTracker";
+    tracker.className = "cv-lift-tracker";
+    tracker.addEventListener("lostpointercapture", (event) => {
+      const session = liftSession;
+      if (!session || event.pointerId !== session.pointerId || session.tracker !== tracker) {
+        return;
+      }
+      try {
+        tracker.setPointerCapture(session.pointerId);
+      } catch {
+        /* window listeners still track the pointer */
+      }
+    });
+    document.body.appendChild(tracker);
+    return { host, float, tracker, pose };
+  }
+
+  function liftPoseFor(rect) {
+    const height = rect?.height || 0;
+    const width = Math.max(1, rect?.width || 1);
+    const thin = height < 56;
+    const rotate = thin ? 0 : Math.min(1, Math.max(0, (height - 40) / 120));
+    const scale = thin ? 1 + 4 / width : 1.02;
+    return { thin, rotate, scale };
+  }
+
+  function normalizeLiftBullets(float) {
+    float.querySelectorAll(".cv-preview-description").forEach((node) => {
+      const next = node.innerHTML
+        .split(/<br\s*\/?>/i)
+        .map((line) => line.replace(/^(?:\s|&nbsp;)*(?:[•●∙]\s*){2,}/, "• "))
+        .join("<br>");
+      if (next !== node.innerHTML) {
+        node.innerHTML = next;
+      }
+    });
+  }
+
+  function liftPoseTransform(pose, motion) {
+    if (!motion) {
+      return "none";
+    }
+    const rotate = pose.rotate ? ` rotate(${pose.rotate}deg)` : "";
+    return `scale(${pose.scale})${rotate}`;
+  }
+
+  function removeLiftVisual(session) {
+    const pointerId = session?.pointerId;
+    const tracker = session?.tracker || document.getElementById("cvLiftTracker");
     try {
-      wrap.setPointerCapture?.(pointerId);
+      if (pointerId != null) {
+        tracker?.releasePointerCapture?.(pointerId);
+      }
     } catch {
       /* ignore */
     }
+    tracker?.remove();
+    const host = session?.host || document.getElementById("cvLiftFloat");
+    host?.remove();
+  }
 
-    const updateInsertionFromPoint = (clientX, clientY) => {
-      const overLibrary = isPointerOverLibrary(clientX, clientY);
-      setLibraryDropActive(overLibrary);
-      if (overLibrary) {
-        hideInsertionLine();
-        return;
-      }
-      if (isPointerOverReorderSurface(clientX, clientY)) {
-        showInsertionLine(resolveDropIndex(getPreviewBody(), clientY));
-      } else {
-        hideInsertionLine();
-      }
-    };
+  function liftTranslate(session, clientX, clientY, mode) {
+    const dx = clientX - session.originX;
+    const dy = clientY - session.originY;
+    const motion = !prefersReducedLiftMotion();
+    session.tx = dx;
+    session.ty = dy;
+    if (session.host) {
+      session.host.style.left = `${session.originLeft + dx}px`;
+      session.host.style.top = `${session.originTop + dy}px`;
+    }
+    const float = session.float;
+    if (!float) {
+      return;
+    }
+    if (mode === "bin") {
+      float.style.opacity = "0.7";
+      float.style.transform = motion ? "scale(0.9)" : "none";
+      return;
+    }
+    float.style.opacity = "";
+    if (session.settleLift) {
+      float.style.transform = "none";
+      return;
+    }
+    float.style.transform = liftPoseTransform(session.pose || liftPoseFor({ height: 80, width: 400 }), motion);
+  }
 
-    updateInsertionFromPoint(moveEvent.clientX, moveEvent.clientY);
+  function queueLiftScroll() {
+    if (liftScrollRaf || !liftSession) {
+      return;
+    }
+    liftScrollRaf = window.requestAnimationFrame(tickLiftScroll);
+  }
 
-    const onMove = (event) => {
-      if (pointerId != null && event.pointerId !== pointerId) {
-        return;
-      }
-      event.preventDefault();
-      window.AchieveMateDragPreview?.movePointer(event.clientX, event.clientY);
-      updateInsertionFromPoint(event.clientX, event.clientY);
-    };
+  function tickLiftScroll() {
+    liftScrollRaf = 0;
+    const session = liftSession;
+    const scroller = getPreviewWrap();
+    if (!session || !scroller) {
+      return;
+    }
+    const rect = scroller.getBoundingClientRect();
+    const y = session.clientY;
+    const edge = 60;
+    let delta = 0;
+    if (y < rect.top + edge) {
+      const t = Math.min(1, Math.max(0, (rect.top + edge - y) / edge));
+      delta = -Math.max(1, Math.round(t * 22));
+    } else if (y > rect.bottom - edge) {
+      const t = Math.min(1, Math.max(0, (y - (rect.bottom - edge)) / edge));
+      delta = Math.max(1, Math.round(t * 22));
+    }
+    if (!delta) {
+      return;
+    }
+    const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+    const next = Math.max(0, Math.min(max, scroller.scrollTop + delta));
+    if (next === scroller.scrollTop) {
+      return;
+    }
+    scroller.scrollTop = next;
+    updateLiftPointer(session.clientX, session.clientY);
+  }
 
-    const onUp = (event) => {
-      if (pointerId != null && event.pointerId !== pointerId) {
-        return;
-      }
-      document.removeEventListener("pointermove", onMove);
-      document.removeEventListener("pointerup", onUp);
-      document.removeEventListener("pointercancel", onUp);
-
-      const builder = window.AchieveMateCvBuilder;
+  function updateLiftPointer(clientX, clientY) {
+    const session = liftSession;
+    if (!session?.wrap.isConnected) {
+      return;
+    }
+    session.clientX = clientX;
+    session.clientY = clientY;
+    const overBin = isPointerOverBin(clientX, clientY);
+    const onPage = isPointerOverDocument(clientX, clientY);
+    session.overBin = overBin;
+    setBinHot(overBin);
+    liftTranslate(session, clientX, clientY, overBin ? "bin" : "lift");
+    if (overBin || !onPage) {
       hideInsertionLine();
-
-      if (builder && documentDragState && !documentDragCancelled) {
-        const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-
-        if (isPointerOverLibrary(event.clientX, event.clientY)) {
-          documentDragState.handled = true;
-          saveLayoutItemToLibrary(layoutItemId);
-          refreshLibrarySaveButton(layoutItemId);
-        } else if (currentIndex !== -1 && isPointerOverReorderSurface(event.clientX, event.clientY)) {
-          const index = resolveDropIndex(getPreviewBody(), event.clientY);
-          documentDragState.handled = true;
-          builder.moveLayoutItem(currentIndex, index);
-        } else if (event.clientX !== 0 || event.clientY !== 0) {
-          // Drop outside CV / Library cancels — keep the block.
-          documentDragState.handled = true;
-        }
+      if (session.gapIndex !== session.fromIndex) {
+        session.gapIndex = session.fromIndex;
+        placeLiftGap(session.fromIndex);
       }
+      stopLiftScroll();
+      return;
+    }
+    const toIndex = resolveLiftDropIndex(clientY);
+    if (toIndex !== session.gapIndex) {
+      session.gapIndex = toIndex;
+      placeLiftGap(toIndex);
+    }
+    positionLiftLine();
+    queueLiftScroll();
+  }
 
-      setLibraryDropActive(false);
-      wrap.classList.remove("is-dragging");
-      sectionDragSession = null;
-      documentDragState = null;
-      documentDragCancelled = false;
-      window.AchieveMateDrag.payload = null;
-      window.AchieveMateDragPreview?.end();
-      clearSectionPointer();
-      try {
+  function releaseLiftWrap(wrap, pointerId) {
+    if (!wrap) {
+      return;
+    }
+    wrap.classList.remove("is-lifted", "is-lift-arming");
+    wrap.style.top = "";
+    wrap.style.left = "";
+    wrap.style.width = "";
+    wrap.style.transform = "";
+    wrap.style.opacity = "";
+    wrap.style.transition = "";
+    try {
+      if (pointerId != null) {
         wrap.releasePointerCapture?.(pointerId);
-      } catch {
-        /* ignore */
       }
-    };
+    } catch {
+      /* ignore */
+    }
+  }
 
-    document.addEventListener("pointermove", onMove, { passive: false });
-    document.addEventListener("pointerup", onUp);
-    document.addEventListener("pointercancel", onUp);
+  function glideElement(el, fromRect) {
+    if (!el || !fromRect || prefersReducedLiftMotion()) {
+      return;
+    }
+    const scale = previewScale();
+    const toRect = el.getBoundingClientRect();
+    const dx = (fromRect.left - toRect.left) / scale;
+    const dy = (fromRect.top - toRect.top) / scale;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) {
+      return;
+    }
+    el.style.transition = "none";
+    el.style.transform = `translate(${dx}px, ${dy}px)`;
+    window.requestAnimationFrame(() => {
+      if (!el.isConnected) {
+        return;
+      }
+      el.style.transition = "transform 200ms var(--ease-out)";
+      el.style.transform = "translate(0px, 0px)";
+      window.setTimeout(() => {
+        if (!el.isConnected) {
+          return;
+        }
+        el.style.transition = "";
+        if (el.style.transform === "translate(0px, 0px)") {
+          el.style.transform = "";
+        }
+      }, 220);
+    });
+  }
+
+  function flipOthersFrom(firstTops) {
+    if (!firstTops || prefersReducedLiftMotion()) {
+      return;
+    }
+    const scale = previewScale();
+    firstTops.forEach((top, el) => {
+      if (!el.isConnected) {
+        return;
+      }
+      const dy = (top - el.getBoundingClientRect().top) / scale;
+      if (Math.abs(dy) < 0.5) {
+        return;
+      }
+      el.classList.add("is-lift-shift");
+      el.style.transition = "none";
+      el.style.transform = `translateY(${dy}px)`;
+      window.requestAnimationFrame(() => {
+        if (!el.isConnected) {
+          return;
+        }
+        el.style.transition = "transform 150ms var(--ease-out)";
+        el.style.transform = "";
+      });
+    });
+  }
+
+  function cancelLiftSession() {
+    const session = liftSession;
+    if (!session) {
+      return;
+    }
+    const wrap = session.wrap;
+    const fromRect = session.float?.getBoundingClientRect() || wrap?.getBoundingClientRect() || null;
+    const others = getPreviewBody()
+      ? [...getPreviewBody().querySelectorAll(":scope > .cv-section-wrap")].filter((el) => el !== wrap)
+      : [];
+    const first = new Map(others.map((el) => [el, el.getBoundingClientRect().top]));
+    liftSession = null;
+    stopLiftScroll();
+    hideInsertionLine();
+    clearLiftGap();
+    setLiftBinShown(false);
+    setPointerDragSelectLock(false);
+    removeLiftVisual(session);
+    releaseLiftWrap(wrap, session.pointerId);
+    flipOthersFrom(first);
+    glideElement(wrap, fromRect);
+    announceCv("Cancelled");
+  }
+
+  function throwLiftIntoBin(session, onDone) {
+    const host = session.host;
+    const float = session.float;
+    const bin = document.getElementById("cvLiftBin");
+    try {
+      session.tracker?.releasePointerCapture?.(session.pointerId);
+    } catch {
+      /* ignore */
+    }
+    session.tracker?.remove();
+    if (!host || !float || !bin || prefersReducedLiftMotion()) {
+      host?.remove();
+      onDone();
+      return;
+    }
+    const card = float.getBoundingClientRect();
+    const binRect = bin.getBoundingClientRect();
+    const dx = binRect.left + binRect.width / 2 - (card.left + card.width / 2);
+    const dy = binRect.top + binRect.height / 2 - (card.top + card.height / 2);
+    const left = (parseFloat(host.style.left) || 0) + dx;
+    const top = (parseFloat(host.style.top) || 0) + dy;
+    host.style.transition = "left 250ms var(--ease-out), top 250ms var(--ease-out)";
+    float.style.transition = "transform 250ms var(--ease-out), opacity 250ms linear";
+    host.style.left = `${left}px`;
+    host.style.top = `${top}px`;
+    float.style.transform = "scale(0.12)";
+    float.style.opacity = "0.15";
+    window.setTimeout(() => {
+      host.remove();
+      onDone();
+    }, 250);
+  }
+
+  function finishLiftDrop(event) {
+    const session = liftSession;
+    if (!session || (event && event.pointerId !== session.pointerId)) {
+      return;
+    }
+    const clientX = event?.clientX ?? session.clientX;
+    const clientY = event?.clientY ?? session.clientY;
+    if (isPointerOverBin(clientX, clientY)) {
+      const others = getPreviewBody()
+        ? [...getPreviewBody().querySelectorAll(":scope > .cv-section-wrap")].filter((el) => el !== session.wrap)
+        : [];
+      const first = new Map(others.map((el) => [el, el.getBoundingClientRect().top]));
+      liftSession = null;
+      stopLiftScroll();
+      hideInsertionLine();
+      clearLiftGap();
+      flipOthersFrom(first);
+      throwLiftIntoBin(session, () => {
+        setLiftBinShown(false);
+        setPointerDragSelectLock(false);
+        releaseLiftWrap(session.wrap, session.pointerId);
+        removeSectionFromCv(session.layoutItemId);
+      });
+      return;
+    }
+
+    const fromIndex = state.cvLayout.findIndex((item) => item.id === session.layoutItemId);
+    const onPage = isPointerOverDocument(clientX, clientY);
+    const toIndex = onPage ? resolveLiftDropIndex(clientY) : -1;
+    const ownSpot = toIndex === fromIndex || toIndex === fromIndex + 1;
+    if (!onPage || ownSpot || fromIndex < 0) {
+      cancelLiftSession();
+      return;
+    }
+
+    const fromRect = session.float?.getBoundingClientRect() || session.wrap.getBoundingClientRect();
+    const layoutItemId = session.layoutItemId;
+    liftSession = null;
+    stopLiftScroll();
+    hideInsertionLine();
+    clearLiftGap();
+    setLiftBinShown(false);
+    setPointerDragSelectLock(false);
+    removeLiftVisual(session);
+    releaseLiftWrap(session.wrap, session.pointerId);
+    window.AchieveMateCvBuilder?.moveLayoutItem(fromIndex, toIndex);
+    const next = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    glideElement(next, fromRect);
+    const index = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    if (index >= 0) {
+      announceCv(`Moved to position ${index + 1} of ${state.cvLayout.length}`);
+    }
+  }
+
+  function beginSectionLift() {
+    const gesture = liftPointer;
+    if (!gesture || gesture.moved || gesture.lifted) {
+      return;
+    }
+    const wrap = gesture.wrap;
+    if (!wrap?.isConnected) {
+      return;
+    }
+    if (gesture.target instanceof Element && gesture.target.closest('[contenteditable="true"].is-editing')) {
+      return;
+    }
+    const fromIndex = state.cvLayout.findIndex((item) => item.id === gesture.layoutItemId);
+    if (fromIndex < 0) {
+      return;
+    }
+
+    gesture.lifted = true;
+    clearLiftArmTimers(gesture);
+    wrap.classList.remove("is-lift-arming");
+    closeSectionMenus();
+
+    const rect = wrap.getBoundingClientRect();
+    const top = wrap.offsetTop;
+    const left = wrap.offsetLeft;
+    const width = wrap.offsetWidth;
+    const stride = measureEntryStride(wrap);
+    const visual = mountLiftFloat(wrap, rect);
+    document.getElementById("cvHoldTip")?.classList.remove("is-shown");
+    wrap.classList.add("is-lifted");
+    wrap.style.top = `${top}px`;
+    wrap.style.left = `${left}px`;
+    wrap.style.width = `${width}px`;
+    setPointerDragSelectLock(true);
+    try {
+      navigator.vibrate?.(10);
+    } catch {
+      /* ignore */
+    }
+    try {
+      visual.tracker.setPointerCapture(gesture.pointerId);
+    } catch {
+      /* window listeners still track the pointer */
+    }
+
+    liftSession = {
+      wrap,
+      host: visual.host,
+      float: visual.float,
+      tracker: visual.tracker,
+      layoutItemId: gesture.layoutItemId,
+      pointerId: gesture.pointerId,
+      originX: gesture.x,
+      originY: gesture.y,
+      originLeft: rect.left,
+      originTop: rect.top,
+      fromIndex,
+      stride,
+      clientX: gesture.x,
+      clientY: gesture.y,
+      gapIndex: fromIndex,
+      tx: 0,
+      ty: 0,
+      overBin: false,
+      pose: visual.pose,
+      settleLift: false,
+    };
+    liftPointer = null;
+    placeLiftGap(fromIndex, { animate: false });
+    setLiftBinShown(true);
+    if (!prefersReducedLiftMotion()) {
+      liftSession.settleLift = true;
+      visual.float.style.transition = "transform 120ms var(--ease-out)";
+    }
+    updateLiftPointer(gesture.x, gesture.y);
+    if (liftSession?.settleLift) {
+      const session = liftSession;
+      window.requestAnimationFrame(() => {
+        if (liftSession !== session) {
+          return;
+        }
+        session.settleLift = false;
+        liftTranslate(session, session.clientX, session.clientY, session.overBin ? "bin" : "lift");
+        window.setTimeout(() => {
+          if (session.float?.isConnected) {
+            session.float.style.transition = "";
+          }
+        }, 130);
+      });
+    }
+  }
+
+  function hasTextSelection() {
+    const selection = window.getSelection();
+    return Boolean(selection && !selection.isCollapsed && String(selection).length > 0);
+  }
+
+  function wiggleHoldWrap(wrap) {
+    if (!wrap || prefersReducedLiftMotion()) {
+      return;
+    }
+    wrap.classList.remove("is-hold-wiggle");
+    void wrap.offsetWidth;
+    wrap.classList.add("is-hold-wiggle");
+    window.setTimeout(() => {
+      wrap.classList.remove("is-hold-wiggle");
+    }, 160);
+  }
+
+  function showHoldToMoveTip(wrap) {
+    try {
+      if (localStorage.getItem(HOLD_TIP_KEY) === "1") {
+        return;
+      }
+      localStorage.setItem(HOLD_TIP_KEY, "1");
+    } catch {
+      return;
+    }
+    let tip = document.getElementById("cvHoldTip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "cvHoldTip";
+      tip.className = "cv-hold-tip";
+      tip.setAttribute("role", "status");
+      tip.textContent = "Hold to move";
+      document.body.appendChild(tip);
+    }
+    const entry = wrap.getBoundingClientRect();
+    const page = cvPreview?.getBoundingClientRect();
+    const width = 118;
+    let left = page ? page.left - width - 8 : entry.left;
+    if (left < 8) {
+      left = Math.max(8, entry.left);
+    }
+    let top = entry.top - 32;
+    if (top < 8) {
+      top = entry.bottom + 6;
+    }
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+    tip.classList.add("is-shown");
+    window.clearTimeout(tip._hideTimer);
+    tip._hideTimer = window.setTimeout(() => {
+      tip.classList.remove("is-shown");
+    }, 2200);
+  }
+
+  function finishUnliftedPointer(event) {
+    const gesture = liftPointer;
+    if (!gesture || event.pointerId !== gesture.pointerId) {
+      return;
+    }
+    clearLiftArmTimers(gesture);
+    gesture.wrap.classList.remove("is-lift-arming");
+    liftPointer = null;
+    if (event.pointerType === "touch") {
+      liftEditOwned = true;
+    }
+    if (gesture.moved || !gesture.editTarget) {
+      return;
+    }
+    if (event.pointerType === "touch") {
+      activateEdit(gesture.editTarget, event);
+    } else {
+      tryActivateEdit(event, gesture.editTarget);
+    }
+    scheduleRevealFocusedField();
+  }
+
+  function bindSectionLift() {
+    if (!cvPreview || cvPreview.dataset.liftBound === "1") {
+      return;
+    }
+    cvPreview.dataset.liftBound = "1";
+    ensureLiftBin();
+
+    cvPreview.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || liftSession || liftPointer) {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+      const wrap = target.closest(".cv-section-wrap");
+      if (!wrap || !cvPreview.contains(wrap)) {
+        return;
+      }
+      if (liftBlockedTarget(target)) {
+        return;
+      }
+      const gesture = {
+        wrap,
+        layoutItemId: wrap.dataset.layoutItemId,
+        pointerId: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        target,
+        editTarget: resolveEditTarget(target),
+        pointerType: event.pointerType,
+        moved: false,
+        lifted: false,
+        dimTimer: 0,
+        liftTimer: 0,
+      };
+      liftPointer = gesture;
+      showHoldToMoveTip(wrap);
+      gesture.dimTimer = window.setTimeout(() => {
+        if (liftPointer !== gesture || gesture.moved || gesture.lifted) {
+          return;
+        }
+        wrap.classList.add("is-lift-arming");
+      }, LIFT_DIM_MS);
+      gesture.liftTimer = window.setTimeout(() => {
+        if (liftPointer !== gesture) {
+          return;
+        }
+        beginSectionLift();
+      }, gesture.pointerType === "touch" ? LIFT_HOLD_MS_TOUCH : LIFT_HOLD_MS_FINE);
+    });
+
+    window.addEventListener(
+      "pointermove",
+      (event) => {
+        if (liftPointer && event.pointerId === liftPointer.pointerId && !liftPointer.lifted) {
+          const dist = Math.hypot(event.clientX - liftPointer.x, event.clientY - liftPointer.y);
+          if (dist > LIFT_CANCEL_PX) {
+            const wrap = liftPointer.wrap;
+            liftPointer.moved = true;
+            clearLiftArmTimers(liftPointer);
+            wrap.classList.remove("is-lift-arming");
+            if (!hasTextSelection()) {
+              wiggleHoldWrap(wrap);
+              showHoldToMoveTip(wrap);
+            }
+          }
+          return;
+        }
+        if (!liftSession || event.pointerId !== liftSession.pointerId) {
+          return;
+        }
+        event.preventDefault();
+        updateLiftPointer(event.clientX, event.clientY);
+      },
+      { capture: true, passive: false }
+    );
+
+    window.addEventListener(
+      "pointerup",
+      (event) => {
+        if (liftPointer && event.pointerId === liftPointer.pointerId) {
+          finishUnliftedPointer(event);
+          return;
+        }
+        if (liftSession && event.pointerId === liftSession.pointerId) {
+          finishLiftDrop(event);
+        }
+      },
+      { capture: true }
+    );
+
+    window.addEventListener(
+      "pointercancel",
+      (event) => {
+        if (liftPointer && event.pointerId === liftPointer.pointerId) {
+          liftPointer.moved = true;
+          finishUnliftedPointer(event);
+          return;
+        }
+        if (liftSession && event.pointerId === liftSession.pointerId) {
+          cancelLiftSession();
+        }
+      },
+      { capture: true }
+    );
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (liftSession) {
+        event.preventDefault();
+        cancelLiftSession();
+        return;
+      }
+      if (closeSectionMenus()) {
+        event.preventDefault();
+      }
+    });
+
+    cvPreview.addEventListener("contextmenu", (event) => {
+      if (liftPointer || liftSession) {
+        event.preventDefault();
+      }
+    });
+
+    document.addEventListener("pointerdown", (event) => {
+      if (!(event.target instanceof Element)) {
+        return;
+      }
+      if (event.target.closest(".cv-section-menu, .cv-section-menu-btn")) {
+        return;
+      }
+      closeSectionMenus();
+    });
   }
 
   function bindPreviewPointerInteraction() {
     if (!cvPreview) {
       return;
     }
+
+    bindSectionLift();
 
     let phoneTouchEdit = false;
     cvPreview.addEventListener(
@@ -1090,6 +1976,10 @@
     );
 
     cvPreview.addEventListener("touchend", (event) => {
+      if (liftEditOwned) {
+        liftEditOwned = false;
+        return;
+      }
       if (!isMobileReorderViewport() || event.changedTouches?.length !== 1) {
         return;
       }
@@ -1097,7 +1987,7 @@
       if (!(target instanceof Element)) {
         return;
       }
-      if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit, .cv-skill-chip-remove")) {
+      if (target.closest(".cv-section-handles, .cv-skill-chip-remove")) {
         return;
       }
       if (target.closest(".cv-skill-input, input, textarea")) {
@@ -1125,12 +2015,15 @@
       if (event.button !== 0) {
         return;
       }
+      if (liftPointer || liftSession) {
+        return;
+      }
 
       if (isMobileReorderViewport()) {
         const fromTouch = phoneTouchEdit;
         phoneTouchEdit = false;
         const target = event.target;
-        if (target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit, .cv-skill-chip-remove")) {
+        if (target.closest(".cv-section-handles, .cv-skill-chip-remove")) {
           return;
         }
         if (target.closest(".cv-skill-input, input, textarea")) {
@@ -1157,7 +2050,7 @@
         phoneTouchEdit = false;
       }
 
-      if (event.target.closest(".cv-section-remove, .cv-section-handle, .cv-section-save, .cv-section-deep-edit")) {
+      if (event.target.closest(".cv-section-handles")) {
         return;
       }
       if (event.target.closest('[contenteditable="true"].is-editing')) {
@@ -1170,62 +2063,6 @@
         tryActivateEdit(event, editTarget);
         return;
       }
-
-      const wrap = event.target.closest(".cv-section-wrap");
-      if (!wrap) {
-        return;
-      }
-
-      sectionPointer = {
-        wrap,
-        layoutItemId: wrap?.dataset.layoutItemId || null,
-        x: event.clientX,
-        y: event.clientY,
-        target: event.target,
-        moved: false,
-      };
-
-      event.preventDefault();
-      setPointerDragSelectLock(true);
-
-      const onMove = (moveEvent) => {
-        if (!sectionPointer) {
-          return;
-        }
-
-        const distance = Math.hypot(moveEvent.clientX - sectionPointer.x, moveEvent.clientY - sectionPointer.y);
-        if (distance >= SECTION_DRAG_THRESHOLD_PX) {
-          moveEvent.preventDefault();
-          window.getSelection()?.removeAllRanges();
-          sectionPointer.moved = true;
-          sectionPointer.wrap?.classList.add("is-drag-armed");
-
-          if (sectionPointer.wrap && sectionPointer.layoutItemId) {
-            startPointerSectionDrag(sectionPointer.wrap, sectionPointer.layoutItemId, moveEvent);
-          }
-        }
-      };
-
-      const onUp = () => {
-        document.removeEventListener("mousemove", onMove);
-        document.removeEventListener("mouseup", onUp);
-
-        if (!sectionPointer) {
-          return;
-        }
-
-        if (sectionPointer.moved || sectionDragSession) {
-          if (!documentDragState) {
-            clearSectionPointer();
-          }
-          return;
-        }
-
-        clearSectionPointer();
-      };
-
-      document.addEventListener("mousemove", onMove);
-      document.addEventListener("mouseup", onUp);
     });
 
     document.addEventListener("selectstart", (event) => {
@@ -1265,61 +2102,8 @@
     });
   }
 
-  // Desktop column is 22px + 2px gap. When that stack is taller than the entry,
-  // lay the controls in one gutter row so they cannot cover the entry below.
-  let sectionHandleObserver = null;
-
-  function sectionHandleStackHeight(handles) {
-    const buttons = handles.querySelectorAll(
-      ":scope > .cv-section-handle, :scope > .cv-section-remove, :scope > .cv-section-deep-edit"
-    );
-    if (!buttons.length) {
-      return 0;
-    }
-    const gap = parseFloat(getComputedStyle(handles).rowGap);
-    const rowGap = Number.isFinite(gap) ? gap : 0;
-    let height = 0;
-    buttons.forEach((button, index) => {
-      height += button.offsetHeight;
-      if (index > 0) {
-        height += rowGap;
-      }
-    });
-    return height;
-  }
-
-  function fitSectionHandles(wrap) {
-    const handles = wrap.querySelector(":scope > .cv-section-handles");
-    if (!handles) {
-      wrap.classList.remove("is-compact-handles");
-      return;
-    }
-    const stackHeight = sectionHandleStackHeight(handles);
-    wrap.classList.toggle("is-compact-handles", stackHeight > wrap.offsetHeight + 0.5);
-  }
-
-  function watchSectionHandles() {
-    if (!cvPreview) {
-      return;
-    }
-    if (!sectionHandleObserver && typeof ResizeObserver !== "undefined") {
-      sectionHandleObserver = new ResizeObserver((entries) => {
-        entries.forEach((entry) => {
-          const wrap = entry.target;
-          if (wrap instanceof HTMLElement && wrap.classList.contains("cv-section-wrap")) {
-            fitSectionHandles(wrap);
-          }
-        });
-      });
-    }
-    cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
-      fitSectionHandles(wrap);
-      sectionHandleObserver?.observe(wrap);
-    });
-  }
-
-  // Fine-pointer only: one entry keeps its controls while the pointer stays inside
-  // the safe triangle from the last point on that entry to its handle / ★ cluster.
+  // Fine-pointer only: one entry keeps ⋯ visible while the pointer stays inside
+  // the safe triangle from the last point on that entry to the ⋯ menu.
   // The target is clipped to that entry's box, so a short row cannot hold hover
   // over the next gutter. Leaving the triangle switches after ~150ms.
   function bindSectionHoverIntent() {
@@ -1389,7 +2173,7 @@
     function clusterRects(wrap) {
       const bounds = wrap.getBoundingClientRect();
       const rects = [];
-      wrap.querySelectorAll(".cv-section-handles, .cv-section-save").forEach((el) => {
+      wrap.querySelectorAll(".cv-section-handles, .cv-section-menu").forEach((el) => {
         const rect = el.getBoundingClientRect();
         const top = Math.max(rect.top, bounds.top);
         const bottom = Math.min(rect.bottom, bounds.bottom);
@@ -3086,11 +3870,12 @@
 
   function libraryStarButtonMarkup(inLibrary) {
     const label = inLibrary ? "Update library item" : "Save to library";
-    return `<button type="button" class="btn-icon cv-section-save${
+    return `<button type="button" role="menuitem" class="cv-section-menu-item cv-section-save${
       inLibrary ? " is-in-library" : ""
     }" aria-label="${label}" title="${label}" aria-pressed="${String(inLibrary)}">
       <span class="cv-section-save-icon cv-section-save-icon-hollow" aria-hidden="true">${getStarIconSvg(false)}</span>
       <span class="cv-section-save-icon cv-section-save-icon-filled" aria-hidden="true">${getStarIconSvg(true)}</span>
+      <span class="cv-section-menu-label">${label}</span>
     </button>`;
   }
 
@@ -3104,6 +3889,10 @@
     const label = inLibrary ? "Update library item" : "Save to library";
     button.setAttribute("aria-label", label);
     button.title = label;
+    const labelEl = button.querySelector(".cv-section-menu-label");
+    if (labelEl) {
+      labelEl.textContent = label;
+    }
   }
 
   function refreshLibrarySaveButton(layoutItemId) {
@@ -3286,12 +4075,7 @@
     }
 
     const section = cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
-    const handle = section?.querySelector(".cv-section-handle");
-    if (!handle) {
-      return;
-    }
-
-    handle.focus({ preventScroll: true });
+    section?.focus({ preventScroll: true });
   }
 
   function focusFirstFieldOfItem(layoutItemId) {
@@ -3361,8 +4145,10 @@
       return;
     }
 
+    announceCv("Deleted, press Undo to restore");
     window.AchieveMateToast?.show("Removed from CV", {
       actionLabel: "Undo",
+      duration: 6000,
       onAction: () => {
         if (window.AchieveMateCvHistory?.canUndo?.()) {
           window.AchieveMateCvHistory.undo();
@@ -3677,7 +4463,7 @@
       }
       const wrap = event.target.closest?.(".cv-section-wrap");
       if (wrap && cvPreview.contains(wrap)) {
-        if (event.target.closest(".cv-section-save, .cv-section-remove")) {
+        if (event.target.closest(".cv-section-handles")) {
           return;
         }
         mobileReorderId = wrap.dataset.layoutItemId || mobileReorderId;
@@ -3848,7 +4634,16 @@
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
+        const next = !wrap.classList.contains("is-cv-item-deep-edit");
+        setCvItemDeepEdit(wrap, next);
+        if (next) {
+          wrap.dataset.deepEditHold = "1";
+          wrap.focus({ preventScroll: true });
+        }
+        closeSectionMenus();
+        window.setTimeout(() => {
+          delete wrap.dataset.deepEditHold;
+        }, 50);
       });
     }
 
@@ -3874,7 +4669,7 @@
         if (!wrap.isConnected || !wrap.classList.contains("is-cv-item-deep-edit")) {
           return;
         }
-        if (focusStillInCvItem(wrap)) {
+        if (wrap.dataset.deepEditHold === "1" || focusStillInCvItem(wrap)) {
           return;
         }
         setCvItemDeepEdit(wrap, false);
@@ -3897,7 +4692,7 @@
       }
       if (
         event.target.closest(
-          ".cv-section-handle, .cv-section-remove, .cv-section-save, .cv-section-deep-edit, [contenteditable='true'].is-editing"
+          ".cv-section-handles, .cv-section-menu, [contenteditable='true'].is-editing"
         )
       ) {
         return;
@@ -3908,6 +4703,9 @@
       cancelHold();
       holdTimer = window.setTimeout(() => {
         holdTimer = 0;
+        if (liftSession || wrap.classList.contains("is-lifted")) {
+          return;
+        }
         holdFired = true;
         setCvItemDeepEdit(wrap, true);
       }, CV_ITEM_DEEP_EDIT_HOLD_MS);
@@ -3954,76 +4752,67 @@
     });
   }
 
+  function moveEntryOne(layoutItemId, direction) {
+    const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    if (currentIndex < 0) {
+      return false;
+    }
+    if (direction < 0 && currentIndex === 0) {
+      return false;
+    }
+    if (direction > 0 && currentIndex >= state.cvLayout.length - 1) {
+      return false;
+    }
+    stepLayoutItem(layoutItemId, direction);
+    const nextIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    if (nextIndex < 0) {
+      return false;
+    }
+    announceCv(`Moved to position ${nextIndex + 1} of ${state.cvLayout.length}`);
+    return true;
+  }
+
   function bindSectionHandles() {
     cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
       const layoutItemId = wrap.dataset.layoutItemId;
-      const handle = wrap.querySelector(".cv-section-handle");
-      const removeBtn = wrap.querySelector(".cv-section-remove");
-
       wrap.draggable = false;
 
-      handle?.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || !isMobileReorderViewport()) {
-          return;
-        }
-        if (sectionDragSession || documentDragState) {
-          return;
-        }
+      const menuBtn = wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn");
+      const menu = wrap.querySelector(":scope > .cv-section-handles .cv-section-menu");
+      menuBtn?.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        mobileReorderId = layoutItemId;
-        syncMobileReorder(layoutItemId);
-        startPointerSectionDrag(wrap, layoutItemId, event);
+        const isOpen = wrap.classList.contains("is-menu-open");
+        closeSectionMenus();
+        if (!isOpen) {
+          openSectionMenu(layoutItemId);
+        }
       });
 
-      handle?.addEventListener("dragstart", (event) => {
-        event.stopPropagation();
-        if (isMobileReorderViewport()) {
-          // Touch/pointer path owns mobile reorder so the yellow landing line can update.
+      menu?.querySelectorAll("[data-menu-action]").forEach((button) => {
+        button.addEventListener("mousedown", (event) => {
           event.preventDefault();
-          return;
-        }
-        beginDocumentDrag(wrap, layoutItemId, event, handle);
-      });
-
-      handle?.addEventListener("dragend", (event) => {
-        if (documentDragState?.layoutItemId !== layoutItemId) {
-          return;
-        }
-        finishDocumentDrag(event);
-      });
-
-      handle?.addEventListener("keydown", (event) => {
-        if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) {
-          return;
-        }
-
-        event.preventDefault();
-        const currentIndex = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-        if (currentIndex === -1) {
-          return;
-        }
-
-        const nextIndex = event.key === "ArrowUp" ? currentIndex - 1 : currentIndex + 1;
-        if (nextIndex < 0 || nextIndex >= state.cvLayout.length) {
-          return;
-        }
-
-        window.AchieveMateCvBuilder?.moveLayoutItem(currentIndex, nextIndex);
-      });
-
-      removeBtn?.addEventListener("mousedown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      removeBtn?.addEventListener("click", (event) => {
-        event.stopPropagation();
-        removeSectionFromCv(layoutItemId);
+          event.stopPropagation();
+        });
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const action = button.dataset.menuAction;
+          if (action === "up" || action === "down") {
+            closeSectionMenus();
+            moveEntryOne(layoutItemId, action === "up" ? -1 : 1);
+            openSectionMenu(layoutItemId);
+            return;
+          }
+          closeSectionMenus();
+          if (action === "delete") {
+            removeSectionFromCv(layoutItemId);
+          }
+        });
       });
 
       const saveBtn = wrap.querySelector(".cv-section-save");
       saveBtn?.addEventListener("mousedown", (event) => {
-        // Keep click from focusing the star so :focus-within doesn't pin chrome open.
         event.preventDefault();
         event.stopPropagation();
       });
@@ -4032,7 +4821,21 @@
         event.preventDefault();
         toggleLayoutItemInLibrary(layoutItemId);
         setLibraryStarButtonState(saveBtn, isLayoutItemInLibrary(layoutItemId));
-        saveBtn.blur();
+        closeSectionMenus();
+      });
+
+      wrap.addEventListener("keydown", (event) => {
+        if (event.target !== wrap) {
+          return;
+        }
+        if (!event.altKey || event.shiftKey || event.ctrlKey || event.metaKey) {
+          return;
+        }
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+          return;
+        }
+        event.preventDefault();
+        moveEntryOne(layoutItemId, event.key === "ArrowUp" ? -1 : 1);
       });
 
       bindCvItemDeepEdit(wrap);
@@ -5470,17 +6273,21 @@
       getCvItemFieldKeys(item).some(
         (field) => !isCvItemFieldFilled(getCvItemFieldContent(item, field), field, item)
       )
-        ? `<button type="button" class="btn-icon cv-section-deep-edit" aria-label="Show empty fields" aria-pressed="false">⋯</button>`
+        ? `<button type="button" role="menuitem" class="cv-section-menu-item cv-section-deep-edit" aria-pressed="false">Show empty fields</button>`
         : "";
 
     return `
-      <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}">
+      <div class="cv-section-wrap${wrapExtraClass}" data-layout-item-id="${item.id}" tabindex="0">
         <div class="cv-section-handles">
-          <button type="button" class="btn-icon cv-section-handle" draggable="true" aria-label="Drag to reorder section">⠿</button>
-          ${deepEditButton}
-          <button type="button" class="btn-icon cv-section-remove" aria-label="Remove section from CV">×</button>
+          <button type="button" class="btn-icon cv-section-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="Entry actions">⋯</button>
+          <div class="cv-section-menu" role="menu" hidden>
+            ${saveButton}
+            ${deepEditButton}
+            <button type="button" role="menuitem" class="cv-section-menu-item" data-menu-action="up">Move up</button>
+            <button type="button" role="menuitem" class="cv-section-menu-item" data-menu-action="down">Move down</button>
+            <button type="button" role="menuitem" class="cv-section-menu-item cv-section-menu-delete" data-menu-action="delete">Delete</button>
+          </div>
         </div>
-        ${saveButton}
         ${inner}
       </div>
     `;
@@ -5540,7 +6347,6 @@
     bindEditableNodes();
     bindSkillsSections();
     bindSectionHandles();
-    watchSectionHandles();
     syncMobileReorder(focusItemId);
     scheduleSmartLayout({
       onComplete: () => {

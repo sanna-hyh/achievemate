@@ -763,7 +763,7 @@ function refreshToastStack() {
   });
 }
 
-function showToast(message, { actionLabel, onAction, tone = "success", dismissible = true } = {}) {
+function showToast(message, { actionLabel, onAction, tone = "success", dismissible = true, duration } = {}) {
   const region = document.getElementById("toastRegion");
   if (!region) {
     return null;
@@ -811,9 +811,10 @@ function showToast(message, { actionLabel, onAction, tone = "success", dismissib
     toast.appendChild(closeBtn);
   }
 
+  const lifetime = Number.isFinite(duration) ? duration : TOAST_LIFETIME_MS;
   const scheduleDismiss = () => {
     window.clearTimeout(toast.dismissTimer);
-    toast.dismissTimer = window.setTimeout(() => dismissToast(toast), TOAST_LIFETIME_MS);
+    toast.dismissTimer = window.setTimeout(() => dismissToast(toast), lifetime);
   };
 
   toast.addEventListener("mouseenter", () => window.clearTimeout(toast.dismissTimer));
