@@ -38,6 +38,8 @@
   let sectionDragSession = null;
   let cvItemEnterNavSource = null;
   const editSessionDirty = new WeakMap();
+  const editSessionHtml = new WeakMap();
+  const editSessionValue = new WeakMap();
   let linkUi = null;
   let linkUiInput = null;
   let linkUiMode = null;
@@ -62,9 +64,54 @@
   }
 
   function beginEditSession(node) {
-    if (node) {
-      editSessionDirty.set(node, false);
+    if (!node) {
+      return;
     }
+    editSessionDirty.set(node, false);
+    editSessionHtml.set(node, node.innerHTML);
+    const editKey = node.dataset.editKey;
+    if (!editKey) {
+      editSessionValue.delete(node);
+      return;
+    }
+    const raw = getRawEdit(editKey);
+    editSessionValue.set(node, {
+      editKey,
+      missing: raw === undefined,
+      raw,
+      personalName: editKey === "personal.name" ? state.personalInfo?.name ?? "" : null,
+    });
+  }
+
+  function revertEditSessionValue(node) {
+    const snap = editSessionValue.get(node);
+    if (!snap) {
+      return false;
+    }
+    let changed = false;
+    const current = getRawEdit(snap.editKey);
+    if (snap.missing) {
+      if (current !== undefined) {
+        deleteEdit(snap.editKey);
+        changed = true;
+      }
+    } else if (current !== snap.raw) {
+      setEdit(snap.editKey, snap.raw, { skipSave: true });
+      changed = true;
+    }
+    if (snap.personalName != null && (state.personalInfo?.name ?? "") !== snap.personalName) {
+      state.personalInfo.name = snap.personalName;
+      window.AchieveMateApp?.refreshPersonalForm?.();
+      window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+      changed = true;
+    }
+    return changed;
+  }
+
+  function discardEditSession(node) {
+    editSessionDirty.delete(node);
+    editSessionHtml.delete(node);
+    editSessionValue.delete(node);
   }
   const SECTION_DRAG_THRESHOLD_PX = 8;
   const CV_ITEM_PLACEHOLDERS = {
@@ -592,7 +639,48 @@
     });
   }
 
+  function cancelFieldEdit(node) {
+    if (!node?.classList.contains("is-editing")) {
+      return;
+    }
+
+    const html = editSessionHtml.get(node);
+    if (typeof html === "string") {
+      node.innerHTML = html;
+    }
+    const reverted = revertEditSessionValue(node);
+    discardEditSession(node);
+
+    if (activeLinkField === node) {
+      hideLinkUi();
+    }
+    node.classList.remove("is-editing");
+    node.setAttribute("contenteditable", "false");
+    syncNodePlaceholderClass(node);
+
+    // Input already committed the draft. If that save has not flushed, the
+    // pending timer persists the restored value; otherwise write the revert.
+    if (reverted && !editSaveTimer) {
+      flushEditSave();
+    }
+
+    const deepWrap = node.closest(".cv-section-wrap.is-cv-item-deep-edit");
+    const deepButton = deepWrap?.querySelector(".cv-section-deep-edit");
+    if (deepButton) {
+      deepButton.focus({ preventScroll: true });
+      return;
+    }
+    if (document.activeElement === node) {
+      node.blur();
+    }
+  }
+
   function finishFieldEdit(node) {
+    if (!node?.classList.contains("is-editing")) {
+      return;
+    }
+    editSessionHtml.delete(node);
+    editSessionValue.delete(node);
     if (activeLinkField === node) {
       hideLinkUi();
     }
@@ -4944,6 +5032,18 @@
         window.requestAnimationFrame(() => {
           updateEditingPreviewFlag();
         });
+      });
+
+      node.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || isImeComposingEvent(event, node)) {
+          return;
+        }
+        if (!node.classList.contains("is-editing")) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        cancelFieldEdit(node);
       });
 
       node.addEventListener("input", () => persistEdit());
