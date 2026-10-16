@@ -1082,9 +1082,63 @@
     });
   }
 
+  // Desktop column is 22px + 2px gap. When that stack is taller than the entry,
+  // lay the controls in one gutter row so they cannot cover the entry below.
+  let sectionHandleObserver = null;
+
+  function sectionHandleStackHeight(handles) {
+    const buttons = handles.querySelectorAll(
+      ":scope > .cv-section-handle, :scope > .cv-section-remove, :scope > .cv-section-deep-edit"
+    );
+    if (!buttons.length) {
+      return 0;
+    }
+    const gap = parseFloat(getComputedStyle(handles).rowGap);
+    const rowGap = Number.isFinite(gap) ? gap : 0;
+    let height = 0;
+    buttons.forEach((button, index) => {
+      height += button.offsetHeight;
+      if (index > 0) {
+        height += rowGap;
+      }
+    });
+    return height;
+  }
+
+  function fitSectionHandles(wrap) {
+    const handles = wrap.querySelector(":scope > .cv-section-handles");
+    if (!handles) {
+      wrap.classList.remove("is-compact-handles");
+      return;
+    }
+    const stackHeight = sectionHandleStackHeight(handles);
+    wrap.classList.toggle("is-compact-handles", stackHeight > wrap.offsetHeight + 0.5);
+  }
+
+  function watchSectionHandles() {
+    if (!cvPreview) {
+      return;
+    }
+    if (!sectionHandleObserver && typeof ResizeObserver !== "undefined") {
+      sectionHandleObserver = new ResizeObserver((entries) => {
+        entries.forEach((entry) => {
+          const wrap = entry.target;
+          if (wrap instanceof HTMLElement && wrap.classList.contains("cv-section-wrap")) {
+            fitSectionHandles(wrap);
+          }
+        });
+      });
+    }
+    cvPreview.querySelectorAll(".cv-section-wrap").forEach((wrap) => {
+      fitSectionHandles(wrap);
+      sectionHandleObserver?.observe(wrap);
+    });
+  }
+
   // Fine-pointer only: one entry keeps its controls while the pointer stays inside
   // the safe triangle from the last point on that entry to its handle / ★ cluster.
-  // Leaving the triangle switches to the entry under the pointer after ~150ms.
+  // The target is clipped to that entry's box, so a short row cannot hold hover
+  // over the next gutter. Leaving the triangle switches after ~150ms.
   function bindSectionHoverIntent() {
     if (!cvPreview) {
       return;
@@ -1150,11 +1204,21 @@
     }
 
     function clusterRects(wrap) {
+      const bounds = wrap.getBoundingClientRect();
       const rects = [];
       wrap.querySelectorAll(".cv-section-handles, .cv-section-save").forEach((el) => {
         const rect = el.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          rects.push(rect);
+        const top = Math.max(rect.top, bounds.top);
+        const bottom = Math.min(rect.bottom, bounds.bottom);
+        if (rect.width > 0 && bottom - top > 0) {
+          rects.push({
+            left: rect.left,
+            right: rect.right,
+            top,
+            bottom,
+            width: rect.width,
+            height: bottom - top,
+          });
         }
       });
       return rects;
@@ -5246,6 +5310,7 @@
     bindEditableNodes();
     bindSkillsSections();
     bindSectionHandles();
+    watchSectionHandles();
     syncMobileReorder(focusItemId);
     scheduleSmartLayout({
       onComplete: () => {

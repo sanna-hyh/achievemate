@@ -4407,6 +4407,33 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   pointer-events: auto;
 }
 
+/* A column of ⠿ ⋯ × is taller than a one-line entry and would cover the next gutter. */
+@media (min-width: 901px) {
+  .cv-section-wrap.is-compact-handles .cv-section-handles {
+    left: calc(var(--cv-page-padding) * -1);
+    right: calc(100% - 2px);
+    top: 0;
+    width: auto;
+    max-height: 100%;
+    box-sizing: border-box;
+    flex-direction: row-reverse;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    align-items: flex-start;
+    overflow: clip;
+  }
+
+  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-handle,
+  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-remove,
+  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-deep-edit {
+    flex: 0 1 26px;
+    width: 26px;
+    min-width: 0;
+    max-width: 26px;
+    height: 22px;
+  }
+}
+
 .cv-section-deep-edit {
   font-size: 1rem;
   letter-spacing: 0.02em;
