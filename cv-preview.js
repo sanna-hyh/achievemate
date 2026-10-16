@@ -4041,6 +4041,20 @@
       }
     }
 
+    if (editKey === "personal.contact") {
+      // next == null also means the typed text matches the fallback, not only a cleared field.
+      const contact = plainPersonalContact(rawValue);
+      const phone = state.personalInfo.phone || "";
+      const email = state.personalInfo.email || "";
+      if (phone !== contact.phone || email !== contact.email) {
+        state.personalInfo.phone = contact.phone;
+        state.personalInfo.email = contact.email;
+        window.AchieveMateApp?.refreshPersonalForm?.();
+        window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+        changed = true;
+      }
+    }
+
     if (changed && !options.skipSave) {
       if (options.flushSave) {
         flushEditSave();
@@ -5364,6 +5378,29 @@
       return "";
     }
     return plain;
+  }
+
+  function plainPersonalContact(rawValue) {
+    const plain = editPlainText(rawValue).replace(/\s+/g, " ").trim();
+    if (
+      !plain ||
+      normalizePlaceholderCompare(plain) === normalizePlaceholderCompare("Phone | Email")
+    ) {
+      return { phone: "", email: "" };
+    }
+
+    const pipe = plain.indexOf("|");
+    if (pipe === -1) {
+      if (plain.includes("@")) {
+        return { phone: "", email: plain };
+      }
+      return { phone: plain, email: "" };
+    }
+
+    return {
+      phone: plain.slice(0, pipe).trim(),
+      email: plain.slice(pipe + 1).trim(),
+    };
   }
 
   function getCanvasDisplayName() {
