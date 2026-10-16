@@ -1243,6 +1243,7 @@
       pointerIn24: rectContains(padRect(base, 24), clientX, clientY),
       pointerIn48: rectContains(padRect(base, 48), clientX, clientY),
       centreIn24: centre ? rectContains(padRect(base, 24), centre.x, centre.y) : false,
+      centreIn48: centre ? rectContains(padRect(base, 48), centre.x, centre.y) : false,
       overlap: overlapOnBin(card, base),
       near: Math.hypot(dx, dy) <= 160,
     };
@@ -1263,7 +1264,7 @@
     }
     return {
       enter: isPointerOverBin(clientX, clientY, hit),
-      hold: hit.pointerIn48 || hit.overlap >= 0.15,
+      hold: hit.pointerIn48 || hit.centreIn48 || hit.overlap >= 0.15,
       near: hit.near,
     };
   }
