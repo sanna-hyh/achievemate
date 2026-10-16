@@ -1103,6 +1103,7 @@
     }
     if (window.matchMedia("(max-width: 900px)").matches) {
       bin.style.left = "";
+      bin.style.right = "";
       bin.style.bottom = "";
       return;
     }
@@ -1110,12 +1111,21 @@
     const width = bin.offsetWidth || 64;
     const gap = 16;
     if (!page || page.width < 8) {
-      bin.style.left = "28px";
+      bin.style.left = "auto";
+      bin.style.right = "28px";
       bin.style.bottom = "28px";
       return;
     }
-    const left = Math.max(8, Math.round(page.left - gap - width));
+    const maxLeft = Math.max(8, window.innerWidth - width - 8);
+    let left = Math.round(page.right + gap);
+    if (left > maxLeft) {
+      left = maxLeft;
+    }
+    if (left < 8) {
+      left = 8;
+    }
     bin.style.left = `${left}px`;
+    bin.style.right = "auto";
     bin.style.bottom = "28px";
   }
 
