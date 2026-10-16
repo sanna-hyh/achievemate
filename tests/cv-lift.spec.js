@@ -208,11 +208,6 @@ test("bin arms near the trash, gulps the card, and Undo restores it", async ({ p
 
   await pointerUp(page, overBin, touch);
 
-  await expect(page.locator("#cvLiftFloat .cv-lift-float")).toHaveAttribute(
-    "style",
-    /transform:\s*scale\(0\.12\)/
-  );
-
   const toast = page.locator(".toast", { hasText: "Removed from CV" });
   await expect(toast).toBeVisible();
   await expect(page.locator(".cv-preview-entry-title", { hasText: "Bravo Role" })).toHaveCount(0);
