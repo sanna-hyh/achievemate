@@ -153,6 +153,41 @@ function createId(prefix = "ach") {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function libraryPlainText(value) {
+  if (value == null || value === "") {
+    return "";
+  }
+
+  const str = String(value);
+  const hasTag = /<\/?[a-z][^>]*>/i.test(str);
+  const hasEntity = /&(?:#\d+|#x[\da-f]+|[a-z][a-z0-9]+);/i.test(str);
+  if (!hasTag && !hasEntity) {
+    return str;
+  }
+
+  const doc = new DOMParser().parseFromString(str, "text/html");
+  const parts = [];
+  const walk = (node) => {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        parts.push(child.textContent || "");
+        return;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) {
+        return;
+      }
+      if (child.tagName === "BR") {
+        parts.push("\n");
+        return;
+      }
+      walk(child);
+    });
+  };
+
+  walk(doc.body);
+  return parts.join("").replace(/\u00a0/g, " ");
+}
+
 function normalizeLibraryEntry(raw) {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -164,7 +199,7 @@ function normalizeLibraryEntry(raw) {
   };
 
   LIBRARY_FIELDS.forEach((field) => {
-    entry[field] = typeof raw[field] === "string" ? raw[field] : "";
+    entry[field] = libraryPlainText(typeof raw[field] === "string" ? raw[field] : "");
   });
 
   if (typeof raw.migratedFromAchievementId === "string" && raw.migratedFromAchievementId) {
@@ -1901,21 +1936,21 @@ function createEditEntry(achievement) {
 }
 
 function libraryEntryLabel(entry) {
-  const title = String(entry?.title || "").trim();
+  const title = libraryPlainText(entry?.title).trim();
   if (title) {
     return title;
   }
-  const subtitle = String(entry?.subtitle || "").trim();
+  const subtitle = libraryPlainText(entry?.subtitle).trim();
   if (subtitle) {
     return subtitle;
   }
-  const description = getDescriptionLines(entry?.description || "")[0];
+  const description = getDescriptionLines(libraryPlainText(entry?.description || ""))[0];
   return description || "Saved item";
 }
 
 function libraryEntryMeta(entry, label) {
   return [entry?.date, entry?.subtitle, entry?.location]
-    .map((value) => String(value || "").trim())
+    .map((value) => libraryPlainText(value).trim())
     .filter((value) => value && value !== label)
     .filter((value, index, list) => list.indexOf(value) === index)
     .join(" · ");
@@ -1926,12 +1961,12 @@ function createLibraryEntryCard(entry) {
   card.className = "entry";
   card.dataset.id = entry.id;
 
-  const title = String(entry?.title || "").trim();
-  const subtitle = String(entry?.subtitle || "").trim();
+  const title = libraryPlainText(entry?.title).trim();
+  const subtitle = libraryPlainText(entry?.subtitle).trim();
   const label = libraryEntryLabel(entry);
   const usedDescriptionAsLabel = !title && !subtitle;
   const meta = libraryEntryMeta(entry, label);
-  const descriptionLines = getDescriptionLines(entry?.description || "");
+  const descriptionLines = getDescriptionLines(libraryPlainText(entry?.description || ""));
   const lines = usedDescriptionAsLabel ? descriptionLines.slice(1) : descriptionLines;
   const bulletsMarkup = lines.length
     ? `<ul class="entry-bullets">${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul>`
@@ -2061,6 +2096,7 @@ window.AchieveMateApp = {
   createId,
   escapeHtml,
   getStarIconSvg,
+  libraryPlainText,
   normalizeLibraryEntry,
   LIBRARY_FIELDS,
   formatBulletText,

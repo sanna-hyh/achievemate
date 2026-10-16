@@ -4,7 +4,7 @@
     return;
   }
 
-  const { state, saveState, createId, escapeHtml, getStarIconSvg } = app;
+  const { state, saveState, createId, escapeHtml, getStarIconSvg, libraryPlainText } = app;
 
   const cvPreview = document.getElementById("cvPreview");
   const cvPreviewScaler = document.getElementById("cvPreviewScaler");
@@ -2743,7 +2743,7 @@
       getCvItemFieldKeys(item).forEach((field) => {
         const content = getCvItemFieldContent(item, field);
         if (isCvItemFieldFilled(content, field, item)) {
-          snapshot[field] = content;
+          snapshot[field] = libraryPlainText(content);
           hasContent = true;
         } else {
           snapshot[field] = "";
@@ -2754,20 +2754,24 @@
 
     if (item.type === "achievement") {
       const achievement = getAchievement(item.achievementId);
-      const title = meaningfulFieldText(
-        preferStoredField(`items.${item.id}.title`, achievement?.title || ""),
-        "Untitled achievement",
-        "title"
+      const title = libraryPlainText(
+        meaningfulFieldText(
+          preferStoredField(`items.${item.id}.title`, achievement?.title || ""),
+          "Untitled achievement",
+          "title"
+        )
       );
-      const date = meaningfulFieldText(
-        preferStoredField(`items.${item.id}.date`, achievement?.date || ""),
-        "Date",
-        "date"
+      const date = libraryPlainText(
+        meaningfulFieldText(
+          preferStoredField(`items.${item.id}.date`, achievement?.date || ""),
+          "Date",
+          "date"
+        )
       );
       const descriptionSource = isAchievementDescriptionVisible(achievement)
         ? preferStoredField(`items.${item.id}.description`, achievement?.description || "")
         : "";
-      const description = meaningfulFieldText(descriptionSource, "", "description");
+      const description = libraryPlainText(meaningfulFieldText(descriptionSource, "", "description"));
       if (!title && !date && !description.trim()) {
         return null;
       }
@@ -2786,7 +2790,7 @@
         return null;
       }
       const titleRaw = preferStoredField(`items.${item.id}.title`, item.title || SKILLS_HEADING_DEFAULT);
-      const title = editPlainText(titleRaw).replace(/\s+/g, " ").trim() || SKILLS_HEADING_DEFAULT;
+      const title = libraryPlainText(titleRaw).replace(/\s+/g, " ").trim() || SKILLS_HEADING_DEFAULT;
       return {
         title,
         subtitle: "",
