@@ -5760,6 +5760,28 @@ body.is-cv-dragging .cv-preview-document {
   font-style: italic;
 }
 
+/* Editing clears placeholder text so typing isn't replacing a selection.
+   Show the same hint as a ghost until the field has real content. */
+.cv-preview-document [data-placeholder-text].is-editing.cv-preview-editing-empty::before {
+  content: attr(data-placeholder-text);
+  color: #8a8a8a;
+  opacity: 0.92;
+  pointer-events: none;
+  font-style: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.cv-preview-document [data-placeholder-text].is-editing.cv-preview-editing-empty:not(:empty)::before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* Keep Accent/Content field colors while editing — don't force black/text. */
 .cv-preview-document [contenteditable="true"].is-editing {
   opacity: 1;
