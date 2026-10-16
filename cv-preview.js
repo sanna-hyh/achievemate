@@ -40,9 +40,11 @@
   let liftSession = null;
   let liftEditOwned = false;
   let liftScrollRaf = 0;
-  const LIFT_HOLD_MS = 300;
+  const LIFT_HOLD_MS_FINE = 200;
+  const LIFT_HOLD_MS_TOUCH = 300;
   const LIFT_DIM_MS = 150;
   const LIFT_CANCEL_PX = 6;
+  const HOLD_TIP_KEY = "achievemate-hold-to-move";
   let cvItemEnterNavSource = null;
   const editSessionDirty = new WeakMap();
   const editSessionHtml = new WeakMap();
@@ -978,21 +980,100 @@
       return false;
     }
     let closed = false;
+    document.querySelectorAll(".cv-section-menu").forEach((menu) => {
+      const wasOpen = !menu.hidden || menu.classList.contains("is-portaled");
+      if (!wasOpen) {
+        return;
+      }
+      const ownerId = menu.dataset.layoutItemId || "";
+      const wrap =
+        menu.closest(".cv-section-wrap") ||
+        (ownerId ? cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${ownerId}"]`) : null);
+      if (except && wrap === except) {
+        return;
+      }
+      menu.hidden = true;
+      menu.classList.remove("is-drop-up", "is-portaled");
+      menu.style.position = "";
+      menu.style.left = "";
+      menu.style.top = "";
+      menu.style.right = "";
+      menu.style.bottom = "";
+      const home = menu._cvMenuHome;
+      if (home?.isConnected && menu.parentElement !== home) {
+        home.appendChild(menu);
+      }
+      if (wrap) {
+        wrap.classList.remove("is-menu-open");
+        wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn")?.setAttribute("aria-expanded", "false");
+      }
+      closed = true;
+    });
     cvPreview.querySelectorAll(".cv-section-wrap.is-menu-open").forEach((wrap) => {
       if (except && wrap === except) {
         return;
       }
       wrap.classList.remove("is-menu-open");
-      const menu = wrap.querySelector(":scope > .cv-section-handles .cv-section-menu");
-      const button = wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn");
-      if (menu) {
-        menu.hidden = true;
-        menu.classList.remove("is-drop-up");
-      }
-      button?.setAttribute("aria-expanded", "false");
+      wrap.querySelector(":scope > .cv-section-handles .cv-section-menu-btn")?.setAttribute("aria-expanded", "false");
       closed = true;
     });
     return closed;
+  }
+
+  function placePortaledMenu(menu, wrap) {
+    const page = cvPreview.getBoundingClientRect();
+    const entry = wrap.getBoundingClientRect();
+    const width = menu.offsetWidth || 196;
+    const height = menu.offsetHeight || 160;
+    const gap = 8;
+    const leftRoom = page.left - gap;
+    const rightRoom = window.innerWidth - page.right - gap;
+    let left;
+    if (leftRoom >= width) {
+      left = page.left - gap - width;
+    } else if (rightRoom >= width) {
+      left = page.right + gap;
+    } else {
+      left = Math.min(Math.max(8, entry.left), Math.max(8, window.innerWidth - width - 8));
+    }
+    let top = entry.top;
+    const maxTop = Math.max(8, window.innerHeight - height - 8);
+    if (top > maxTop) {
+      top = maxTop;
+    }
+    if (top < 8) {
+      top = 8;
+    }
+    menu.style.left = `${Math.round(left)}px`;
+    menu.style.top = `${Math.round(top)}px`;
+  }
+
+  function openSectionMenu(layoutItemId) {
+    const wrap = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    const menu = wrap?.querySelector(":scope > .cv-section-handles .cv-section-menu");
+    const menuBtn = wrap?.querySelector(":scope > .cv-section-handles .cv-section-menu-btn");
+    if (!wrap || !menu || !menuBtn) {
+      return;
+    }
+    closeSectionMenus(wrap);
+    const index = state.cvLayout.findIndex((item) => item.id === layoutItemId);
+    const up = menu.querySelector('[data-menu-action="up"]');
+    const down = menu.querySelector('[data-menu-action="down"]');
+    if (up) {
+      up.disabled = index <= 0;
+    }
+    if (down) {
+      down.disabled = index < 0 || index >= state.cvLayout.length - 1;
+    }
+    menu.dataset.layoutItemId = layoutItemId;
+    menu._cvMenuHome = menu.parentElement;
+    menu.hidden = false;
+    menu.classList.add("is-portaled");
+    menu.classList.remove("is-drop-up");
+    document.body.appendChild(menu);
+    placePortaledMenu(menu, wrap);
+    wrap.classList.add("is-menu-open");
+    menuBtn.setAttribute("aria-expanded", "true");
   }
 
   function ensureLiftBin() {
@@ -1214,10 +1295,13 @@
 
     const float = wrap.cloneNode(true);
     float.classList.add("cv-lift-float");
-    float.classList.remove("is-lifted", "is-lift-arming", "is-menu-open", "is-hover-active");
+    float.classList.remove("is-lifted", "is-lift-arming", "is-menu-open", "is-hover-active", "is-hold-wiggle");
     float.removeAttribute("id");
     float.removeAttribute("tabindex");
     float.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+    normalizeLiftBullets(float);
+    const pose = liftPoseFor(rect);
+    float.classList.toggle("is-thin", pose.thin);
     host.appendChild(float);
     if ("inert" in host) {
       host.inert = true;
@@ -1239,7 +1323,36 @@
       }
     });
     document.body.appendChild(tracker);
-    return { host, float, tracker };
+    return { host, float, tracker, pose };
+  }
+
+  function liftPoseFor(rect) {
+    const height = rect?.height || 0;
+    const width = Math.max(1, rect?.width || 1);
+    const thin = height < 56;
+    const rotate = thin ? 0 : Math.min(1, Math.max(0, (height - 40) / 120));
+    const scale = thin ? 1 + 4 / width : 1.02;
+    return { thin, rotate, scale };
+  }
+
+  function normalizeLiftBullets(float) {
+    float.querySelectorAll(".cv-preview-description").forEach((node) => {
+      const next = node.innerHTML
+        .split(/<br\s*\/?>/i)
+        .map((line) => line.replace(/^(?:\s|&nbsp;)*(?:[•●∙]\s*){2,}/, "• "))
+        .join("<br>");
+      if (next !== node.innerHTML) {
+        node.innerHTML = next;
+      }
+    });
+  }
+
+  function liftPoseTransform(pose, motion) {
+    if (!motion) {
+      return "none";
+    }
+    const rotate = pose.rotate ? ` rotate(${pose.rotate}deg)` : "";
+    return `scale(${pose.scale})${rotate}`;
   }
 
   function removeLiftVisual(session) {
@@ -1277,7 +1390,11 @@
       return;
     }
     float.style.opacity = "";
-    float.style.transform = motion ? "scale(1.03) rotate(1deg)" : "none";
+    if (session.settleLift) {
+      float.style.transform = "none";
+      return;
+    }
+    float.style.transform = liftPoseTransform(session.pose || liftPoseFor({ height: 80, width: 400 }), motion);
   }
 
   function queueLiftScroll() {
@@ -1563,6 +1680,7 @@
     const width = wrap.offsetWidth;
     const stride = measureEntryStride(wrap);
     const visual = mountLiftFloat(wrap, rect);
+    document.getElementById("cvHoldTip")?.classList.remove("is-shown");
     wrap.classList.add("is-lifted");
     wrap.style.top = `${top}px`;
     wrap.style.left = `${left}px`;
@@ -1598,11 +1716,87 @@
       tx: 0,
       ty: 0,
       overBin: false,
+      pose: visual.pose,
+      settleLift: false,
     };
     liftPointer = null;
     placeLiftGap(fromIndex, { animate: false });
     setLiftBinShown(true);
+    if (!prefersReducedLiftMotion()) {
+      liftSession.settleLift = true;
+      visual.float.style.transition = "transform 120ms var(--ease-out)";
+    }
     updateLiftPointer(gesture.x, gesture.y);
+    if (liftSession?.settleLift) {
+      const session = liftSession;
+      window.requestAnimationFrame(() => {
+        if (liftSession !== session) {
+          return;
+        }
+        session.settleLift = false;
+        liftTranslate(session, session.clientX, session.clientY, session.overBin ? "bin" : "lift");
+        window.setTimeout(() => {
+          if (session.float?.isConnected) {
+            session.float.style.transition = "";
+          }
+        }, 130);
+      });
+    }
+  }
+
+  function hasTextSelection() {
+    const selection = window.getSelection();
+    return Boolean(selection && !selection.isCollapsed && String(selection).length > 0);
+  }
+
+  function wiggleHoldWrap(wrap) {
+    if (!wrap || prefersReducedLiftMotion()) {
+      return;
+    }
+    wrap.classList.remove("is-hold-wiggle");
+    void wrap.offsetWidth;
+    wrap.classList.add("is-hold-wiggle");
+    window.setTimeout(() => {
+      wrap.classList.remove("is-hold-wiggle");
+    }, 160);
+  }
+
+  function showHoldToMoveTip(wrap) {
+    try {
+      if (localStorage.getItem(HOLD_TIP_KEY) === "1") {
+        return;
+      }
+      localStorage.setItem(HOLD_TIP_KEY, "1");
+    } catch {
+      return;
+    }
+    let tip = document.getElementById("cvHoldTip");
+    if (!tip) {
+      tip = document.createElement("div");
+      tip.id = "cvHoldTip";
+      tip.className = "cv-hold-tip";
+      tip.setAttribute("role", "status");
+      tip.textContent = "Hold to move";
+      document.body.appendChild(tip);
+    }
+    const entry = wrap.getBoundingClientRect();
+    const page = cvPreview?.getBoundingClientRect();
+    const width = 118;
+    let left = page ? page.left - width - 8 : entry.left;
+    if (left < 8) {
+      left = Math.max(8, entry.left);
+    }
+    let top = entry.top - 32;
+    if (top < 8) {
+      top = entry.bottom + 6;
+    }
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
+    tip.classList.add("is-shown");
+    window.clearTimeout(tip._hideTimer);
+    tip._hideTimer = window.setTimeout(() => {
+      tip.classList.remove("is-shown");
+    }, 2200);
   }
 
   function finishUnliftedPointer(event) {
@@ -1657,12 +1851,14 @@
         y: event.clientY,
         target,
         editTarget: resolveEditTarget(target),
+        pointerType: event.pointerType,
         moved: false,
         lifted: false,
         dimTimer: 0,
         liftTimer: 0,
       };
       liftPointer = gesture;
+      showHoldToMoveTip(wrap);
       gesture.dimTimer = window.setTimeout(() => {
         if (liftPointer !== gesture || gesture.moved || gesture.lifted) {
           return;
@@ -1674,7 +1870,7 @@
           return;
         }
         beginSectionLift();
-      }, LIFT_HOLD_MS);
+      }, gesture.pointerType === "touch" ? LIFT_HOLD_MS_TOUCH : LIFT_HOLD_MS_FINE);
     });
 
     window.addEventListener(
@@ -1683,9 +1879,14 @@
         if (liftPointer && event.pointerId === liftPointer.pointerId && !liftPointer.lifted) {
           const dist = Math.hypot(event.clientX - liftPointer.x, event.clientY - liftPointer.y);
           if (dist > LIFT_CANCEL_PX) {
+            const wrap = liftPointer.wrap;
             liftPointer.moved = true;
             clearLiftArmTimers(liftPointer);
-            liftPointer.wrap.classList.remove("is-lift-arming");
+            wrap.classList.remove("is-lift-arming");
+            if (!hasTextSelection()) {
+              wiggleHoldWrap(wrap);
+              showHoldToMoveTip(wrap);
+            }
           }
           return;
         }
@@ -1728,11 +1929,17 @@
     );
 
     document.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape" || !liftSession) {
+      if (event.key !== "Escape") {
         return;
       }
-      event.preventDefault();
-      cancelLiftSession();
+      if (liftSession) {
+        event.preventDefault();
+        cancelLiftSession();
+        return;
+      }
+      if (closeSectionMenus()) {
+        event.preventDefault();
+      }
     });
 
     cvPreview.addEventListener("contextmenu", (event) => {
@@ -4575,26 +4782,11 @@
       menuBtn?.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const willOpen = Boolean(menu?.hidden);
+        const isOpen = wrap.classList.contains("is-menu-open");
         closeSectionMenus();
-        if (!willOpen || !menu) {
-          return;
+        if (!isOpen) {
+          openSectionMenu(layoutItemId);
         }
-        const index = state.cvLayout.findIndex((item) => item.id === layoutItemId);
-        const up = menu.querySelector('[data-menu-action="up"]');
-        const down = menu.querySelector('[data-menu-action="down"]');
-        if (up) {
-          up.disabled = index <= 0;
-        }
-        if (down) {
-          down.disabled = index < 0 || index >= state.cvLayout.length - 1;
-        }
-        const previewRect = cvPreview.getBoundingClientRect();
-        const buttonRect = menuBtn.getBoundingClientRect();
-        menu.classList.toggle("is-drop-up", previewRect.bottom - buttonRect.bottom < 168);
-        menu.hidden = false;
-        wrap.classList.add("is-menu-open");
-        menuBtn.setAttribute("aria-expanded", "true");
       });
 
       menu?.querySelectorAll("[data-menu-action]").forEach((button) => {
@@ -4606,12 +4798,14 @@
           event.preventDefault();
           event.stopPropagation();
           const action = button.dataset.menuAction;
+          if (action === "up" || action === "down") {
+            closeSectionMenus();
+            moveEntryOne(layoutItemId, action === "up" ? -1 : 1);
+            openSectionMenu(layoutItemId);
+            return;
+          }
           closeSectionMenus();
-          if (action === "up") {
-            moveEntryOne(layoutItemId, -1);
-          } else if (action === "down") {
-            moveEntryOne(layoutItemId, 1);
-          } else if (action === "delete") {
+          if (action === "delete") {
             removeSectionFromCv(layoutItemId);
           }
         });
