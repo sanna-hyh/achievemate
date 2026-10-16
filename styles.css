@@ -4264,6 +4264,13 @@ body.is-phone-keyboard {
   transform: scaleX(1);
 }
 
+.cv-insertion-line.is-lift-line {
+  position: fixed;
+  z-index: 91;
+  right: auto;
+  margin: 0;
+}
+
 .cv-insertion-line.is-visible::before {
   transform: translateY(-50%) scale(1);
 }

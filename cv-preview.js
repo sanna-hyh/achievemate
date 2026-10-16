@@ -1255,6 +1255,21 @@
     });
   }
 
+  function releaseLiftLine(line) {
+    if (!line?.classList.contains("is-lift-line")) {
+      return;
+    }
+    line.classList.remove("is-lift-line");
+    line.style.left = "";
+    line.style.top = "";
+    line.style.width = "";
+    const home = line._cvLineHome;
+    line._cvLineHome = null;
+    if (home?.isConnected) {
+      home.insertBefore(line, home.firstChild);
+    }
+  }
+
   function positionLiftLine() {
     const gap = getPreviewBody()?.querySelector(":scope > .cv-lift-gap");
     const line = getInsertionLine();
@@ -1262,8 +1277,17 @@
       hideInsertionLine();
       return;
     }
-    line.style.top = `${gap.offsetTop}px`;
-    line.classList.add("is-visible");
+    const rect = gap.getBoundingClientRect();
+    if (!line._cvLineHome) {
+      line._cvLineHome = line.parentElement;
+    }
+    if (line.parentElement !== document.body) {
+      document.body.appendChild(line);
+    }
+    line.classList.add("is-lift-line", "is-visible");
+    line.style.left = `${rect.left}px`;
+    line.style.top = `${rect.top}px`;
+    line.style.width = `${Math.max(0, rect.width)}px`;
     line.removeAttribute("aria-hidden");
   }
 
@@ -2991,7 +3015,7 @@
       if (drawer?.contains(target) || toggleBtn.contains(target)) {
         return;
       }
-      if (target instanceof Element && target.closest("#cvLiftBin, #cvLiftTracker")) {
+      if (target instanceof Element && target.closest("#cvLiftBin, #cvLiftTracker, #toastRegion, .toast")) {
         return;
       }
 
@@ -4062,7 +4086,7 @@
   }
 
   function getInsertionLine() {
-    return cvPreview?.querySelector(".cv-insertion-line");
+    return cvPreview?.querySelector(".cv-insertion-line") || document.body.querySelector(":scope > .cv-insertion-line");
   }
 
   function hideInsertionLine() {
@@ -4072,6 +4096,7 @@
     }
     line.classList.remove("is-visible");
     line.setAttribute("aria-hidden", "true");
+    releaseLiftLine(line);
   }
 
   function showInsertionLine(index) {
