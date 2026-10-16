@@ -3015,7 +3015,8 @@
       if (drawer?.contains(target) || toggleBtn.contains(target)) {
         return;
       }
-      if (target instanceof Element && target.closest("#cvLiftBin, #cvLiftTracker, #toastRegion, .toast")) {
+      const hit = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+      if (hit?.closest(".cv-section-wrap, #cvLiftFloat, .cv-lift-float, #cvLiftBin, #cvLiftTracker, #toastRegion, .toast")) {
         return;
       }
 
