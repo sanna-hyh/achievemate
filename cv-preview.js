@@ -4245,7 +4245,7 @@
   }
 
   function libraryStarButtonMarkup(inLibrary) {
-    const label = inLibrary ? "Update library item" : "Save to library";
+    const label = inLibrary ? "Remove from library" : "Save to library";
     return `<button type="button" role="menuitem" class="cv-section-menu-item cv-section-save${
       inLibrary ? " is-in-library" : ""
     }" aria-label="${label}" title="${label}" aria-pressed="${String(inLibrary)}">
@@ -4262,7 +4262,7 @@
 
     button.classList.toggle("is-in-library", inLibrary);
     button.setAttribute("aria-pressed", String(inLibrary));
-    const label = inLibrary ? "Update library item" : "Save to library";
+    const label = inLibrary ? "Remove from library" : "Save to library";
     button.setAttribute("aria-label", label);
     button.title = label;
     const labelEl = button.querySelector(".cv-section-menu-label");
@@ -4271,14 +4271,23 @@
     }
   }
 
+  function setLibraryStarButtons(layoutItemId) {
+    const inLibrary = isLayoutItemInLibrary(layoutItemId);
+    const wrap = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
+    setLibraryStarButtonState(wrap?.querySelector(".cv-section-save"), inLibrary);
+    document.querySelectorAll(".cv-section-menu.is-portaled").forEach((menu) => {
+      if (menu.dataset.layoutItemId === layoutItemId) {
+        setLibraryStarButtonState(menu.querySelector(".cv-section-save"), inLibrary);
+      }
+    });
+  }
+
   function refreshLibrarySaveButton(layoutItemId) {
     if (!layoutItemId || !cvPreview) {
       return;
     }
 
-    const wrap = cvPreview.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
-    const button = wrap?.querySelector(".cv-section-save");
-    setLibraryStarButtonState(button, isLayoutItemInLibrary(layoutItemId));
+    setLibraryStarButtons(layoutItemId);
   }
 
   function syncLibraryStars() {
@@ -4286,13 +4295,18 @@
       return;
     }
 
+    const seen = new Set();
     cvPreview.querySelectorAll(".cv-section-wrap[data-layout-item-id]").forEach((wrap) => {
-      const button = wrap.querySelector(".cv-section-save");
-      if (!button) {
-        return;
+      if (wrap.dataset.layoutItemId) {
+        seen.add(wrap.dataset.layoutItemId);
       }
-      setLibraryStarButtonState(button, isLayoutItemInLibrary(wrap.dataset.layoutItemId));
     });
+    document.querySelectorAll(".cv-section-menu.is-portaled").forEach((menu) => {
+      if (menu.dataset.layoutItemId) {
+        seen.add(menu.dataset.layoutItemId);
+      }
+    });
+    seen.forEach((layoutItemId) => setLibraryStarButtons(layoutItemId));
   }
 
   function saveLayoutItemToLibrary(layoutItemId) {
@@ -4319,6 +4333,14 @@
     if (!item || (item.type !== "cv-item" && item.type !== "achievement" && item.type !== "skills")) {
       window.AchieveMateToast?.show("Only CV items can be saved to the library.", { tone: "neutral" });
       return { saved: false, reason: "unsupported" };
+    }
+
+    if (isLayoutItemInLibrary(layoutItemId)) {
+      const { snapshot } = getLayoutItemLibrarySnapshot(layoutItemId, { commit: true });
+      return window.AchieveMateCvBuilder?.toggleLibrarySnapshot(snapshot, {
+        sourceLayoutItemId: layoutItemId,
+        layoutItemId,
+      });
     }
 
     return saveLayoutItemToLibrary(layoutItemId);
@@ -5198,7 +5220,6 @@
         event.preventDefault();
         toggleLayoutItemInLibrary(layoutItemId);
         setLibraryStarButtonState(saveBtn, isLayoutItemInLibrary(layoutItemId));
-        closeSectionMenus();
       });
 
       wrap.addEventListener("keydown", (event) => {
