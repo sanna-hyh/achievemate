@@ -3986,54 +3986,32 @@ body.is-phone-keyboard {
     outline-offset: 3px;
   }
 
-  /* No sticky :hover chrome on touch — only selected / focused item shows handles. */
+  /* No sticky :hover chrome on touch — only selected / focused item shows ⋯. */
   .cv-section-wrap .cv-section-handles,
-  .cv-section-wrap .cv-section-handles .cv-section-handle,
-  .cv-section-wrap .cv-section-handles .cv-section-remove,
-  .cv-section-wrap .cv-section-handles .cv-section-deep-edit,
-  .cv-section-wrap .cv-section-save {
+  .cv-section-wrap .cv-section-handles .cv-section-menu-btn {
     pointer-events: none;
   }
 
-  .cv-section-wrap:hover .cv-section-handles,
-  .cv-section-wrap:hover .cv-section-save {
+  .cv-section-wrap:hover .cv-section-handles {
     opacity: 0;
   }
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
+  .cv-section-wrap.is-menu-open .cv-section-handles,
   .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
   .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
-    .cv-section-handles {
+  .cv-section-wrap:has(.cv-section-menu-btn:focus-visible) .cv-section-handles,
+  .cv-section-wrap:focus-visible .cv-section-handles {
     opacity: 1;
     pointer-events: auto;
   }
 
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-deep-edit,
-  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-handle,
-  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-remove,
-  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-deep-edit,
-  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-handle,
-  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-remove,
-  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-deep-edit,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
-    .cv-section-handles
-    .cv-section-handle,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
-    .cv-section-handles
-    .cv-section-remove,
-  .cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible)
-    .cv-section-handles
-    .cv-section-deep-edit {
-    pointer-events: auto;
-  }
-
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-save,
-  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-save,
-  .cv-section-wrap:has(.cv-section-save:focus-visible) .cv-section-save {
-    opacity: 1;
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-menu-btn,
+  .cv-section-wrap.is-menu-open .cv-section-handles .cv-section-menu-btn,
+  .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles .cv-section-menu-btn,
+  .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles .cv-section-menu-btn,
+  .cv-section-wrap:has(.cv-section-menu-btn:focus-visible) .cv-section-handles .cv-section-menu-btn,
+  .cv-section-wrap:focus-visible .cv-section-handles .cv-section-menu-btn {
     pointer-events: auto;
   }
 
@@ -4291,9 +4269,11 @@ body.is-phone-keyboard {
 }
 
 .cv-section-wrap.is-hover-active,
+.cv-section-wrap.is-menu-open,
+.cv-section-wrap:focus-visible,
 .cv-section-wrap:has([data-edit-key]:focus),
 .cv-section-wrap:has(.cv-skill-input:focus),
-.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) {
+.cv-section-wrap:has(.cv-section-menu-btn:focus-visible) {
   z-index: 2;
 }
 
@@ -4373,20 +4353,20 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   z-index: 6;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  /* Bridge toward the section so the mouse can reach × / ⠿ without dropping hover. */
+  align-items: flex-start;
+  /* Bridge toward the section so the pointer can reach ⋯. */
   padding-right: 12px;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
-  /* Like the star: stay hit-testable while faded so hover doesn't die in the gap. */
   pointer-events: auto;
 }
 
 .cv-section-wrap.is-hover-active .cv-section-handles,
+.cv-section-wrap.is-menu-open .cv-section-handles,
+.cv-section-wrap:focus-visible .cv-section-handles,
 .cv-section-wrap:has([data-edit-key]:focus) .cv-section-handles,
 .cv-section-wrap:has(.cv-skill-input:focus) .cv-section-handles,
-.cv-section-wrap:has(.cv-section-handle:focus-visible, .cv-section-remove:focus-visible, .cv-section-deep-edit:focus-visible) .cv-section-handles {
+.cv-section-wrap:has(.cv-section-menu-btn:focus-visible) .cv-section-handles {
   opacity: 1;
 }
 
@@ -4396,101 +4376,104 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   }
 }
 
-.cv-section-handles .cv-section-handle,
-.cv-section-handles .cv-section-remove,
-.cv-section-handles .cv-section-deep-edit {
+.cv-section-menu-btn {
   position: relative;
   z-index: 1;
   flex-shrink: 0;
   width: 26px;
   height: 22px;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
   pointer-events: auto;
 }
 
-/* A column of ⠿ ⋯ × is taller than a one-line entry and would cover the next gutter. */
-@media (min-width: 901px) {
-  .cv-section-wrap.is-compact-handles .cv-section-handles {
-    left: calc(var(--cv-page-padding) * -1);
-    right: calc(100% - 2px);
-    top: 0;
-    width: auto;
-    max-height: 100%;
-    box-sizing: border-box;
-    flex-direction: row-reverse;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    align-items: flex-start;
-    overflow: clip;
-  }
-
-  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-handle,
-  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-remove,
-  .cv-section-wrap.is-compact-handles .cv-section-handles .cv-section-deep-edit {
-    flex: 0 1 26px;
-    width: 26px;
-    min-width: 0;
-    max-width: 26px;
-    height: 22px;
-  }
-}
-
-.cv-section-deep-edit {
-  font-size: 1rem;
-  letter-spacing: 0.02em;
-}
-
-.cv-section-wrap.is-cv-item-deep-edit .cv-section-deep-edit {
+.cv-section-wrap.is-cv-item-deep-edit .cv-section-menu-btn,
+.cv-section-menu-item.cv-section-deep-edit[aria-pressed="true"] {
   color: var(--brass-bright);
 }
 
-.cv-section-handle {
-  cursor: grab;
+.cv-section-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  min-width: 196px;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  box-shadow: var(--shadow-overlay);
 }
 
-.cv-section-handle:active {
-  cursor: grabbing;
+.cv-section-menu[hidden] {
+  display: none;
 }
 
-.cv-section-remove:hover {
+.cv-section-menu.is-drop-up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.cv-section-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cv-section-menu-item:hover,
+.cv-section-menu-item:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.cv-section-menu-item:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.cv-section-menu-delete:hover,
+.cv-section-menu-delete:focus-visible {
   color: var(--signal-danger);
   background: var(--danger-tint);
 }
 
 .cv-section-save {
-  position: absolute;
-  top: -2px;
-  right: -40px;
-  z-index: 3;
-  width: 32px;
-  height: 32px;
   color: var(--brass);
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 
 .cv-section-save:hover,
-.cv-section-save:focus-visible {
-  color: var(--brass-bright);
-  background: transparent;
-}
-
+.cv-section-save:focus-visible,
 .cv-section-save.is-in-library {
   color: var(--brass-bright);
-  background: transparent;
+  background: var(--surface-2);
 }
 
 .cv-section-save svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   display: block;
 }
 
 .cv-section-save-icon {
   display: none;
   line-height: 0;
+  flex-shrink: 0;
 }
 
-/* Hollow by default; filled only when actually in Library — never on bare :hover. */
 .cv-section-save .cv-section-save-icon-hollow {
   display: block;
 }
@@ -4507,15 +4490,131 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   display: block;
 }
 
-.cv-section-wrap.is-hover-active .cv-section-save,
-.cv-section-wrap:has([data-edit-key]:focus) .cv-section-save,
-.cv-section-wrap:has(.cv-section-save:focus-visible) .cv-section-save {
-  opacity: 1;
+.cv-section-wrap.is-lift-arming {
+  opacity: 0.72;
 }
 
-@media (hover: none), (pointer: coarse) {
-  .cv-section-wrap:hover .cv-section-save {
-    opacity: 1;
+.cv-section-wrap.is-lifted {
+  position: absolute;
+  z-index: 7;
+  margin: 0;
+  touch-action: none;
+  background: #fff;
+  box-shadow: var(--shadow-drag);
+  transform-origin: center center;
+}
+
+.cv-lift-gap {
+  pointer-events: none;
+}
+
+.cv-section-wrap.is-lift-shift {
+  transition: transform 150ms var(--ease-out);
+}
+
+.cv-lift-announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cv-lift-bin {
+  position: fixed;
+  z-index: 80;
+  right: 28px;
+  bottom: 28px;
+  width: 64px;
+  height: 72px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition:
+    transform 180ms var(--ease-out),
+    opacity 180ms var(--ease-out),
+    color 120ms var(--ease-out);
+}
+
+.cv-lift-bin.is-shown {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.cv-lift-bin-lid {
+  display: block;
+  height: 8px;
+  margin: 0 8px 2px;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  transform-origin: 12% 100%;
+  transition: transform 150ms var(--ease-out);
+}
+
+.cv-lift-bin-lid::before {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 4px;
+  margin: -6px auto 0;
+  border: 2px solid currentColor;
+  border-bottom: 0;
+  border-radius: 3px 3px 0 0;
+}
+
+.cv-lift-bin-can {
+  display: block;
+  height: 44px;
+  margin: 0 6px;
+  border: 2px solid currentColor;
+  border-radius: 0 0 8px 8px;
+  background: var(--surface-2);
+}
+
+.cv-lift-bin.is-hot {
+  color: var(--signal-danger);
+}
+
+.cv-lift-bin.is-hot .cv-lift-bin-can {
+  background: var(--danger-tint);
+}
+
+.cv-lift-bin.is-open .cv-lift-bin-lid {
+  transform: translateY(-2px) rotate(-28deg);
+}
+
+@media (max-width: 900px) {
+  .cv-lift-bin {
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--phone-strip-h) + var(--phone-safe-bottom, 0px) + 16px);
+    transform: translate(-50%, 16px);
+  }
+
+  .cv-lift-bin.is-shown {
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-section-wrap.is-lifted,
+  .cv-section-wrap.is-lift-shift,
+  .cv-lift-bin,
+  .cv-lift-bin-lid,
+  .cv-lift-gap {
+    transition: none !important;
+    animation: none !important;
   }
 }
 
@@ -4564,59 +4663,22 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
     bottom: auto;
     width: min(48px, max(0px, calc(var(--cv-page-padding) - 6px)));
     height: auto;
-    flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 4px;
   }
 
   .cv-section-wrap.is-mobile-reorder-target .cv-section-handles,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-handle,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-remove,
-  .cv-section-wrap.is-mobile-reorder-target .cv-section-handles .cv-section-deep-edit {
+  .cv-section-wrap.is-mobile-reorder-target .cv-section-menu-btn,
+  .cv-section-wrap.is-menu-open .cv-section-handles,
+  .cv-section-wrap.is-menu-open .cv-section-menu-btn {
     opacity: 1;
     pointer-events: auto;
   }
 
-  .cv-section-handles .cv-section-handle {
-    width: 100%;
-    max-width: 48px;
-    height: 48px;
-    font-size: 1.4rem;
-    touch-action: none;
-  }
-
-  .cv-section-save {
-    top: 0;
-    right: -68px;
-    width: 44px;
-    height: 44px;
-  }
-
-  .cv-section-handles .cv-section-remove {
-    width: 40px;
-    height: 40px;
-    margin-top: 0;
-    font-size: 1.25rem;
-    line-height: 1;
-    color: rgba(70, 70, 70, 0.55);
-    background: transparent;
-  }
-
-  .cv-section-handles .cv-section-deep-edit {
+  .cv-section-menu-btn {
     width: 40px;
     height: 40px;
     font-size: 1.35rem;
-  }
-
-  .cv-section-remove:hover,
-  .cv-section-remove:focus-visible {
-    color: rgba(70, 70, 70, 0.78);
-    background: transparent;
-  }
-
-  .cv-section-remove:active {
-    color: var(--signal-danger);
   }
 }
 
