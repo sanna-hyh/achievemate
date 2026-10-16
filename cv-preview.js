@@ -1182,27 +1182,102 @@
     return items.length;
   }
 
+  function copyPreviewCustomProps(target) {
+    if (!cvPreview || !target) {
+      return;
+    }
+    for (let index = 0; index < cvPreview.style.length; index += 1) {
+      const prop = cvPreview.style.item(index);
+      if (prop && prop.startsWith("--")) {
+        target.style.setProperty(prop, cvPreview.style.getPropertyValue(prop));
+      }
+    }
+  }
+
+  function mountLiftFloat(wrap, rect) {
+    const host = document.createElement("div");
+    host.id = "cvLiftFloat";
+    host.className = cvPreview?.className || "cv-preview-document";
+    host.classList.remove(
+      "cv-preview-single-page",
+      "cv-preview-multipage",
+      "is-layout-running",
+      "is-exporting"
+    );
+    host.classList.add("cv-lift-float-host");
+    host.setAttribute("aria-hidden", "true");
+    copyPreviewCustomProps(host);
+    host.style.left = `${rect.left}px`;
+    host.style.top = `${rect.top}px`;
+    host.style.width = `${wrap.offsetWidth}px`;
+    host.style.transform = `scale(${previewScale()})`;
+
+    const float = wrap.cloneNode(true);
+    float.classList.add("cv-lift-float");
+    float.classList.remove("is-lifted", "is-lift-arming", "is-menu-open", "is-hover-active");
+    float.removeAttribute("id");
+    float.removeAttribute("tabindex");
+    float.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+    host.appendChild(float);
+    if ("inert" in host) {
+      host.inert = true;
+    }
+    document.body.appendChild(host);
+
+    const tracker = document.createElement("div");
+    tracker.id = "cvLiftTracker";
+    tracker.className = "cv-lift-tracker";
+    tracker.addEventListener("lostpointercapture", (event) => {
+      const session = liftSession;
+      if (!session || event.pointerId !== session.pointerId || session.tracker !== tracker) {
+        return;
+      }
+      try {
+        tracker.setPointerCapture(session.pointerId);
+      } catch {
+        /* window listeners still track the pointer */
+      }
+    });
+    document.body.appendChild(tracker);
+    return { host, float, tracker };
+  }
+
+  function removeLiftVisual(session) {
+    const pointerId = session?.pointerId;
+    const tracker = session?.tracker || document.getElementById("cvLiftTracker");
+    try {
+      if (pointerId != null) {
+        tracker?.releasePointerCapture?.(pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+    tracker?.remove();
+    const host = session?.host || document.getElementById("cvLiftFloat");
+    host?.remove();
+  }
+
   function liftTranslate(session, clientX, clientY, mode) {
-    const scroller = getPreviewWrap();
-    const scale = previewScale();
-    const dx =
-      (clientX - session.originX + (scroller?.scrollLeft || 0) - session.originScrollLeft) / scale;
-    const dy =
-      (clientY - session.originY + (scroller?.scrollTop || 0) - session.originScrollTop) / scale;
+    const dx = clientX - session.originX;
+    const dy = clientY - session.originY;
     const motion = !prefersReducedLiftMotion();
     session.tx = dx;
     session.ty = dy;
-    if (mode === "bin") {
-      session.wrap.style.opacity = "0.7";
-      session.wrap.style.transform = motion
-        ? `translate(${dx}px, ${dy}px) scale(0.9)`
-        : `translate(${dx}px, ${dy}px)`;
+    if (session.host) {
+      session.host.style.left = `${session.originLeft + dx}px`;
+      session.host.style.top = `${session.originTop + dy}px`;
+    }
+    const float = session.float;
+    if (!float) {
       return;
     }
-    session.wrap.style.opacity = "";
-    session.wrap.style.transform = motion
-      ? `translate(${dx}px, ${dy}px) scale(1.03) rotate(1deg)`
-      : `translate(${dx}px, ${dy}px)`;
+    if (mode === "bin") {
+      float.style.opacity = "0.7";
+      float.style.transform = motion ? "scale(0.9)" : "none";
+      return;
+    }
+    float.style.opacity = "";
+    float.style.transform = motion ? "scale(1.03) rotate(1deg)" : "none";
   }
 
   function queueLiftScroll() {
@@ -1250,19 +1325,25 @@
     session.clientX = clientX;
     session.clientY = clientY;
     const overBin = isPointerOverBin(clientX, clientY);
+    const onPage = isPointerOverDocument(clientX, clientY);
     session.overBin = overBin;
     setBinHot(overBin);
     liftTranslate(session, clientX, clientY, overBin ? "bin" : "lift");
-    if (overBin || !isPointerOverReorderSurface(clientX, clientY)) {
+    if (overBin || !onPage) {
       hideInsertionLine();
-    } else {
-      const toIndex = resolveLiftDropIndex(clientY);
-      if (toIndex !== session.gapIndex) {
-        session.gapIndex = toIndex;
-        placeLiftGap(toIndex);
+      if (session.gapIndex !== session.fromIndex) {
+        session.gapIndex = session.fromIndex;
+        placeLiftGap(session.fromIndex);
       }
-      positionLiftLine();
+      stopLiftScroll();
+      return;
     }
+    const toIndex = resolveLiftDropIndex(clientY);
+    if (toIndex !== session.gapIndex) {
+      session.gapIndex = toIndex;
+      placeLiftGap(toIndex);
+    }
+    positionLiftLine();
     queueLiftScroll();
   }
 
@@ -1349,7 +1430,7 @@
       return;
     }
     const wrap = session.wrap;
-    const fromRect = wrap?.getBoundingClientRect() || null;
+    const fromRect = session.float?.getBoundingClientRect() || wrap?.getBoundingClientRect() || null;
     const others = getPreviewBody()
       ? [...getPreviewBody().querySelectorAll(":scope > .cv-section-wrap")].filter((el) => el !== wrap)
       : [];
@@ -1360,6 +1441,7 @@
     clearLiftGap();
     setLiftBinShown(false);
     setPointerDragSelectLock(false);
+    removeLiftVisual(session);
     releaseLiftWrap(wrap, session.pointerId);
     flipOthersFrom(first);
     glideElement(wrap, fromRect);
@@ -1367,21 +1449,36 @@
   }
 
   function throwLiftIntoBin(session, onDone) {
-    const wrap = session.wrap;
+    const host = session.host;
+    const float = session.float;
     const bin = document.getElementById("cvLiftBin");
-    if (!wrap || !bin || prefersReducedLiftMotion()) {
+    try {
+      session.tracker?.releasePointerCapture?.(session.pointerId);
+    } catch {
+      /* ignore */
+    }
+    session.tracker?.remove();
+    if (!host || !float || !bin || prefersReducedLiftMotion()) {
+      host?.remove();
       onDone();
       return;
     }
-    const scale = previewScale();
-    const card = wrap.getBoundingClientRect();
+    const card = float.getBoundingClientRect();
     const binRect = bin.getBoundingClientRect();
-    const extraX = (binRect.left + binRect.width / 2 - (card.left + card.width / 2)) / scale;
-    const extraY = (binRect.top + binRect.height / 2 - (card.top + card.height / 2)) / scale;
-    wrap.style.transition = "transform 250ms var(--ease-out), opacity 250ms linear";
-    wrap.style.transform = `translate(${session.tx + extraX}px, ${session.ty + extraY}px) scale(0.12)`;
-    wrap.style.opacity = "0.15";
-    window.setTimeout(onDone, 250);
+    const dx = binRect.left + binRect.width / 2 - (card.left + card.width / 2);
+    const dy = binRect.top + binRect.height / 2 - (card.top + card.height / 2);
+    const left = (parseFloat(host.style.left) || 0) + dx;
+    const top = (parseFloat(host.style.top) || 0) + dy;
+    host.style.transition = "left 250ms var(--ease-out), top 250ms var(--ease-out)";
+    float.style.transition = "transform 250ms var(--ease-out), opacity 250ms linear";
+    host.style.left = `${left}px`;
+    host.style.top = `${top}px`;
+    float.style.transform = "scale(0.12)";
+    float.style.opacity = "0.15";
+    window.setTimeout(() => {
+      host.remove();
+      onDone();
+    }, 250);
   }
 
   function finishLiftDrop(event) {
@@ -1411,7 +1508,7 @@
     }
 
     const fromIndex = state.cvLayout.findIndex((item) => item.id === session.layoutItemId);
-    const onPage = isPointerOverReorderSurface(clientX, clientY);
+    const onPage = isPointerOverDocument(clientX, clientY);
     const toIndex = onPage ? resolveLiftDropIndex(clientY) : -1;
     const ownSpot = toIndex === fromIndex || toIndex === fromIndex + 1;
     if (!onPage || ownSpot || fromIndex < 0) {
@@ -1419,7 +1516,7 @@
       return;
     }
 
-    const fromRect = session.wrap.getBoundingClientRect();
+    const fromRect = session.float?.getBoundingClientRect() || session.wrap.getBoundingClientRect();
     const layoutItemId = session.layoutItemId;
     liftSession = null;
     stopLiftScroll();
@@ -1427,6 +1524,7 @@
     clearLiftGap();
     setLiftBinShown(false);
     setPointerDragSelectLock(false);
+    removeLiftVisual(session);
     releaseLiftWrap(session.wrap, session.pointerId);
     window.AchieveMateCvBuilder?.moveLayoutItem(fromIndex, toIndex);
     const next = cvPreview?.querySelector(`.cv-section-wrap[data-layout-item-id="${layoutItemId}"]`);
@@ -1459,11 +1557,12 @@
     wrap.classList.remove("is-lift-arming");
     closeSectionMenus();
 
+    const rect = wrap.getBoundingClientRect();
     const top = wrap.offsetTop;
     const left = wrap.offsetLeft;
     const width = wrap.offsetWidth;
     const stride = measureEntryStride(wrap);
-    const scroller = getPreviewWrap();
+    const visual = mountLiftFloat(wrap, rect);
     wrap.classList.add("is-lifted");
     wrap.style.top = `${top}px`;
     wrap.style.left = `${left}px`;
@@ -1475,19 +1574,22 @@
       /* ignore */
     }
     try {
-      wrap.setPointerCapture(gesture.pointerId);
+      visual.tracker.setPointerCapture(gesture.pointerId);
     } catch {
-      /* ignore */
+      /* window listeners still track the pointer */
     }
 
     liftSession = {
       wrap,
+      host: visual.host,
+      float: visual.float,
+      tracker: visual.tracker,
       layoutItemId: gesture.layoutItemId,
       pointerId: gesture.pointerId,
       originX: gesture.x,
       originY: gesture.y,
-      originScrollLeft: scroller?.scrollLeft || 0,
-      originScrollTop: scroller?.scrollTop || 0,
+      originLeft: rect.left,
+      originTop: rect.top,
       fromIndex,
       stride,
       clientX: gesture.x,
@@ -1575,7 +1677,7 @@
       }, LIFT_HOLD_MS);
     });
 
-    document.addEventListener(
+    window.addEventListener(
       "pointermove",
       (event) => {
         if (liftPointer && event.pointerId === liftPointer.pointerId && !liftPointer.lifted) {
@@ -1593,29 +1695,37 @@
         event.preventDefault();
         updateLiftPointer(event.clientX, event.clientY);
       },
-      { passive: false }
+      { capture: true, passive: false }
     );
 
-    document.addEventListener("pointerup", (event) => {
-      if (liftPointer && event.pointerId === liftPointer.pointerId) {
-        finishUnliftedPointer(event);
-        return;
-      }
-      if (liftSession && event.pointerId === liftSession.pointerId) {
-        finishLiftDrop(event);
-      }
-    });
+    window.addEventListener(
+      "pointerup",
+      (event) => {
+        if (liftPointer && event.pointerId === liftPointer.pointerId) {
+          finishUnliftedPointer(event);
+          return;
+        }
+        if (liftSession && event.pointerId === liftSession.pointerId) {
+          finishLiftDrop(event);
+        }
+      },
+      { capture: true }
+    );
 
-    document.addEventListener("pointercancel", (event) => {
-      if (liftPointer && event.pointerId === liftPointer.pointerId) {
-        liftPointer.moved = true;
-        finishUnliftedPointer(event);
-        return;
-      }
-      if (liftSession && event.pointerId === liftSession.pointerId) {
-        cancelLiftSession();
-      }
-    });
+    window.addEventListener(
+      "pointercancel",
+      (event) => {
+        if (liftPointer && event.pointerId === liftPointer.pointerId) {
+          liftPointer.moved = true;
+          finishUnliftedPointer(event);
+          return;
+        }
+        if (liftSession && event.pointerId === liftSession.pointerId) {
+          cancelLiftSession();
+        }
+      },
+      { capture: true }
+    );
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || !liftSession) {
@@ -3831,6 +3941,7 @@
     announceCv("Deleted, press Undo to restore");
     window.AchieveMateToast?.show("Removed from CV", {
       actionLabel: "Undo",
+      duration: 6000,
       onAction: () => {
         if (window.AchieveMateCvHistory?.canUndo?.()) {
           window.AchieveMateCvHistory.undo();
@@ -4316,8 +4427,16 @@
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
+        const next = !wrap.classList.contains("is-cv-item-deep-edit");
+        setCvItemDeepEdit(wrap, next);
+        if (next) {
+          wrap.dataset.deepEditHold = "1";
+          wrap.focus({ preventScroll: true });
+        }
         closeSectionMenus();
+        window.setTimeout(() => {
+          delete wrap.dataset.deepEditHold;
+        }, 50);
       });
     }
 
@@ -4343,7 +4462,7 @@
         if (!wrap.isConnected || !wrap.classList.contains("is-cv-item-deep-edit")) {
           return;
         }
-        if (focusStillInCvItem(wrap)) {
+        if (wrap.dataset.deepEditHold === "1" || focusStillInCvItem(wrap)) {
           return;
         }
         setCvItemDeepEdit(wrap, false);

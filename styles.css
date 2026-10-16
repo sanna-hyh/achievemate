@@ -4496,12 +4496,44 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-section-wrap.is-lifted {
   position: absolute;
-  z-index: 7;
+  z-index: 1;
   margin: 0;
+  visibility: hidden;
+  pointer-events: none;
   touch-action: none;
+}
+
+.cv-lift-tracker {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  touch-action: none;
+  background: transparent;
+}
+
+.cv-preview-document.cv-lift-float-host {
+  position: fixed;
+  z-index: 90;
+  margin: 0;
+  padding: 0;
+  width: auto;
+  max-width: none;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+  transform-origin: top left;
+}
+
+.cv-lift-float {
+  margin: 0;
   background: #fff;
   box-shadow: var(--shadow-drag);
   transform-origin: center center;
+  pointer-events: none;
 }
 
 .cv-lift-gap {
@@ -4610,6 +4642,8 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 @media (prefers-reduced-motion: reduce) {
   .cv-section-wrap.is-lifted,
   .cv-section-wrap.is-lift-shift,
+  .cv-lift-float,
+  .cv-lift-float-host,
   .cv-lift-bin,
   .cv-lift-bin-lid,
   .cv-lift-gap {
