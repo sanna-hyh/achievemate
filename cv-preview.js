@@ -3005,12 +3005,40 @@
       return !cockpit.classList.contains("is-drawer-collapsed");
     }
 
+    const drawerKeepSelector =
+      ".cv-section-wrap, #cvLiftFloat, .cv-lift-float, #cvLiftBin, #cvLiftTracker, #toastRegion, .toast, .toast-action";
+
+    function dismissEventPath(event) {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      return path.length ? path : [event.target];
+    }
+
+    function pathKeepsDrawerOpen(nodes) {
+      return nodes.some((node) => {
+        if (node === drawer || node === toggleBtn) {
+          return true;
+        }
+        if (!(node instanceof Element)) {
+          return false;
+        }
+        if (drawer?.contains(node) || toggleBtn?.contains(node)) {
+          return true;
+        }
+        return node.matches(drawerKeepSelector);
+      });
+    }
+
+    let pointerDismissPath = [];
+    let drawerOpenAtPointerDown = false;
+
     toggleBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       setDrawerOpen(!isDrawerOpen());
     });
 
     document.addEventListener("pointerdown", (event) => {
+      pointerDismissPath = dismissEventPath(event);
+      drawerOpenAtPointerDown = isDrawerOpen();
       // Phone bottom sheet: only dismiss via drag handle, keep CV interactive.
       if (!isDrawerOpen() || isPhonePreviewViewport()) {
         return;
@@ -3020,17 +3048,23 @@
       if (liftPointer || liftSession) {
         return;
       }
-
-      const target = event.target;
-      if (drawer?.contains(target) || toggleBtn.contains(target)) {
-        return;
-      }
-      const hit = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
-      if (hit?.closest(".cv-section-wrap, #cvLiftFloat, .cv-lift-float, #cvLiftBin, #cvLiftTracker, #toastRegion, .toast")) {
+      // composedPath stays valid after Undo detaches the button.
+      if (pathKeepsDrawerOpen(pointerDismissPath)) {
         return;
       }
 
       setDrawerOpen(false);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!drawerOpenAtPointerDown || isPhonePreviewViewport()) {
+        return;
+      }
+      const nodes = [...dismissEventPath(event), ...pointerDismissPath];
+      if (!pathKeepsDrawerOpen(nodes) || isDrawerOpen()) {
+        return;
+      }
+      setDrawerOpen(true);
     });
 
     document.addEventListener("keydown", (event) => {
@@ -4216,7 +4250,7 @@
     isEditingPreview = false;
     flushEditSave();
 
-    const result = builder.removeLayoutItem(layoutItemId, { pruneKindHeading: true, forceRender: true });
+    const result = builder.removeLayoutItem(layoutItemId, { pruneKindHeading: false, forceRender: true });
     if (!result) {
       return;
     }
