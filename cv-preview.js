@@ -508,6 +508,50 @@
         node.innerHTML = richTextToHtml(content);
       }
     });
+
+    syncCvItemDeepEditControl(wrap, item);
+  }
+
+  function cvItemHasEmptyField(item) {
+    return getCvItemFieldKeys(item).some(
+      (field) => !isCvItemFieldFilled(getCvItemFieldContent(item, field), field, item)
+    );
+  }
+
+  function syncCvItemDeepEditControl(wrap, item) {
+    const handles = wrap.querySelector(":scope > .cv-section-handles");
+    if (!handles) {
+      return;
+    }
+
+    const needsButton = wrap.classList.contains("is-cv-item-collapsed") && cvItemHasEmptyField(item);
+    const button = handles.querySelector(":scope > .cv-section-deep-edit");
+
+    if (!needsButton) {
+      if (wrap.classList.contains("is-cv-item-deep-edit")) {
+        setCvItemDeepEdit(wrap, false);
+      }
+      if (button) {
+        button.remove();
+        fitSectionHandles(wrap);
+      }
+      return;
+    }
+
+    if (button) {
+      return;
+    }
+
+    const pressed = wrap.classList.contains("is-cv-item-deep-edit") ? "true" : "false";
+    const markup = `<button type="button" class="btn-icon cv-section-deep-edit" aria-label="Show empty fields" aria-pressed="${pressed}">⋯</button>`;
+    const removeBtn = handles.querySelector(":scope > .cv-section-remove");
+    if (removeBtn) {
+      removeBtn.insertAdjacentHTML("beforebegin", markup);
+    } else {
+      handles.insertAdjacentHTML("beforeend", markup);
+    }
+    bindCvItemDeepEdit(wrap);
+    fitSectionHandles(wrap);
   }
 
   function getCvItemEditableFields(section) {
@@ -3621,6 +3665,8 @@
   }
 
   const CV_ITEM_DEEP_EDIT_HOLD_MS = 480;
+  const cvItemDeepEditBoundWraps = new WeakSet();
+  const cvItemDeepEditBoundButtons = new WeakSet();
 
   function setCvItemDeepEdit(wrap, on) {
     if (!wrap) {
@@ -3658,11 +3704,19 @@
       return;
     }
 
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
-    });
+    if (!cvItemDeepEditBoundButtons.has(button)) {
+      cvItemDeepEditBoundButtons.add(button);
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
+      });
+    }
+
+    if (cvItemDeepEditBoundWraps.has(wrap)) {
+      return;
+    }
+    cvItemDeepEditBoundWraps.add(wrap);
 
     wrap.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.isComposing) {
