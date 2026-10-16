@@ -38,6 +38,8 @@
   let sectionDragSession = null;
   let cvItemEnterNavSource = null;
   const editSessionDirty = new WeakMap();
+  const editSessionHtml = new WeakMap();
+  const editSessionValue = new WeakMap();
   let linkUi = null;
   let linkUiInput = null;
   let linkUiMode = null;
@@ -62,9 +64,68 @@
   }
 
   function beginEditSession(node) {
-    if (node) {
-      editSessionDirty.set(node, false);
+    if (!node) {
+      return;
     }
+    editSessionDirty.set(node, false);
+    editSessionHtml.set(node, node.innerHTML);
+    const editKey = node.dataset.editKey;
+    if (!editKey) {
+      editSessionValue.delete(node);
+      return;
+    }
+    const raw = getRawEdit(editKey);
+    editSessionValue.set(node, {
+      editKey,
+      missing: raw === undefined,
+      raw,
+      personalName: editKey === "personal.name" ? state.personalInfo?.name ?? "" : null,
+      personalPhone: editKey === "personal.contact" ? state.personalInfo?.phone ?? "" : null,
+      personalEmail: editKey === "personal.contact" ? state.personalInfo?.email ?? "" : null,
+    });
+  }
+
+  function revertEditSessionValue(node) {
+    const snap = editSessionValue.get(node);
+    if (!snap) {
+      return false;
+    }
+    let changed = false;
+    const current = getRawEdit(snap.editKey);
+    if (snap.missing) {
+      if (current !== undefined) {
+        deleteEdit(snap.editKey);
+        changed = true;
+      }
+    } else if (current !== snap.raw) {
+      setEdit(snap.editKey, snap.raw, { skipSave: true });
+      changed = true;
+    }
+    if (snap.personalName != null && (state.personalInfo?.name ?? "") !== snap.personalName) {
+      state.personalInfo.name = snap.personalName;
+      window.AchieveMateApp?.refreshPersonalForm?.();
+      window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+      changed = true;
+    }
+    if (
+      snap.personalPhone != null &&
+      snap.personalEmail != null &&
+      ((state.personalInfo?.phone ?? "") !== snap.personalPhone ||
+        (state.personalInfo?.email ?? "") !== snap.personalEmail)
+    ) {
+      state.personalInfo.phone = snap.personalPhone;
+      state.personalInfo.email = snap.personalEmail;
+      window.AchieveMateApp?.refreshPersonalForm?.();
+      window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+      changed = true;
+    }
+    return changed;
+  }
+
+  function discardEditSession(node) {
+    editSessionDirty.delete(node);
+    editSessionHtml.delete(node);
+    editSessionValue.delete(node);
   }
   const SECTION_DRAG_THRESHOLD_PX = 8;
   const CV_ITEM_PLACEHOLDERS = {
@@ -244,6 +305,41 @@
     }
 
     node.classList.toggle("cv-preview-placeholder", nodeShowsPlaceholder(node));
+  }
+
+  function isBrowserEmptyMarkup(node) {
+    const children = [...node.childNodes];
+    if (!children.length) {
+      return false;
+    }
+    return children.every((child) => {
+      if (child.nodeName === "BR") {
+        return true;
+      }
+      if (child.nodeType !== Node.TEXT_NODE) {
+        return false;
+      }
+      return /^[\n\r]*$/.test(child.textContent || "");
+    });
+  }
+
+  function syncEditingPlaceholderGhost(node) {
+    if (!node?.dataset?.placeholderText || node.classList.contains("cv-preview-description")) {
+      return;
+    }
+
+    const show =
+      node.classList.contains("is-editing") &&
+      node.dataset.cvComposing !== "1" &&
+      normalizePlaceholderCompare(node.textContent) === "";
+    if (show && isBrowserEmptyMarkup(node)) {
+      const focused = document.activeElement === node;
+      node.textContent = "";
+      if (focused) {
+        placeCaretAtStart(node);
+      }
+    }
+    node.classList.toggle("cv-preview-editing-empty", show);
   }
 
   function syncAllPlaceholderClasses() {
@@ -508,6 +604,50 @@
         node.innerHTML = richTextToHtml(content);
       }
     });
+
+    syncCvItemDeepEditControl(wrap, item);
+  }
+
+  function cvItemHasEmptyField(item) {
+    return getCvItemFieldKeys(item).some(
+      (field) => !isCvItemFieldFilled(getCvItemFieldContent(item, field), field, item)
+    );
+  }
+
+  function syncCvItemDeepEditControl(wrap, item) {
+    const handles = wrap.querySelector(":scope > .cv-section-handles");
+    if (!handles) {
+      return;
+    }
+
+    const needsButton = wrap.classList.contains("is-cv-item-collapsed") && cvItemHasEmptyField(item);
+    const button = handles.querySelector(":scope > .cv-section-deep-edit");
+
+    if (!needsButton) {
+      if (wrap.classList.contains("is-cv-item-deep-edit")) {
+        setCvItemDeepEdit(wrap, false);
+      }
+      if (button) {
+        button.remove();
+        fitSectionHandles(wrap);
+      }
+      return;
+    }
+
+    if (button) {
+      return;
+    }
+
+    const pressed = wrap.classList.contains("is-cv-item-deep-edit") ? "true" : "false";
+    const markup = `<button type="button" class="btn-icon cv-section-deep-edit" aria-label="Show empty fields" aria-pressed="${pressed}">⋯</button>`;
+    const removeBtn = handles.querySelector(":scope > .cv-section-remove");
+    if (removeBtn) {
+      removeBtn.insertAdjacentHTML("beforebegin", markup);
+    } else {
+      handles.insertAdjacentHTML("beforeend", markup);
+    }
+    bindCvItemDeepEdit(wrap);
+    fitSectionHandles(wrap);
   }
 
   function getCvItemEditableFields(section) {
@@ -548,11 +688,52 @@
     });
   }
 
-  function finishFieldEdit(node) {
+  function cancelFieldEdit(node) {
+    if (!node?.classList.contains("is-editing")) {
+      return;
+    }
+
+    const html = editSessionHtml.get(node);
+    if (typeof html === "string") {
+      node.innerHTML = html;
+    }
+    const reverted = revertEditSessionValue(node);
+    discardEditSession(node);
+
     if (activeLinkField === node) {
       hideLinkUi();
     }
-    node.classList.remove("is-editing");
+    node.classList.remove("is-editing", "cv-preview-editing-empty");
+    node.setAttribute("contenteditable", "false");
+    syncNodePlaceholderClass(node);
+
+    // Input already committed the draft. If that save has not flushed, the
+    // pending timer persists the restored value; otherwise write the revert.
+    if (reverted && !editSaveTimer) {
+      flushEditSave();
+    }
+
+    const deepWrap = node.closest(".cv-section-wrap.is-cv-item-deep-edit");
+    const deepButton = deepWrap?.querySelector(".cv-section-deep-edit");
+    if (deepButton) {
+      deepButton.focus({ preventScroll: true });
+      return;
+    }
+    if (document.activeElement === node) {
+      node.blur();
+    }
+  }
+
+  function finishFieldEdit(node) {
+    if (!node?.classList.contains("is-editing")) {
+      return;
+    }
+    editSessionHtml.delete(node);
+    editSessionValue.delete(node);
+    if (activeLinkField === node) {
+      hideLinkUi();
+    }
+    node.classList.remove("is-editing", "cv-preview-editing-empty");
     node.setAttribute("contenteditable", "false");
     if (node.classList.contains("cv-preview-description")) {
       normalizeDescriptionBulletSpacing(node);
@@ -692,6 +873,7 @@
       // Clear placeholder and leave a caret — selecting placeholder eats early
       // keystrokes when focus is re-applied after layout settle.
       clearPlaceholderContent(node);
+      syncEditingPlaceholderGhost(node);
       return;
     }
 
@@ -703,6 +885,7 @@
     if (event) {
       placeCaretAtPoint(event.clientX, event.clientY);
     }
+    syncEditingPlaceholderGhost(node);
   }
 
   function tryActivateEdit(event, explicitTarget = null) {
@@ -3621,6 +3804,8 @@
   }
 
   const CV_ITEM_DEEP_EDIT_HOLD_MS = 480;
+  const cvItemDeepEditBoundWraps = new WeakSet();
+  const cvItemDeepEditBoundButtons = new WeakSet();
 
   function setCvItemDeepEdit(wrap, on) {
     if (!wrap) {
@@ -3658,11 +3843,19 @@
       return;
     }
 
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
-    });
+    if (!cvItemDeepEditBoundButtons.has(button)) {
+      cvItemDeepEditBoundButtons.add(button);
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setCvItemDeepEdit(wrap, !wrap.classList.contains("is-cv-item-deep-edit"));
+      });
+    }
+
+    if (cvItemDeepEditBoundWraps.has(wrap)) {
+      return;
+    }
+    cvItemDeepEditBoundWraps.add(wrap);
 
     wrap.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.isComposing) {
@@ -4041,6 +4234,20 @@
       }
     }
 
+    if (editKey === "personal.contact") {
+      // next == null also means the typed text matches the fallback, not only a cleared field.
+      const contact = plainPersonalContact(rawValue);
+      const phone = state.personalInfo.phone || "";
+      const email = state.personalInfo.email || "";
+      if (phone !== contact.phone || email !== contact.email) {
+        state.personalInfo.phone = contact.phone;
+        state.personalInfo.email = contact.email;
+        window.AchieveMateApp?.refreshPersonalForm?.();
+        window.AchieveMateApp?.updateSidebarIdentitySummary?.();
+        changed = true;
+      }
+    }
+
     if (changed && !options.skipSave) {
       if (options.flushSave) {
         flushEditSave();
@@ -4225,9 +4432,11 @@
   function bindCompositionGuard(node) {
     node.addEventListener("compositionstart", () => {
       node.dataset.cvComposing = "1";
+      syncEditingPlaceholderGhost(node);
     });
     node.addEventListener("compositionend", () => {
       delete node.dataset.cvComposing;
+      syncEditingPlaceholderGhost(node);
     });
   }
 
@@ -4403,6 +4612,7 @@
     field.setAttribute("contenteditable", "true");
     field.classList.add("is-editing");
     field.classList.remove("cv-preview-placeholder");
+    syncEditingPlaceholderGhost(field);
     isEditingPreview = true;
   }
 
@@ -4842,6 +5052,7 @@
         ) {
           clearPlaceholderContent(node);
         }
+        syncEditingPlaceholderGhost(node);
       });
 
       node.addEventListener("blur", (event) => {
@@ -4878,7 +5089,22 @@
         });
       });
 
-      node.addEventListener("input", () => persistEdit());
+      node.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape" || isImeComposingEvent(event, node)) {
+          return;
+        }
+        if (!node.classList.contains("is-editing")) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        cancelFieldEdit(node);
+      });
+
+      node.addEventListener("input", () => {
+        syncEditingPlaceholderGhost(node);
+        persistEdit();
+      });
       bindCompositionGuard(node);
       bindRichTextShortcuts(node, () => persistEdit());
       bindCvPasteHandler(node, () => persistEdit());
@@ -5364,6 +5590,29 @@
       return "";
     }
     return plain;
+  }
+
+  function plainPersonalContact(rawValue) {
+    const plain = editPlainText(rawValue).replace(/\s+/g, " ").trim();
+    if (
+      !plain ||
+      normalizePlaceholderCompare(plain) === normalizePlaceholderCompare("Phone | Email")
+    ) {
+      return { phone: "", email: "" };
+    }
+
+    const pipe = plain.indexOf("|");
+    if (pipe === -1) {
+      if (plain.includes("@")) {
+        return { phone: "", email: plain };
+      }
+      return { phone: plain, email: "" };
+    }
+
+    return {
+      phone: plain.slice(0, pipe).trim(),
+      email: plain.slice(pipe + 1).trim(),
+    };
   }
 
   function getCanvasDisplayName() {
