@@ -246,6 +246,41 @@
     node.classList.toggle("cv-preview-placeholder", nodeShowsPlaceholder(node));
   }
 
+  function isBrowserEmptyMarkup(node) {
+    const children = [...node.childNodes];
+    if (!children.length) {
+      return false;
+    }
+    return children.every((child) => {
+      if (child.nodeName === "BR") {
+        return true;
+      }
+      if (child.nodeType !== Node.TEXT_NODE) {
+        return false;
+      }
+      return /^[\n\r]*$/.test(child.textContent || "");
+    });
+  }
+
+  function syncEditingPlaceholderGhost(node) {
+    if (!node?.dataset?.placeholderText || node.classList.contains("cv-preview-description")) {
+      return;
+    }
+
+    const show =
+      node.classList.contains("is-editing") &&
+      node.dataset.cvComposing !== "1" &&
+      normalizePlaceholderCompare(node.textContent) === "";
+    if (show && isBrowserEmptyMarkup(node)) {
+      const focused = document.activeElement === node;
+      node.textContent = "";
+      if (focused) {
+        placeCaretAtStart(node);
+      }
+    }
+    node.classList.toggle("cv-preview-editing-empty", show);
+  }
+
   function syncAllPlaceholderClasses() {
     cvPreview?.querySelectorAll("[data-placeholder-text]").forEach(syncNodePlaceholderClass);
   }
@@ -552,7 +587,7 @@
     if (activeLinkField === node) {
       hideLinkUi();
     }
-    node.classList.remove("is-editing");
+    node.classList.remove("is-editing", "cv-preview-editing-empty");
     node.setAttribute("contenteditable", "false");
     if (node.classList.contains("cv-preview-description")) {
       normalizeDescriptionBulletSpacing(node);
@@ -692,6 +727,7 @@
       // Clear placeholder and leave a caret — selecting placeholder eats early
       // keystrokes when focus is re-applied after layout settle.
       clearPlaceholderContent(node);
+      syncEditingPlaceholderGhost(node);
       return;
     }
 
@@ -703,6 +739,7 @@
     if (event) {
       placeCaretAtPoint(event.clientX, event.clientY);
     }
+    syncEditingPlaceholderGhost(node);
   }
 
   function tryActivateEdit(event, explicitTarget = null) {
@@ -4225,9 +4262,11 @@
   function bindCompositionGuard(node) {
     node.addEventListener("compositionstart", () => {
       node.dataset.cvComposing = "1";
+      syncEditingPlaceholderGhost(node);
     });
     node.addEventListener("compositionend", () => {
       delete node.dataset.cvComposing;
+      syncEditingPlaceholderGhost(node);
     });
   }
 
@@ -4403,6 +4442,7 @@
     field.setAttribute("contenteditable", "true");
     field.classList.add("is-editing");
     field.classList.remove("cv-preview-placeholder");
+    syncEditingPlaceholderGhost(field);
     isEditingPreview = true;
   }
 
@@ -4842,6 +4882,7 @@
         ) {
           clearPlaceholderContent(node);
         }
+        syncEditingPlaceholderGhost(node);
       });
 
       node.addEventListener("blur", (event) => {
@@ -4878,7 +4919,10 @@
         });
       });
 
-      node.addEventListener("input", () => persistEdit());
+      node.addEventListener("input", () => {
+        syncEditingPlaceholderGhost(node);
+        persistEdit();
+      });
       bindCompositionGuard(node);
       bindRichTextShortcuts(node, () => persistEdit());
       bindCvPasteHandler(node, () => persistEdit());
