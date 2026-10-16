@@ -1096,8 +1096,44 @@
     return bin;
   }
 
+  function placeLiftBin() {
+    const bin = document.getElementById("cvLiftBin");
+    if (!bin) {
+      return;
+    }
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      bin.style.left = "";
+      bin.style.right = "";
+      bin.style.bottom = "";
+      return;
+    }
+    const page = cvPreview?.getBoundingClientRect();
+    const width = bin.offsetWidth || 64;
+    const gap = 16;
+    if (!page || page.width < 8) {
+      bin.style.left = "auto";
+      bin.style.right = "28px";
+      bin.style.bottom = "28px";
+      return;
+    }
+    const maxLeft = Math.max(8, window.innerWidth - width - 8);
+    let left = Math.round(page.right + gap);
+    if (left > maxLeft) {
+      left = maxLeft;
+    }
+    if (left < 8) {
+      left = 8;
+    }
+    bin.style.left = `${left}px`;
+    bin.style.right = "auto";
+    bin.style.bottom = "28px";
+  }
+
   function setLiftBinShown(shown) {
     const bin = ensureLiftBin();
+    if (shown) {
+      placeLiftBin();
+    }
     bin.classList.toggle("is-shown", shown);
     bin.setAttribute("aria-hidden", shown ? "false" : "true");
     if (!shown) {
@@ -1229,6 +1265,21 @@
     });
   }
 
+  function releaseLiftLine(line) {
+    if (!line?.classList.contains("is-lift-line")) {
+      return;
+    }
+    line.classList.remove("is-lift-line");
+    line.style.left = "";
+    line.style.top = "";
+    line.style.width = "";
+    const home = line._cvLineHome;
+    line._cvLineHome = null;
+    if (home?.isConnected) {
+      home.insertBefore(line, home.firstChild);
+    }
+  }
+
   function positionLiftLine() {
     const gap = getPreviewBody()?.querySelector(":scope > .cv-lift-gap");
     const line = getInsertionLine();
@@ -1236,8 +1287,17 @@
       hideInsertionLine();
       return;
     }
-    line.style.top = `${gap.offsetTop}px`;
-    line.classList.add("is-visible");
+    const rect = gap.getBoundingClientRect();
+    if (!line._cvLineHome) {
+      line._cvLineHome = line.parentElement;
+    }
+    if (line.parentElement !== document.body) {
+      document.body.appendChild(line);
+    }
+    line.classList.add("is-lift-line", "is-visible");
+    line.style.left = `${rect.left}px`;
+    line.style.top = `${rect.top}px`;
+    line.style.width = `${Math.max(0, rect.width)}px`;
     line.removeAttribute("aria-hidden");
   }
 
@@ -1927,6 +1987,12 @@
       },
       { capture: true }
     );
+
+    window.addEventListener("resize", () => {
+      if (document.getElementById("cvLiftBin")?.classList.contains("is-shown")) {
+        placeLiftBin();
+      }
+    });
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") {
@@ -2939,23 +3005,66 @@
       return !cockpit.classList.contains("is-drawer-collapsed");
     }
 
+    const drawerKeepSelector =
+      ".cv-section-wrap, #cvLiftFloat, .cv-lift-float, #cvLiftBin, #cvLiftTracker, #toastRegion, .toast, .toast-action";
+
+    function dismissEventPath(event) {
+      const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+      return path.length ? path : [event.target];
+    }
+
+    function pathKeepsDrawerOpen(nodes) {
+      return nodes.some((node) => {
+        if (node === drawer || node === toggleBtn) {
+          return true;
+        }
+        if (!(node instanceof Element)) {
+          return false;
+        }
+        if (drawer?.contains(node) || toggleBtn?.contains(node)) {
+          return true;
+        }
+        return node.matches(drawerKeepSelector);
+      });
+    }
+
+    let pointerDismissPath = [];
+    let drawerOpenAtPointerDown = false;
+
     toggleBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       setDrawerOpen(!isDrawerOpen());
     });
 
     document.addEventListener("pointerdown", (event) => {
+      pointerDismissPath = dismissEventPath(event);
+      drawerOpenAtPointerDown = isDrawerOpen();
       // Phone bottom sheet: only dismiss via drag handle, keep CV interactive.
       if (!isDrawerOpen() || isPhonePreviewViewport()) {
         return;
       }
-
-      const target = event.target;
-      if (drawer?.contains(target) || toggleBtn.contains(target)) {
+      // Hold-to-lift starts on this same pointerdown. Closing the drawer here
+      // refits the page and steals the gesture; the bin must stay reachable.
+      if (liftPointer || liftSession) {
+        return;
+      }
+      // composedPath stays valid after Undo detaches the button.
+      if (pathKeepsDrawerOpen(pointerDismissPath)) {
         return;
       }
 
       setDrawerOpen(false);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!drawerOpenAtPointerDown || isPhonePreviewViewport()) {
+        return;
+      }
+      const nodes = [...dismissEventPath(event), ...pointerDismissPath];
+      if (!pathKeepsDrawerOpen(nodes) || isDrawerOpen()) {
+        return;
+      }
+      setDrawerOpen(true);
     });
 
     document.addEventListener("keydown", (event) => {
@@ -4022,7 +4131,7 @@
   }
 
   function getInsertionLine() {
-    return cvPreview?.querySelector(".cv-insertion-line");
+    return cvPreview?.querySelector(".cv-insertion-line") || document.body.querySelector(":scope > .cv-insertion-line");
   }
 
   function hideInsertionLine() {
@@ -4032,6 +4141,7 @@
     }
     line.classList.remove("is-visible");
     line.setAttribute("aria-hidden", "true");
+    releaseLiftLine(line);
   }
 
   function showInsertionLine(index) {
@@ -4140,7 +4250,7 @@
     isEditingPreview = false;
     flushEditSave();
 
-    const result = builder.removeLayoutItem(layoutItemId, { pruneKindHeading: true, forceRender: true });
+    const result = builder.removeLayoutItem(layoutItemId, { pruneKindHeading: false, forceRender: true });
     if (!result) {
       return;
     }

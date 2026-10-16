@@ -3448,6 +3448,11 @@ body.layout-drawer-collapsed .studio-cockpit,
   visibility: hidden;
 }
 
+body.cv-pointer-drag-active .studio-drawer,
+body.cv-pointer-drag-active .drawer-scrim {
+  pointer-events: none;
+}
+
 .studio-drawer-inner {
   height: 100%;
   padding: 0;
@@ -4259,6 +4264,13 @@ body.is-phone-keyboard {
   transform: scaleX(1);
 }
 
+.cv-insertion-line.is-lift-line {
+  position: fixed;
+  z-index: 91;
+  right: auto;
+  margin: 0;
+}
+
 .cv-insertion-line.is-visible::before {
   transform: translateY(-50%) scale(1);
 }
@@ -4654,7 +4666,8 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-lift-bin {
   position: fixed;
-  z-index: 80;
+  /* Above the lift tracker (85) and the Design drawer, below the floating card (90). */
+  z-index: 86;
   right: 28px;
   bottom: 28px;
   width: 64px;
@@ -4686,7 +4699,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   border: 2px solid currentColor;
   border-bottom: 0;
   border-radius: 4px 4px 0 0;
-  transform-origin: 12% 100%;
+  transform-origin: 88% 100%;
   transition: transform 150ms var(--ease-out);
 }
 
@@ -4719,7 +4732,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 }
 
 .cv-lift-bin.is-open .cv-lift-bin-lid {
-  transform: translateY(-2px) rotate(-28deg);
+  transform: translateY(-2px) rotate(28deg);
 }
 
 @media (max-width: 900px) {
