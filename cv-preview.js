@@ -1093,7 +1093,38 @@
       <span class="cv-lift-bin-can" aria-hidden="true"></span>
     `;
     document.body.appendChild(bin);
+    ensureLiftGlow();
     return bin;
+  }
+
+  function ensureLiftGlow() {
+    let glow = document.getElementById("cvLiftBinGlow");
+    if (glow) {
+      return glow;
+    }
+    glow = document.createElement("div");
+    glow.id = "cvLiftBinGlow";
+    glow.className = "cv-lift-bin-glow";
+    glow.setAttribute("aria-hidden", "true");
+    document.body.appendChild(glow);
+    return glow;
+  }
+
+  function placeLiftGlow() {
+    const bin = document.getElementById("cvLiftBin");
+    const glow = document.getElementById("cvLiftBinGlow");
+    if (!bin || !glow) {
+      return;
+    }
+    const rect = bin.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) {
+      return;
+    }
+    const mobile = window.matchMedia("(max-width: 900px)").matches;
+    const x = mobile ? rect.left + rect.width / 2 : rect.right;
+    const y = mobile ? rect.top + rect.height / 2 : rect.bottom;
+    glow.style.left = `${x}px`;
+    glow.style.top = `${y}px`;
   }
 
   function placeLiftBin() {
@@ -1105,55 +1136,160 @@
       bin.style.left = "";
       bin.style.right = "";
       bin.style.bottom = "";
-      return;
+    } else {
+      const page = cvPreview?.getBoundingClientRect();
+      const width = bin.offsetWidth || 64;
+      const gap = 16;
+      if (!page || page.width < 8) {
+        bin.style.left = "auto";
+        bin.style.right = "28px";
+        bin.style.bottom = "28px";
+      } else {
+        const maxLeft = Math.max(8, window.innerWidth - width - 8);
+        let left = Math.round(page.right + gap);
+        if (left > maxLeft) {
+          left = maxLeft;
+        }
+        if (left < 8) {
+          left = 8;
+        }
+        bin.style.left = `${left}px`;
+        bin.style.right = "auto";
+        bin.style.bottom = "28px";
+      }
     }
-    const page = cvPreview?.getBoundingClientRect();
-    const width = bin.offsetWidth || 64;
-    const gap = 16;
-    if (!page || page.width < 8) {
-      bin.style.left = "auto";
-      bin.style.right = "28px";
-      bin.style.bottom = "28px";
-      return;
-    }
-    const maxLeft = Math.max(8, window.innerWidth - width - 8);
-    let left = Math.round(page.right + gap);
-    if (left > maxLeft) {
-      left = maxLeft;
-    }
-    if (left < 8) {
-      left = 8;
-    }
-    bin.style.left = `${left}px`;
-    bin.style.right = "auto";
-    bin.style.bottom = "28px";
+    placeLiftGlow();
   }
 
   function setLiftBinShown(shown) {
     const bin = ensureLiftBin();
+    const glow = ensureLiftGlow();
     if (shown) {
       placeLiftBin();
     }
     bin.classList.toggle("is-shown", shown);
     bin.setAttribute("aria-hidden", shown ? "false" : "true");
     if (!shown) {
-      bin.classList.remove("is-hot", "is-open");
+      bin.classList.remove("is-hot", "is-open", "is-near", "is-armed", "is-gulp-shut");
+      glow.classList.remove("is-live", "is-near", "is-armed", "is-flash");
+      return;
     }
+    glow.classList.remove("is-gulp-out", "is-flash");
+    glow.classList.add("is-live");
+    placeLiftGlow();
+    window.requestAnimationFrame(placeLiftGlow);
   }
 
-  function isPointerOverBin(clientX, clientY) {
+  function binBaseRect(bin) {
+    const rect = bin.getBoundingClientRect();
+    const raw = getComputedStyle(bin).transform;
+    let scaleX = 1;
+    let scaleY = 1;
+    if (raw && raw !== "none") {
+      const matrix = new DOMMatrix(raw);
+      scaleX = Math.hypot(matrix.a, matrix.b) || 1;
+      scaleY = Math.hypot(matrix.c, matrix.d) || 1;
+    }
+    const width = rect.width / scaleX;
+    const height = rect.height / scaleY;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    return {
+      left: cx - width / 2,
+      top: cy - height / 2,
+      right: cx + width / 2,
+      bottom: cy + height / 2,
+      width,
+      height,
+    };
+  }
+
+  function padRect(rect, pad) {
+    return {
+      left: rect.left - pad,
+      top: rect.top - pad,
+      right: rect.right + pad,
+      bottom: rect.bottom + pad,
+    };
+  }
+
+  function rectContains(rect, x, y) {
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }
+
+  function overlapOnBin(card, binRect) {
+    if (!card || binRect.width <= 0 || binRect.height <= 0) {
+      return 0;
+    }
+    const width = Math.min(card.right, binRect.right) - Math.max(card.left, binRect.left);
+    const height = Math.min(card.bottom, binRect.bottom) - Math.max(card.top, binRect.top);
+    if (width <= 0 || height <= 0) {
+      return 0;
+    }
+    return (width * height) / (binRect.width * binRect.height);
+  }
+
+  function binHitGeometry(clientX, clientY) {
     const bin = document.getElementById("cvLiftBin");
     if (!bin?.classList.contains("is-shown")) {
-      return false;
+      return null;
     }
-    const rect = bin.getBoundingClientRect();
-    return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    const base = binBaseRect(bin);
+    const card = liftSession?.float?.getBoundingClientRect?.() || null;
+    const centre = card ? { x: card.left + card.width / 2, y: card.top + card.height / 2 } : null;
+    const dx = Math.max(base.left - clientX, 0, clientX - base.right);
+    const dy = Math.max(base.top - clientY, 0, clientY - base.bottom);
+    return {
+      pointerIn24: rectContains(padRect(base, 24), clientX, clientY),
+      pointerIn48: rectContains(padRect(base, 48), clientX, clientY),
+      centreIn24: centre ? rectContains(padRect(base, 24), centre.x, centre.y) : false,
+      overlap: overlapOnBin(card, base),
+      near: Math.hypot(dx, dy) <= 160,
+    };
   }
 
-  function setBinHot(hot) {
+  function isPointerOverBin(clientX, clientY, hit) {
+    const geometry = hit || binHitGeometry(clientX, clientY);
+    if (!geometry) {
+      return false;
+    }
+    return geometry.pointerIn24 || geometry.centreIn24 || geometry.overlap >= 0.3;
+  }
+
+  function readBinProximity(clientX, clientY) {
+    const hit = binHitGeometry(clientX, clientY);
+    if (!hit) {
+      return null;
+    }
+    return {
+      enter: isPointerOverBin(clientX, clientY, hit),
+      hold: hit.pointerIn48 || hit.overlap >= 0.15,
+      near: hit.near,
+    };
+  }
+
+  function clearBinArmTimer(session) {
+    if (!session?.binArmTimer) {
+      return;
+    }
+    window.clearTimeout(session.binArmTimer);
+    session.binArmTimer = 0;
+  }
+
+  function setBinHot(mode) {
     const bin = document.getElementById("cvLiftBin");
-    bin?.classList.toggle("is-hot", hot);
-    bin?.classList.toggle("is-open", hot);
+    const glow = document.getElementById("cvLiftBinGlow");
+    const near = mode === "near";
+    const armed = mode === "armed";
+    bin?.classList.toggle("is-near", near);
+    bin?.classList.toggle("is-armed", armed);
+    bin?.classList.toggle("is-hot", armed);
+    bin?.classList.toggle("is-open", armed && !bin.classList.contains("is-gulp-shut"));
+    if (!glow || glow.classList.contains("is-flash") || glow.classList.contains("is-gulp-out")) {
+      return;
+    }
+    glow.classList.toggle("is-near", near);
+    glow.classList.toggle("is-armed", armed);
   }
 
   function liftBlockedTarget(target) {
@@ -1434,19 +1570,32 @@
     const dx = clientX - session.originX;
     const dy = clientY - session.originY;
     const motion = !prefersReducedLiftMotion();
+    const armed = mode === "armed";
     session.tx = dx;
     session.ty = dy;
+    const left = session.originLeft + dx;
+    const top = session.originTop + dy;
     if (session.host) {
-      session.host.style.left = `${session.originLeft + dx}px`;
-      session.host.style.top = `${session.originTop + dy}px`;
+      session.host.style.left = `${left}px`;
+      session.host.style.top = `${top}px`;
     }
     const float = session.float;
     if (!float) {
       return;
     }
-    if (mode === "bin") {
-      float.style.opacity = "0.7";
-      float.style.transform = motion ? "scale(0.9)" : "none";
+    float.classList.toggle("is-bin-armed", armed);
+    if (armed && motion) {
+      float.style.opacity = "";
+      float.style.transform = "scale(0.6)";
+      const bin = document.getElementById("cvLiftBin");
+      if (bin && session.host) {
+        const card = float.getBoundingClientRect();
+        const binRect = bin.getBoundingClientRect();
+        const pullX = (binRect.left + binRect.width / 2 - (card.left + card.width / 2)) * 0.35;
+        const pullY = (binRect.top + binRect.height / 2 - (card.top + card.height / 2)) * 0.35;
+        session.host.style.left = `${left + pullX}px`;
+        session.host.style.top = `${top + pullY}px`;
+      }
       return;
     }
     float.style.opacity = "";
@@ -1501,12 +1650,43 @@
     }
     session.clientX = clientX;
     session.clientY = clientY;
-    const overBin = isPointerOverBin(clientX, clientY);
+    const proximity = readBinProximity(clientX, clientY);
+    if (!proximity) {
+      session.binInZone = false;
+    } else if (session.binInZone) {
+      session.binInZone = proximity.hold;
+    } else {
+      session.binInZone = proximity.enter;
+    }
+    if (session.binInZone) {
+      if (!session.binArmed && !session.binArmTimer) {
+        session.binArmTimer = window.setTimeout(() => {
+          session.binArmTimer = 0;
+          if (liftSession !== session || !session.binInZone) {
+            return;
+          }
+          session.binArmed = true;
+          if (session.pointerType === "touch") {
+            try {
+              navigator.vibrate?.(10);
+            } catch {
+              /* ignore */
+            }
+          }
+          announceCv("Release to delete entry");
+          updateLiftPointer(session.clientX, session.clientY);
+        }, 120);
+      }
+    } else {
+      clearBinArmTimer(session);
+      session.binArmed = false;
+    }
     const onPage = isPointerOverDocument(clientX, clientY);
-    session.overBin = overBin;
-    setBinHot(overBin);
-    liftTranslate(session, clientX, clientY, overBin ? "bin" : "lift");
-    if (overBin || !onPage) {
+    session.overBin = session.binInZone;
+    setBinHot(session.binArmed ? "armed" : proximity?.near ? "near" : "off");
+    placeLiftGlow();
+    liftTranslate(session, clientX, clientY, session.binArmed ? "armed" : "lift");
+    if (session.binInZone || !onPage) {
       hideInsertionLine();
       if (session.gapIndex !== session.fromIndex) {
         session.gapIndex = session.fromIndex;
@@ -1612,6 +1792,7 @@
       ? [...getPreviewBody().querySelectorAll(":scope > .cv-section-wrap")].filter((el) => el !== wrap)
       : [];
     const first = new Map(others.map((el) => [el, el.getBoundingClientRect().top]));
+    clearBinArmTimer(session);
     liftSession = null;
     stopLiftScroll();
     hideInsertionLine();
@@ -1625,6 +1806,49 @@
     announceCv("Cancelled");
   }
 
+  function binRestTransform() {
+    return window.matchMedia("(max-width: 900px)").matches ? "translate(-50%, 0)" : "translateY(0)";
+  }
+
+  function flashLiftBinGlow() {
+    const glow = document.getElementById("cvLiftBinGlow");
+    if (!glow) {
+      return;
+    }
+    glow.classList.remove("is-live", "is-near", "is-armed", "is-gulp-out");
+    glow.classList.add("is-flash");
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        glow.classList.remove("is-flash");
+        glow.classList.add("is-gulp-out");
+      });
+    });
+  }
+
+  function shutBinThenBounce(bin, onDone) {
+    const reduced = prefersReducedLiftMotion();
+    bin.classList.remove("is-open");
+    bin.classList.add("is-gulp-shut");
+    window.setTimeout(() => {
+      bin.classList.remove("is-armed", "is-near");
+      if (reduced || !bin.isConnected) {
+        onDone();
+        return;
+      }
+      const rest = binRestTransform();
+      bin.style.transition = "none";
+      bin.style.transform = `${rest} scale(1.12, 0.85)`;
+      void bin.offsetWidth;
+      bin.style.transition = "transform 320ms cubic-bezier(.34,1.56,.64,1)";
+      bin.style.transform = `${rest} scale(1)`;
+      window.setTimeout(() => {
+        bin.style.transition = "";
+        bin.style.transform = "";
+        onDone();
+      }, 320);
+    }, 90);
+  }
+
   function throwLiftIntoBin(session, onDone) {
     const host = session.host;
     const float = session.float;
@@ -1635,27 +1859,64 @@
       /* ignore */
     }
     session.tracker?.remove();
-    if (!host || !float || !bin || prefersReducedLiftMotion()) {
+    if (session.pointerType === "touch") {
+      try {
+        navigator.vibrate?.([8, 30, 12]);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!host || !float || !bin) {
       host?.remove();
       onDone();
       return;
     }
+    const reduced = prefersReducedLiftMotion();
+    const finish = () => {
+      host.remove();
+      flashLiftBinGlow();
+      shutBinThenBounce(bin, onDone);
+    };
+    if (reduced) {
+      const started = performance.now();
+      const fade = (now) => {
+        const t = Math.min(1, (now - started) / 220);
+        float.style.opacity = String(1 - t * t * t);
+        if (t < 1) {
+          window.requestAnimationFrame(fade);
+          return;
+        }
+        finish();
+      };
+      window.requestAnimationFrame(fade);
+      return;
+    }
     const card = float.getBoundingClientRect();
     const binRect = bin.getBoundingClientRect();
-    const dx = binRect.left + binRect.width / 2 - (card.left + card.width / 2);
-    const dy = binRect.top + binRect.height / 2 - (card.top + card.height / 2);
-    const left = (parseFloat(host.style.left) || 0) + dx;
-    const top = (parseFloat(host.style.top) || 0) + dy;
-    host.style.transition = "left 250ms var(--ease-out), top 250ms var(--ease-out)";
-    float.style.transition = "transform 250ms var(--ease-out), opacity 250ms linear";
-    host.style.left = `${left}px`;
-    host.style.top = `${top}px`;
-    float.style.transform = "scale(0.12)";
-    float.style.opacity = "0.15";
-    window.setTimeout(() => {
-      host.remove();
-      onDone();
-    }, 250);
+    const startLeft = parseFloat(host.style.left) || 0;
+    const startTop = parseFloat(host.style.top) || 0;
+    const endLeft = startLeft + (binRect.left + binRect.width / 2) - (card.left + card.width / 2);
+    const endTop = startTop + (binRect.top + binRect.height / 2) - (card.top + card.height / 2);
+    const controlLeft = (startLeft + endLeft) / 2;
+    const controlTop = Math.min(startTop, endTop) - 42;
+    const started = performance.now();
+    host.style.transition = "none";
+    float.style.transition = "none";
+    const step = (now) => {
+      const t = Math.min(1, (now - started) / 220);
+      const e = t * t * t;
+      const u = 1 - e;
+      host.style.left = `${u * u * startLeft + 2 * u * e * controlLeft + e * e * endLeft}px`;
+      host.style.top = `${u * u * startTop + 2 * u * e * controlTop + e * e * endTop}px`;
+      float.style.transform = `scale(${0.6 * (1 - e)})`;
+      float.style.opacity = String(1 - e);
+      if (t < 1) {
+        window.requestAnimationFrame(step);
+        return;
+      }
+      finish();
+    };
+    window.requestAnimationFrame(step);
   }
 
   function finishLiftDrop(event) {
@@ -1663,9 +1924,10 @@
     if (!session || (event && event.pointerId !== session.pointerId)) {
       return;
     }
+    clearBinArmTimer(session);
     const clientX = event?.clientX ?? session.clientX;
     const clientY = event?.clientY ?? session.clientY;
-    if (isPointerOverBin(clientX, clientY)) {
+    if (session.binArmed) {
       const others = getPreviewBody()
         ? [...getPreviewBody().querySelectorAll(":scope > .cv-section-wrap")].filter((el) => el !== session.wrap)
         : [];
@@ -1776,6 +2038,10 @@
       tx: 0,
       ty: 0,
       overBin: false,
+      binInZone: false,
+      binArmed: false,
+      binArmTimer: 0,
+      pointerType: gesture.pointerType,
       pose: visual.pose,
       settleLift: false,
     };
@@ -1794,7 +2060,7 @@
           return;
         }
         session.settleLift = false;
-        liftTranslate(session, session.clientX, session.clientY, session.overBin ? "bin" : "lift");
+        liftTranslate(session, session.clientX, session.clientY, session.binArmed ? "armed" : "lift");
         window.setTimeout(() => {
           if (session.float?.isConnected) {
             session.float.style.transition = "";
