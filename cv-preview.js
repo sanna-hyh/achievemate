@@ -1096,8 +1096,34 @@
     return bin;
   }
 
+  function placeLiftBin() {
+    const bin = document.getElementById("cvLiftBin");
+    if (!bin) {
+      return;
+    }
+    if (window.matchMedia("(max-width: 900px)").matches) {
+      bin.style.left = "";
+      bin.style.bottom = "";
+      return;
+    }
+    const page = cvPreview?.getBoundingClientRect();
+    const width = bin.offsetWidth || 64;
+    const gap = 16;
+    if (!page || page.width < 8) {
+      bin.style.left = "28px";
+      bin.style.bottom = "28px";
+      return;
+    }
+    const left = Math.max(8, Math.round(page.left - gap - width));
+    bin.style.left = `${left}px`;
+    bin.style.bottom = "28px";
+  }
+
   function setLiftBinShown(shown) {
     const bin = ensureLiftBin();
+    if (shown) {
+      placeLiftBin();
+    }
     bin.classList.toggle("is-shown", shown);
     bin.setAttribute("aria-hidden", shown ? "false" : "true");
     if (!shown) {
@@ -1927,6 +1953,12 @@
       },
       { capture: true }
     );
+
+    window.addEventListener("resize", () => {
+      if (document.getElementById("cvLiftBin")?.classList.contains("is-shown")) {
+        placeLiftBin();
+      }
+    });
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") {
@@ -2949,9 +2981,17 @@
       if (!isDrawerOpen() || isPhonePreviewViewport()) {
         return;
       }
+      // Hold-to-lift starts on this same pointerdown. Closing the drawer here
+      // refits the page and steals the gesture; the bin must stay reachable.
+      if (liftPointer || liftSession) {
+        return;
+      }
 
       const target = event.target;
       if (drawer?.contains(target) || toggleBtn.contains(target)) {
+        return;
+      }
+      if (target instanceof Element && target.closest("#cvLiftBin, #cvLiftTracker")) {
         return;
       }
 

@@ -3448,6 +3448,11 @@ body.layout-drawer-collapsed .studio-cockpit,
   visibility: hidden;
 }
 
+body.cv-pointer-drag-active .studio-drawer,
+body.cv-pointer-drag-active .drawer-scrim {
+  pointer-events: none;
+}
+
 .studio-drawer-inner {
   height: 100%;
   padding: 0;
@@ -4654,8 +4659,9 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-lift-bin {
   position: fixed;
-  z-index: 80;
-  right: 28px;
+  /* Above the lift tracker (85) and the Design drawer, below the floating card (90). */
+  z-index: 86;
+  left: 28px;
   bottom: 28px;
   width: 64px;
   height: 72px;
