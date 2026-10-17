@@ -891,8 +891,12 @@
         if (!enforceFloor || restY <= 0) {
           return;
         }
-        if (!fullHeight) {
+        if (!(fullHeight > 0)) {
           measureFullHeight();
+        }
+        // A missing measure must not wipe the park (restY = 0 reopens at CSS default).
+        if (!(fullHeight > 0)) {
+          return;
         }
         const floor = floorPx();
         if (fullHeight - restY < floor) {
