@@ -7039,12 +7039,24 @@
   function buildHistorySnapshot() {
     captureEditsFromDom();
 
+    const previewVars = {};
+    for (let index = 0; index < cvPreview.style.length; index += 1) {
+      const prop = cvPreview.style.item(index);
+      if (prop && prop.startsWith("--")) {
+        previewVars[prop] = cvPreview.style.getPropertyValue(prop);
+      }
+    }
+
     return {
       personalInfo: { ...state.personalInfo },
       cvLayout: JSON.parse(JSON.stringify(state.cvLayout)),
       cvPreviewEdits: JSON.parse(JSON.stringify(state.cvPreviewEdits)),
       cvSettings: JSON.parse(JSON.stringify(state.cvSettings)),
       previewHtml: cvPreview.innerHTML,
+      previewVars,
+      previewPageClass: cvPreview.classList.contains("cv-preview-multipage")
+        ? "cv-preview-multipage"
+        : "cv-preview-single-page",
     };
   }
 
@@ -7235,6 +7247,30 @@
       page.style.setProperty("--cv-line-height", String(styles.lineHeight ?? 1.3));
       page.style.setProperty("--cv-section-gap", `${styles.sectionGap ?? 12}px`);
       page.style.setProperty("--cv-section-margin", `${styles.sectionGap ?? 12}px`);
+    } else {
+      page.style.removeProperty("--cv-body-font");
+      page.style.removeProperty("--cv-header-font");
+      page.style.removeProperty("--cv-line-height");
+      page.style.removeProperty("--cv-section-gap");
+      page.style.removeProperty("--cv-section-margin");
+    }
+  }
+
+  function applyStoredPreviewFit(page, snapshot) {
+    const vars = snapshot?.previewVars;
+    if (!vars || typeof vars !== "object") {
+      page.classList.remove("cv-preview-multipage", "cv-preview-single-page");
+      return;
+    }
+    Object.keys(vars).forEach((prop) => {
+      if (typeof prop === "string" && prop.startsWith("--")) {
+        page.style.setProperty(prop, vars[prop]);
+      }
+    });
+    const pageClass = snapshot.previewPageClass;
+    if (pageClass === "cv-preview-multipage" || pageClass === "cv-preview-single-page") {
+      page.classList.toggle("cv-preview-multipage", pageClass === "cv-preview-multipage");
+      page.classList.toggle("cv-preview-single-page", pageClass === "cv-preview-single-page");
     }
   }
 
@@ -7480,6 +7516,7 @@
       nameEl.textContent = nextEntry.fileName || "";
       dateEl.textContent = item.querySelector(".export-history-timestamp")?.textContent || "";
       applyExportThumbSettings(page, nextEntry.snapshot.cvSettings || nextEntry.snapshot.cvLayoutStyles);
+      applyStoredPreviewFit(page, nextEntry.snapshot);
       paintExportThumbnail(page, previewHtml);
       viewer.hidden = false;
       document.body.classList.add("export-preview-open");
@@ -7658,6 +7695,7 @@
     const page = item.querySelector(".export-history-page");
     if (page) {
       applyExportThumbSettings(page, entry.snapshot?.cvSettings || entry.snapshot?.cvLayoutStyles);
+      applyStoredPreviewFit(page, entry.snapshot);
       if ("inert" in page) {
         page.inert = true;
       }

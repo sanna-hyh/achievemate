@@ -6545,7 +6545,10 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
 .export-history-page .cv-layout-skeleton,
 .export-history-page .cv-layout-skeleton::before,
 .export-history-page .cv-layout-skeleton::after,
-.export-preview-viewer .export-history-page .cv-hold-tip {
+.export-preview-viewer .export-history-page .cv-hold-tip,
+.export-history-page .cv-section-save,
+.export-history-page .cv-link-ui-btn,
+.export-history-page .cv-skill-chip-remove {
   display: none !important;
   background: none !important;
   background-image: none !important;
