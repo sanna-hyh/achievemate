@@ -2731,7 +2731,7 @@ body.sidebar-open .app-sidebar {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   animation: toastIn var(--dur-base) var(--ease-out);
   transition: opacity var(--dur-base) var(--ease-out);
-  touch-action: pan-x;
+  touch-action: pan-y;
 }
 
 .toast.is-dragging {

@@ -834,9 +834,9 @@ function bindToastSwipeDismiss(toast) {
   let pointerId = null;
   let startX = 0;
   let startY = 0;
-  let lastY = 0;
+  let lastX = 0;
   let lastTime = 0;
-  let velocityY = 0;
+  let velocityX = 0;
   let tracking = false;
   let suppressClick = false;
 
@@ -851,9 +851,9 @@ function bindToastSwipeDismiss(toast) {
     pointerId = event.pointerId;
     startX = event.clientX;
     startY = event.clientY;
-    lastY = startY;
+    lastX = startX;
     lastTime = event.timeStamp;
-    velocityY = 0;
+    velocityX = 0;
     tracking = true;
     suppressClick = false;
   };
@@ -871,9 +871,9 @@ function bindToastSwipeDismiss(toast) {
     const dy = event.clientY - startY;
     const dt = event.timeStamp - lastTime;
     if (dt > 0) {
-      velocityY = (event.clientY - lastY) / dt;
+      velocityX = (event.clientX - lastX) / dt;
     }
-    lastY = event.clientY;
+    lastX = event.clientX;
     lastTime = event.timeStamp;
 
     if (Math.abs(dx) < TOAST_SWIPE_JITTER_PX && Math.abs(dy) < TOAST_SWIPE_JITTER_PX) {
@@ -881,6 +881,10 @@ function bindToastSwipeDismiss(toast) {
     }
 
     suppressClick = true;
+    if (Math.abs(dx) <= Math.abs(dy) && !toast.classList.contains("is-dragging")) {
+      return;
+    }
+
     if (!toast.classList.contains("is-dragging")) {
       toast.classList.remove("is-settling");
       toast.classList.add("is-dragging");
@@ -891,13 +895,10 @@ function bindToastSwipeDismiss(toast) {
       }
     }
 
-    const offset = Math.max(0, dy);
-    const fade = Math.max(0, 1 - offset / 90);
-    toast.style.transform = `translateY(${offset}px)`;
+    const fade = Math.max(0, 1 - Math.abs(dx) / 90);
+    toast.style.transform = `translateX(${dx}px)`;
     toast.style.opacity = String(toastRestOpacity(toast) * fade);
-    if (dy > 0) {
-      event.preventDefault();
-    }
+    event.preventDefault();
   };
 
   const settle = () => {
@@ -912,7 +913,7 @@ function bindToastSwipeDismiss(toast) {
       if (toast.dataset.dismissed === "true") {
         return;
       }
-      toast.style.transform = "translateY(0px)";
+      toast.style.transform = "translateX(0px)";
       toast.style.opacity = String(rest);
     });
     window.setTimeout(() => {
@@ -933,11 +934,12 @@ function bindToastSwipeDismiss(toast) {
 
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
-    const downward = dy > 0 && dy >= Math.abs(dx);
-    const flung = velocityY >= TOAST_SWIPE_FLING_PX_PER_MS && dy >= TOAST_SWIPE_JITTER_PX;
-    const passed = dy >= TOAST_SWIPE_DISTANCE_PX;
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const flung =
+      Math.abs(velocityX) >= TOAST_SWIPE_FLING_PX_PER_MS && Math.abs(dx) >= TOAST_SWIPE_JITTER_PX;
+    const passed = Math.abs(dx) >= TOAST_SWIPE_DISTANCE_PX;
 
-    if (allowDismiss && downward && (passed || flung) && toast.dataset.dismissed !== "true") {
+    if (allowDismiss && horizontal && (passed || flung) && toast.dataset.dismissed !== "true") {
       suppressClick = true;
       const opacity = toast.style.opacity;
       if (opacity) {
