@@ -827,17 +827,20 @@
       });
     }
 
-    // Handle + title + one full template row. Fallback matches a ~390px-wide phone
-    // (handle 18 + title 48 + row ~169 + border).
+    // Sheet height that fully shows the first template card, including the toggles
+    // and TEMPLATE label above it. Fallback ~450px when the row is not laid out.
     function designSheetFloor(panel) {
-      const handleH = panel?.querySelector(".phone-sheet-handle")?.offsetHeight || 0;
-      const titleH = panel?.querySelector(".studio-drawer-title")?.offsetHeight || 0;
-      const rowH = panel?.querySelector(".cv-template-choice")?.offsetHeight || 0;
-      if (!handleH || !titleH || !rowH) {
-        return 236;
+      const choice = panel?.querySelector(".cv-template-choice");
+      if (!panel || !choice?.offsetHeight) {
+        return 450;
       }
-      const border = Math.max(0, panel.offsetHeight - panel.clientHeight);
-      return handleH + titleH + rowH + border;
+      const scroller = choice.closest(".cv-layout-form");
+      const scroll = scroller?.scrollTop || 0;
+      const needed = choice.getBoundingClientRect().bottom - panel.getBoundingClientRect().top + scroll;
+      if (!Number.isFinite(needed) || needed <= 0) {
+        return 450;
+      }
+      return Math.ceil(needed);
     }
 
     function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false, minHeight = 160 }) {
