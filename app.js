@@ -723,12 +723,6 @@ const TOAST_LIFETIME_MS = 3200;
 const TOAST_EXIT_MS = 160;
 const MAX_VISIBLE_TOASTS = 2;
 
-const TOAST_DOT_COLORS = {
-  success: "var(--signal-success)",
-  danger: "var(--signal-danger)",
-  neutral: "var(--brass)",
-};
-
 function dismissToast(toast, { immediate = false } = {}) {
   if (!toast || toast.dataset.dismissed === "true") {
     return;
@@ -778,18 +772,13 @@ function showToast(message, { actionLabel, onAction, tone = "success", dismissib
   toast.className = `toast toast-${tone}`;
   toast.setAttribute("role", tone === "danger" ? "alert" : "status");
 
-  const dot = document.createElement("span");
-  dot.className = "toast-dot";
-  dot.setAttribute("aria-hidden", "true");
-  dot.style.background = TOAST_DOT_COLORS[tone] || TOAST_DOT_COLORS.success;
-
   const messageEl = document.createElement("span");
   messageEl.className = "toast-message";
   messageEl.textContent = message;
+  toast.append(messageEl);
 
-  toast.append(dot, messageEl);
-
-  if (actionLabel && typeof onAction === "function") {
+  const hasAction = Boolean(actionLabel) && typeof onAction === "function";
+  if (hasAction) {
     const actionBtn = document.createElement("button");
     actionBtn.type = "button";
     actionBtn.className = "toast-action";
@@ -801,7 +790,10 @@ function showToast(message, { actionLabel, onAction, tone = "success", dismissib
     toast.appendChild(actionBtn);
   }
 
-  if (dismissible) {
+  const lifetime = Number.isFinite(duration) ? duration : TOAST_LIFETIME_MS;
+  const isUndo = hasAction && String(actionLabel).trim() === "Undo";
+  const isShortConfirm = !hasAction && lifetime <= TOAST_LIFETIME_MS;
+  if (dismissible && !isUndo && !isShortConfirm) {
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
     closeBtn.className = "btn-icon toast-dismiss";
@@ -810,8 +802,6 @@ function showToast(message, { actionLabel, onAction, tone = "success", dismissib
     closeBtn.addEventListener("click", () => dismissToast(toast));
     toast.appendChild(closeBtn);
   }
-
-  const lifetime = Number.isFinite(duration) ? duration : TOAST_LIFETIME_MS;
   const scheduleDismiss = () => {
     window.clearTimeout(toast.dismissTimer);
     toast.dismissTimer = window.setTimeout(() => dismissToast(toast), lifetime);
