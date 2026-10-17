@@ -4102,7 +4102,8 @@ body.is-phone-keyboard {
   }
 
   .studio-cockpit.is-drawer-collapsed .studio-drawer {
-    transform: translateY(110%);
+    /* 100% sits the top edge on the strip; extra px hides the shadow when the park is short. */
+    transform: translateY(calc(100% + 40px));
     /* Keep visible so the slide-up transition can run (base rule uses visibility:hidden). */
     visibility: visible;
     pointer-events: none;

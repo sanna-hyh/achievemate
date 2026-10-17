@@ -827,23 +827,7 @@
       });
     }
 
-    // Sheet height that fully shows the first template card, including the toggles
-    // and TEMPLATE label above it. Fallback ~450px when the row is not laid out.
-    function designSheetFloor(panel) {
-      const choice = panel?.querySelector(".cv-template-choice");
-      if (!panel || !choice?.offsetHeight) {
-        return 450;
-      }
-      const scroller = choice.closest(".cv-layout-form");
-      const scroll = scroller?.scrollTop || 0;
-      const needed = choice.getBoundingClientRect().bottom - panel.getBoundingClientRect().top + scroll;
-      if (!Number.isFinite(needed) || needed <= 0) {
-        return 450;
-      }
-      return Math.ceil(needed);
-    }
-
-    function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false, minHeight = 160 }) {
+    function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false }) {
       const handle = panel?.querySelector(".phone-sheet-handle");
       if (!panel || !handle) {
         return { hide: () => {}, show: () => {} };
@@ -851,13 +835,7 @@
 
       // Park by resizing height (not translateY) so inner content can scroll at that height.
       const MIN_HEIGHT = 160;
-      const enforceFloor = minHeight !== 160;
       let fullHeight = 0;
-      const floorPx = () => {
-        const requested = typeof minHeight === "function" ? minHeight() : minHeight;
-        const floor = Math.max(MIN_HEIGHT, Math.round(Number(requested)) || MIN_HEIGHT);
-        return fullHeight > 0 ? Math.min(fullHeight, floor) : floor;
-      };
       const dismissPx = () => Math.max(380, Math.round((fullHeight || 0) * 0.62));
       let dragging = false;
       let startY = 0;
@@ -883,25 +861,6 @@
         const next = Math.max(MIN_HEIGHT, base - Math.max(0, offset));
         panel.style.maxHeight = "none";
         panel.style.height = `${next}px`;
-      };
-
-      // Usable min is not a drag floor. A park shorter than the first template
-      // card is raised to that height when the sheet is saved or reopened.
-      const clampParkedHeight = () => {
-        if (!enforceFloor || restY <= 0) {
-          return;
-        }
-        if (!(fullHeight > 0)) {
-          measureFullHeight();
-        }
-        // A missing measure must not wipe the park (restY = 0 reopens at CSS default).
-        if (!(fullHeight > 0)) {
-          return;
-        }
-        const floor = floorPx();
-        if (fullHeight - restY < floor) {
-          restY = Math.max(0, fullHeight - floor);
-        }
       };
 
       const applyY = (y) => {
@@ -951,14 +910,11 @@
         pointerId = null;
         panel.classList.remove("is-sheet-dragging");
         if (persistParkedHeight && restY > 0) {
-          // Keep the live height through the close slide. Raise a below-floor
-          // park in restY so the next open is the usable min, not a slit or max.
+          // Keep parked height while off-screen so reopen doesn't flash to max.
           if (!fullHeight) {
             measureFullHeight();
           }
-          const visualY = restY;
-          clampParkedHeight();
-          paintOffset(visualY);
+          paintOffset(restY);
           return;
         }
         panel.style.height = "";
@@ -966,12 +922,6 @@
       };
 
       const show = () => {
-        // Reopen keeps her park. A height below the first template card is
-        // raised to that usable min — never cleared back to the default.
-        if (enforceFloor && restY > 0) {
-          measureFullHeight();
-          clampParkedHeight();
-        }
         // Apply parked height immediately (before/during slide), never after max open.
         snapParkedHeight();
       };
@@ -1070,7 +1020,6 @@
         onDismiss: closeDesignDrawer,
         // Keep parked height across close so slide-up never flashes at max height.
         persistParkedHeight: true,
-        minHeight: () => designSheetFloor(designDrawer),
       }
     ));
 
