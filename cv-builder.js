@@ -926,6 +926,25 @@
       };
 
       const hide = () => {
+        if (persistParkedHeight) {
+          // pointerup may never commit. Keep the height already on screen.
+          if (dragging) {
+            restY = Math.max(0, dragY);
+          } else if (!(restY > 0)) {
+            const inlineHeight = Number.parseFloat(panel.style.height);
+            if (Number.isFinite(inlineHeight) && inlineHeight > 0) {
+              if (!(fullHeight > 0)) {
+                measureFullHeight();
+              }
+              if (fullHeight > 0) {
+                const derived = fullHeight - inlineHeight;
+                if (derived > 0) {
+                  restY = derived;
+                }
+              }
+            }
+          }
+        }
         dragging = false;
         dragY = 0;
         originY = 0;
@@ -964,6 +983,7 @@
         event.preventDefault();
         const maxY = Math.max(dismissPx(), (fullHeight || 0) - MIN_HEIGHT);
         dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
+        restY = dragY;
         paintOffset(dragY);
       };
 
@@ -987,6 +1007,10 @@
         if (shouldDismiss) {
           // Keep the height from before this dismiss pull for the next reopen.
           restY = originY;
+          if (!(restY > 0)) {
+            panel.style.height = "";
+            panel.style.maxHeight = "";
+          }
           onDismiss?.();
           return;
         }
