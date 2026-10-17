@@ -512,12 +512,13 @@ body.is-studio-view .topbar-studio-actions {
   border-right: 1px solid var(--border-subtle);
   overflow: hidden;
   transform: translateX(-100%);
-  transition: transform var(--dur-slow) var(--ease-out);
-  box-shadow: 16px 0 48px rgba(0, 0, 0, 0.28);
+  transition: transform var(--dur-slow) var(--ease-out), box-shadow var(--dur-slow) var(--ease-out);
+  box-shadow: none;
 }
 
 body.sidebar-open .app-sidebar {
   transform: translateX(0);
+  box-shadow: 16px 0 48px rgba(0, 0, 0, 0.28);
 }
 
 .app-sidebar-expanded {
