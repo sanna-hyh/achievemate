@@ -2255,6 +2255,33 @@
       { capture: true }
     );
 
+    window.addEventListener(
+      "wheel",
+      (event) => {
+        const session = liftSession;
+        if (!session) {
+          return;
+        }
+        event.preventDefault();
+        if (event.ctrlKey || event.metaKey) {
+          event.stopPropagation();
+          return;
+        }
+        const scroller = getPreviewWrap();
+        if (!scroller) {
+          return;
+        }
+        const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? scroller.clientHeight : 1;
+        const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        const next = Math.max(0, Math.min(max, scroller.scrollTop + event.deltaY * unit));
+        if (next !== scroller.scrollTop) {
+          scroller.scrollTop = next;
+          updateLiftPointer(session.clientX, session.clientY);
+        }
+      },
+      { capture: true, passive: false }
+    );
+
     window.addEventListener("resize", () => {
       if (document.getElementById("cvLiftBin")?.classList.contains("is-shown")) {
         placeLiftBin();
