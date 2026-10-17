@@ -24,6 +24,7 @@
   let armedRestoreEntryId = null;
   let armedRestoreTimer = null;
   let armedRestoreButton = null;
+  let openExportPreview = function () {};
   let layoutFrame = null;
   let pdfFitOverride = null;
   let fitPreviewFrame = null;
@@ -7033,7 +7034,7 @@
   function clearArmedRestore() {
     if (armedRestoreButton) {
       armedRestoreButton.classList.remove("is-armed");
-      armedRestoreButton.textContent = "↺";
+      armedRestoreButton.textContent = armedRestoreButton.dataset.defaultText || "↺";
       if (armedRestoreButton.dataset.defaultLabel) {
         armedRestoreButton.setAttribute("aria-label", armedRestoreButton.dataset.defaultLabel);
       }
@@ -7049,6 +7050,9 @@
     clearArmedRestore();
     armedRestoreEntryId = entry.id;
     armedRestoreButton = restoreBtn;
+    if (!restoreBtn.dataset.defaultText) {
+      restoreBtn.dataset.defaultText = restoreBtn.textContent;
+    }
     restoreBtn.classList.add("is-armed");
     restoreBtn.textContent = "Sure?";
     restoreBtn.setAttribute("aria-label", "Restore this snapshot?");
@@ -7283,6 +7287,368 @@
     });
   }
 
+  function bindExportPreviewViewer() {
+    const viewer = document.getElementById("exportPreviewViewer");
+    const backdrop = document.getElementById("exportPreviewBackdrop");
+    const bar = document.getElementById("exportPreviewBar");
+    const bodyEl = document.getElementById("exportPreviewBody");
+    const slot = document.getElementById("exportPreviewSlot");
+    const page = document.getElementById("exportPreviewPage");
+    const nameEl = document.getElementById("exportPreviewName");
+    const dateEl = document.getElementById("exportPreviewDate");
+    const restoreBtn = document.getElementById("exportPreviewRestore");
+    const closeBtn = document.getElementById("exportPreviewClose");
+    if (!viewer || !backdrop || !bar || !bodyEl || !slot || !page || !nameEl || !dateEl || !restoreBtn || !closeBtn) {
+      return;
+    }
+
+    const motionMs = 220;
+    let entry = null;
+    let returnFocus = null;
+    let isOpen = false;
+    let isClosing = false;
+    let hasEntered = false;
+    let frame = 0;
+    let motions = [];
+    let fitScale = 1;
+
+    function easing() {
+      const value = getComputedStyle(document.documentElement).getPropertyValue("--ease-out").trim();
+      return value || "cubic-bezier(0.22, 1, 0.36, 1)";
+    }
+
+    function reduceMotion() {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+
+    function stopMotions() {
+      motions.forEach((anim) => anim.cancel());
+      motions = [];
+    }
+
+    function track(anim, onDone) {
+      motions.push(anim);
+      anim.onfinish = () => {
+        motions = motions.filter((item) => item !== anim);
+        onDone?.(anim);
+      };
+      anim.oncancel = () => {
+        motions = motions.filter((item) => item !== anim);
+      };
+      return anim;
+    }
+
+    function layout() {
+      page.classList.remove("is-flying");
+      page.style.top = "";
+      page.style.left = "";
+      page.style.width = "210mm";
+      page.style.transform = "none";
+      const pageWidth = page.offsetWidth || 1;
+      const pageHeight = page.offsetHeight || page.scrollHeight || 1;
+      const style = getComputedStyle(bodyEl);
+      const available = bodyEl.clientWidth
+        - (parseFloat(style.paddingLeft) || 0)
+        - (parseFloat(style.paddingRight) || 0);
+      const visualWidth = Math.min(pageWidth, Math.max(0, available));
+      fitScale = pageWidth > 0 ? visualWidth / pageWidth : 1;
+      if (!Number.isFinite(fitScale) || fitScale <= 0) {
+        fitScale = 1;
+      }
+      slot.style.width = `${visualWidth}px`;
+      slot.style.height = `${pageHeight * fitScale}px`;
+      page.style.transform = `scale(${fitScale})`;
+      return pageWidth;
+    }
+
+    function resetStyles() {
+      stopMotions();
+      page.classList.remove("is-flying");
+      page.style.top = "";
+      page.style.left = "";
+      page.style.width = "";
+      page.style.transform = "";
+      page.style.opacity = "";
+      page.style.visibility = "";
+      backdrop.style.opacity = "";
+      bar.style.opacity = "";
+      slot.style.width = "";
+      slot.style.height = "";
+    }
+
+    function finishClose(onDone) {
+      const focusTarget = returnFocus;
+      resetStyles();
+      viewer.hidden = true;
+      document.body.classList.remove("export-preview-open");
+      page.innerHTML = "";
+      entry = null;
+      returnFocus = null;
+      isOpen = false;
+      isClosing = false;
+      hasEntered = false;
+      bodyEl.scrollTop = 0;
+      if (focusTarget?.isConnected) {
+        focusTarget.focus();
+      }
+      onDone?.();
+    }
+
+    function fade(to, onDone) {
+      const options = { duration: motionMs, easing: easing(), fill: "forwards" };
+      const nodes = [backdrop, bar];
+      let pending = nodes.length;
+      if (pending === 0) {
+        onDone?.();
+        return;
+      }
+      nodes.forEach((el) => {
+        const from = Number(getComputedStyle(el).opacity);
+        const anim = el.animate([{ opacity: from }, { opacity: to }], options);
+        track(anim, () => {
+          el.style.opacity = String(to);
+          anim.cancel();
+          pending -= 1;
+          if (pending === 0) {
+            onDone?.();
+          }
+        });
+      });
+    }
+
+    function flightTransform(rect, pageWidth) {
+      const scale = pageWidth > 0 ? rect.width / pageWidth : 1;
+      return `translate(${rect.left}px, ${rect.top}px) scale(${scale})`;
+    }
+
+    function playFlight(fromRect, toRect, pageWidth, onDone) {
+      page.classList.add("is-flying");
+      page.style.top = "0px";
+      page.style.left = "0px";
+      page.style.width = "210mm";
+      const from = flightTransform(fromRect, pageWidth);
+      const to = flightTransform(toRect, pageWidth);
+      page.style.transform = from;
+      const anim = page.animate(
+        [{ transform: from }, { transform: to }],
+        { duration: motionMs, easing: easing(), fill: "forwards" }
+      );
+      track(anim, () => onDone?.(anim));
+    }
+
+    function cardRect() {
+      const thumb = returnFocus?.closest(".export-history-item")?.querySelector(".export-history-thumb");
+      if (!thumb) {
+        return null;
+      }
+      const rect = thumb.getBoundingClientRect();
+      if (!(rect.width > 0) || !(rect.height > 0)) {
+        return null;
+      }
+      return rect;
+    }
+
+    function close(onDone) {
+      if (!isOpen || isClosing) {
+        return;
+      }
+      isClosing = true;
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      if (armedRestoreButton === restoreBtn) {
+        clearArmedRestore();
+      }
+      if (!hasEntered) {
+        finishClose(onDone);
+        return;
+      }
+
+      const reduce = reduceMotion();
+      const card = cardRect();
+      const visual = page.getBoundingClientRect();
+      const pageWidth = page.offsetWidth || 1;
+      stopMotions();
+
+      if (reduce || !card) {
+        const options = { duration: motionMs, easing: easing(), fill: "forwards" };
+        let pending = 3;
+        const done = () => {
+          pending -= 1;
+          if (pending === 0) {
+            finishClose(onDone);
+          }
+        };
+        [backdrop, bar, page].forEach((el) => {
+          const from = Number(getComputedStyle(el).opacity);
+          const anim = el.animate([{ opacity: from }, { opacity: 0 }], options);
+          track(anim, () => {
+            el.style.opacity = "0";
+            anim.cancel();
+            done();
+          });
+        });
+        return;
+      }
+
+      fade(0);
+      playFlight(visual, card, pageWidth, () => finishClose(onDone));
+    }
+
+    function open(nextEntry, item) {
+      const previewHtml = nextEntry?.snapshot?.previewHtml;
+      if (typeof previewHtml !== "string" || previewHtml.trim().length === 0 || isOpen) {
+        return;
+      }
+
+      entry = nextEntry;
+      returnFocus = item.querySelector(".export-history-open");
+      nameEl.textContent = nextEntry.fileName || "";
+      dateEl.textContent = item.querySelector(".export-history-timestamp")?.textContent || "";
+      applyExportThumbSettings(page, nextEntry.snapshot.cvSettings || nextEntry.snapshot.cvLayoutStyles);
+      paintExportThumbnail(page, previewHtml);
+      viewer.hidden = false;
+      document.body.classList.add("export-preview-open");
+      backdrop.style.opacity = "0";
+      bar.style.opacity = "0";
+      page.style.visibility = "hidden";
+      page.style.opacity = "1";
+      isOpen = true;
+      isClosing = false;
+      hasEntered = false;
+      bodyEl.scrollTop = 0;
+      layout();
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        if (!isOpen || isClosing) {
+          return;
+        }
+        hasEntered = true;
+        page.style.visibility = "";
+        const pageWidth = page.offsetWidth || 1;
+        const slotRect = slot.getBoundingClientRect();
+        const card = cardRect();
+        if (reduceMotion() || !card) {
+          page.style.transform = `scale(${fitScale})`;
+          page.style.opacity = "0";
+          fade(1);
+          const anim = page.animate(
+            [{ opacity: 0 }, { opacity: 1 }],
+            { duration: motionMs, easing: easing(), fill: "forwards" }
+          );
+          track(anim, () => {
+            page.style.opacity = "1";
+            anim.cancel();
+          });
+        } else {
+          fade(1);
+          playFlight(card, slotRect, pageWidth, (anim) => {
+            page.classList.remove("is-flying");
+            page.style.top = "";
+            page.style.left = "";
+            page.style.transform = `scale(${fitScale})`;
+            anim.cancel();
+          });
+        }
+        closeBtn.focus();
+      });
+    }
+
+    openExportPreview = open;
+
+    restoreBtn.addEventListener("click", () => {
+      if (!entry || isClosing) {
+        return;
+      }
+      if (armedRestoreEntryId === entry.id && armedRestoreButton === restoreBtn) {
+        const snapshotEntry = entry;
+        clearArmedRestore();
+        close(() => restoreExportSnapshot(snapshotEntry));
+        return;
+      }
+      armRestoreConfirm(entry, restoreBtn);
+    });
+
+    closeBtn.addEventListener("click", () => close());
+    backdrop.addEventListener("click", () => close());
+    bodyEl.addEventListener("click", (event) => {
+      if (event.target === bodyEl) {
+        close();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || !isOpen || isClosing) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }, true);
+
+    window.addEventListener("resize", () => {
+      if (!isOpen || isClosing || page.classList.contains("is-flying")) {
+        return;
+      }
+      layout();
+    });
+
+    function bindSwipe(region, isBody) {
+      let swipe = null;
+      region.addEventListener("touchstart", (event) => {
+        if (!isOpen || isClosing || event.touches.length !== 1) {
+          swipe = null;
+          return;
+        }
+        if (event.target.closest("button")) {
+          swipe = null;
+          return;
+        }
+        if (isBody && bodyEl.scrollTop > 0) {
+          swipe = null;
+          return;
+        }
+        const touch = event.touches[0];
+        swipe = { x: touch.clientX, y: touch.clientY };
+      }, { passive: true });
+
+      region.addEventListener("touchmove", (event) => {
+        if (!swipe || event.touches.length !== 1) {
+          swipe = null;
+          return;
+        }
+        if (isBody && bodyEl.scrollTop > 0) {
+          swipe = null;
+          return;
+        }
+        const touch = event.touches[0];
+        const dy = touch.clientY - swipe.y;
+        const dx = touch.clientX - swipe.x;
+        if (dy > 0 && dy > Math.abs(dx)) {
+          if (event.cancelable) {
+            event.preventDefault();
+          }
+          if (dy > 80) {
+            swipe = null;
+            close();
+          }
+        }
+      }, { passive: false });
+
+      region.addEventListener("touchend", () => {
+        swipe = null;
+      });
+      region.addEventListener("touchcancel", () => {
+        swipe = null;
+      });
+    }
+
+    bindSwipe(bar, false);
+    bindSwipe(bodyEl, true);
+  }
+
   function buildExportHistoryItem(entry) {
     const item = document.createElement("li");
     item.className = "export-history-item";
@@ -7384,7 +7750,14 @@
       event.stopPropagation();
     });
     restoreBtn.addEventListener("click", requestRestore);
-    item.querySelector(".export-history-open").addEventListener("click", requestRestore);
+    item.querySelector(".export-history-open").addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!hasPreview) {
+        return;
+      }
+      openExportPreview(entry, item);
+    });
 
     deleteBtn.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -7775,6 +8148,7 @@
   applyLayoutStyles();
   bindPreviewResizeObserver();
   bindExportModal();
+  bindExportPreviewViewer();
   bindLayoutDrawerToggle();
   bindPreviewZoomControls();
   bindDocumentDragDrop();
