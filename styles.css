@@ -5477,6 +5477,82 @@ body.is-cv-dragging .cv-preview-document {
   border-radius: calc(var(--radius-sm) - 1px);
 }
 
+.drawer-accent-row {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.drawer-accent-presets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+  padding: 2px 5px 2px 0;
+}
+
+.drawer-accent-preset {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.drawer-accent-preset input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drawer-accent-dot {
+  position: relative;
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(237, 243, 248, 0.35);
+}
+
+.drawer-accent-dot-none {
+  box-shadow: inset 0 0 0 1px rgba(237, 243, 248, 0.72);
+}
+
+.drawer-accent-preset:hover .drawer-accent-dot {
+  box-shadow: inset 0 0 0 1px rgba(237, 243, 248, 0.7);
+}
+
+.drawer-accent-preset:has(input:checked) {
+  box-shadow: 0 0 0 2px var(--surface-1), 0 0 0 4px var(--text-primary);
+}
+
+.drawer-accent-preset:has(input:checked) .drawer-accent-dot::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 3px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.75));
+}
+
+.drawer-accent-preset:has(input:checked) .drawer-accent-dot-brass::after {
+  border-color: #1a1408;
+  filter: none;
+}
+
+.drawer-accent-preset:has(input:focus-visible) {
+  outline: 2px solid var(--brass);
+  outline-offset: 3px;
+}
+
 .drawer-segmented {
   display: flex;
   height: 32px;

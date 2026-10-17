@@ -29,10 +29,6 @@
       button: document.getElementById("layoutTextColorSwatch"),
       preview: document.getElementById("layoutTextColorPreview"),
     },
-    accentColor: {
-      button: document.getElementById("layoutAccentColorSwatch"),
-      preview: document.getElementById("layoutAccentColorPreview"),
-    },
   };
 
   const autoFitFields = ["baseFontSize", "lineHeight", "sectionGap"];
@@ -75,6 +71,21 @@
         return;
       }
       swatch.preview.style.backgroundColor = input.value;
+    });
+  }
+
+  function normalizeAccentHex(value) {
+    const raw = String(value || "").trim().toLowerCase();
+    if (/^#[0-9a-f]{3}$/.test(raw)) {
+      return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`;
+    }
+    return raw;
+  }
+
+  function syncAccentPresets() {
+    const current = normalizeAccentHex(colorInputs.accentColor?.value);
+    form.querySelectorAll('input[name="accentPreset"]').forEach((radio) => {
+      radio.checked = normalizeAccentHex(radio.value) === current;
     });
   }
 
@@ -125,6 +136,7 @@
     }
 
     syncColorSwatches();
+    syncAccentPresets();
     syncAutoFitUi();
     updateOutputs();
     syncAllSliderFills();
@@ -278,8 +290,16 @@
       }
     }
 
+    if (name === "accentPreset" && colorInputs.accentColor) {
+      colorInputs.accentColor.value = event.target.value;
+    }
+
     if (name === "textColor" || name === "accentColor") {
       syncColorSwatches();
+    }
+
+    if (name === "accentPreset" || name === "accentColor") {
+      syncAccentPresets();
     }
 
     applyAndRefresh();
