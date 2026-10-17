@@ -230,10 +230,6 @@ html:not(.logbook-enabled) .sidebar-logbook-link {
   border-top: 1px solid var(--border-subtle);
 }
 
-.sidebar-nav-link[aria-current="page"] {
-  background: var(--surface-3);
-}
-
 .view-switcher-track {
   position: relative;
   display: inline-flex;
@@ -568,15 +564,49 @@ body.sidebar-open .app-sidebar {
   background: var(--surface-3);
 }
 
+.sidebar-panel-toggle:hover .sidebar-panel-icon {
+  color: var(--text-primary);
+}
+
 .sidebar-panel-static-head {
   cursor: default;
 }
 
 .sidebar-panel-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
-  width: 1.25rem;
-  text-align: center;
   color: var(--text-secondary);
+}
+
+.sidebar-panel-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-nav-link[aria-current="page"] {
+  position: relative;
+  background: var(--brass-tint);
+  color: var(--brass);
+}
+
+.sidebar-nav-link[aria-current="page"] .sidebar-panel-icon {
+  color: var(--brass);
+}
+
+.sidebar-nav-link[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: var(--brass);
+  border-radius: 0 3px 3px 0;
 }
 
 .sidebar-panel-label {
