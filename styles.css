@@ -2731,6 +2731,18 @@ body.sidebar-open .app-sidebar {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   animation: toastIn var(--dur-base) var(--ease-out);
   transition: opacity var(--dur-base) var(--ease-out);
+  touch-action: pan-y;
+}
+
+.toast.is-dragging {
+  animation: none;
+  transition: none;
+  user-select: none;
+}
+
+.toast.is-settling {
+  animation: none;
+  transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out);
 }
 
 .toast:not(:has(.toast-action, .toast-dismiss)) {
@@ -2758,7 +2770,7 @@ body.sidebar-open .app-sidebar {
 
 @keyframes toastOut {
   from {
-    opacity: 1;
+    opacity: var(--toast-leave-from, 1);
   }
   to {
     opacity: 0;
@@ -2850,7 +2862,7 @@ body.sidebar-open .app-sidebar {
 
 @keyframes toastFadeOut {
   from {
-    opacity: 1;
+    opacity: var(--toast-leave-from, 1);
   }
   to {
     opacity: 0;

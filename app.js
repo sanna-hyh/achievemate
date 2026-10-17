@@ -722,6 +722,9 @@ function updateEntryCount() {
 const TOAST_LIFETIME_MS = 3200;
 const TOAST_EXIT_MS = 160;
 const MAX_VISIBLE_TOASTS = 2;
+const TOAST_SWIPE_JITTER_PX = 10;
+const TOAST_SWIPE_DISTANCE_PX = 32;
+const TOAST_SWIPE_FLING_PX_PER_MS = 0.5;
 
 function dismissToast(toast, { immediate = false } = {}) {
   if (!toast || toast.dataset.dismissed === "true") {
@@ -730,6 +733,11 @@ function dismissToast(toast, { immediate = false } = {}) {
 
   toast.dataset.dismissed = "true";
   window.clearTimeout(toast.dismissTimer);
+  toast.classList.remove("is-dragging", "is-settling");
+  if (!toast.style.getPropertyValue("--toast-leave-from") && toast.style.opacity) {
+    toast.style.setProperty("--toast-leave-from", toast.style.opacity);
+  }
+  toast.style.removeProperty("opacity");
 
   const removeToast = () => {
     toast.remove();
@@ -809,12 +817,160 @@ function showToast(message, { actionLabel, onAction, tone = "success", dismissib
 
   toast.addEventListener("mouseenter", () => window.clearTimeout(toast.dismissTimer));
   toast.addEventListener("mouseleave", scheduleDismiss);
+  bindToastSwipeDismiss(toast);
 
   region.appendChild(toast);
   refreshToastStack();
   scheduleDismiss();
 
   return () => dismissToast(toast);
+}
+
+function toastRestOpacity(toast) {
+  return toast.classList.contains("is-stacked") ? 0.72 : 1;
+}
+
+function bindToastSwipeDismiss(toast) {
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let lastX = 0;
+  let lastTime = 0;
+  let velocityX = 0;
+  let tracking = false;
+  let suppressClick = false;
+
+  const onPointerDown = (event) => {
+    if (event.pointerType !== "touch" || !event.isPrimary) {
+      return;
+    }
+    if (toast.dataset.dismissed === "true") {
+      return;
+    }
+
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    lastX = startX;
+    lastTime = event.timeStamp;
+    velocityX = 0;
+    tracking = true;
+    suppressClick = false;
+  };
+
+  const onPointerMove = (event) => {
+    if (!tracking || event.pointerId !== pointerId) {
+      return;
+    }
+    if (toast.dataset.dismissed === "true") {
+      tracking = false;
+      return;
+    }
+
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    const dt = event.timeStamp - lastTime;
+    if (dt > 0) {
+      velocityX = (event.clientX - lastX) / dt;
+    }
+    lastX = event.clientX;
+    lastTime = event.timeStamp;
+
+    if (Math.abs(dx) < TOAST_SWIPE_JITTER_PX && Math.abs(dy) < TOAST_SWIPE_JITTER_PX) {
+      return;
+    }
+
+    suppressClick = true;
+    if (Math.abs(dx) <= Math.abs(dy) && !toast.classList.contains("is-dragging")) {
+      return;
+    }
+
+    if (!toast.classList.contains("is-dragging")) {
+      toast.classList.remove("is-settling");
+      toast.classList.add("is-dragging");
+      try {
+        toast.setPointerCapture(event.pointerId);
+      } catch {
+        // The touch can end before the pointer is captured.
+      }
+    }
+
+    const fade = Math.max(0, 1 - Math.abs(dx) / 90);
+    toast.style.transform = `translateX(${dx}px)`;
+    toast.style.opacity = String(toastRestOpacity(toast) * fade);
+    event.preventDefault();
+  };
+
+  const settle = () => {
+    if (toast.dataset.dismissed === "true") {
+      return;
+    }
+
+    const rest = toastRestOpacity(toast);
+    toast.classList.remove("is-dragging");
+    toast.classList.add("is-settling");
+    window.requestAnimationFrame(() => {
+      if (toast.dataset.dismissed === "true") {
+        return;
+      }
+      toast.style.transform = "translateX(0px)";
+      toast.style.opacity = String(rest);
+    });
+    window.setTimeout(() => {
+      if (toast.dataset.dismissed === "true" || !toast.classList.contains("is-settling")) {
+        return;
+      }
+      toast.classList.remove("is-settling");
+      toast.style.removeProperty("transform");
+      toast.style.removeProperty("opacity");
+    }, TOAST_EXIT_MS + 20);
+  };
+
+  const end = (event, allowDismiss) => {
+    if (!tracking || event.pointerId !== pointerId) {
+      return;
+    }
+    tracking = false;
+
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    const horizontal = Math.abs(dx) > Math.abs(dy);
+    const flung =
+      Math.abs(velocityX) >= TOAST_SWIPE_FLING_PX_PER_MS && Math.abs(dx) >= TOAST_SWIPE_JITTER_PX;
+    const passed = Math.abs(dx) >= TOAST_SWIPE_DISTANCE_PX;
+
+    if (allowDismiss && horizontal && (passed || flung) && toast.dataset.dismissed !== "true") {
+      suppressClick = true;
+      const opacity = toast.style.opacity;
+      if (opacity) {
+        toast.style.setProperty("--toast-leave-from", opacity);
+      }
+      toast.classList.remove("is-dragging", "is-settling");
+      toast.style.removeProperty("opacity");
+      dismissToast(toast);
+      return;
+    }
+
+    if (toast.classList.contains("is-dragging")) {
+      settle();
+    }
+  };
+
+  toast.addEventListener("pointerdown", onPointerDown);
+  toast.addEventListener("pointermove", onPointerMove);
+  toast.addEventListener("pointerup", (event) => end(event, true));
+  toast.addEventListener("pointercancel", (event) => end(event, false));
+  toast.addEventListener(
+    "click",
+    (event) => {
+      if (!suppressClick) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    true
+  );
 }
 
 function refreshCvSurfaces() {
