@@ -6578,6 +6578,33 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
   content: " \00B7 ";
 }
 
+.cv-preview-document.is-pdf-measuring .cv-skill-input,
+.cv-preview-document.is-pdf-measuring .cv-skill-chip-remove {
+  display: none !important;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-preview-skills-list {
+  display: block;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip,
+.cv-preview-document.is-pdf-measuring.cv-template-compact .cv-skill-chip {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip-label {
+  overflow: visible;
+  white-space: normal;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip + .cv-skill-chip::before {
+  content: " \00B7 ";
+}
+
 .export-history-page .cv-section-wrap,
 .export-history-page .cv-section-wrap::before,
 .export-history-page .cv-section-wrap::after {

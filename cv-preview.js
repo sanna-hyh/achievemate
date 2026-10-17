@@ -7897,63 +7897,69 @@
     if (!body || !cvPreview || !blocks.length) {
       return;
     }
-    const bodyRect = body.getBoundingClientRect();
-    const scale = bodyRect.width / body.offsetWidth;
-    if (!(scale > 0.01) || !Number.isFinite(scale)) {
-      return;
-    }
-    const docRect = cvPreview.getBoundingClientRect();
-    const pxToPt = (px) => (px / scale) * 0.75;
-    const bodyTopPt = pxToPt(bodyRect.top - docRect.top);
-    if (!Number.isFinite(bodyTopPt)) {
-      return;
-    }
+    cvPreview.classList.add("is-pdf-measuring");
+    try {
+      void cvPreview.offsetHeight;
+      const bodyRect = body.getBoundingClientRect();
+      const scale = bodyRect.width / body.offsetWidth;
+      if (!(scale > 0.01) || !Number.isFinite(scale)) {
+        return;
+      }
+      const docRect = cvPreview.getBoundingClientRect();
+      const pxToPt = (px) => (px / scale) * 0.75;
+      const bodyTopPt = pxToPt(bodyRect.top - docRect.top);
+      if (!Number.isFinite(bodyTopPt)) {
+        return;
+      }
 
-    const measured = [];
-    for (let index = 0; index < blocks.length; index += 1) {
-      const block = blocks[index];
-      const element = previewGeometryElement(block);
-      if (!element || !body.contains(element)) {
-        return;
-      }
-      const rect = element.getBoundingClientRect();
-      if (!(rect.width > 0) || !(rect.height > 0)) {
-        return;
-      }
-      const topPt = pxToPt(rect.top - bodyRect.top);
-      const heightPt = pxToPt(rect.height);
-      if (!Number.isFinite(topPt) || !(heightPt > 0)) {
-        return;
-      }
-      const geom = { topPt, heightPt, lineTopsPt: [] };
-      if (block.kind === "skills") {
-        const heading = element.querySelector("h2.cv-preview-section-heading");
-        if (heading) {
-          const headingRect = heading.getBoundingClientRect();
-          geom.dividerFromTopPt = pxToPt(headingRect.bottom - rect.top);
-          geom.lineTopsPt = measureLineTopsPt(heading, rect.top, pxToPt);
+      const measured = [];
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        const element = previewGeometryElement(block);
+        if (!element || !body.contains(element)) {
+          return;
         }
-        const list = element.querySelector(".cv-preview-skills-list");
-        if (list) {
-          geom.skillsTopPt = pxToPt(list.getBoundingClientRect().top - rect.top);
+        const rect = element.getBoundingClientRect();
+        if (!(rect.width > 0) || !(rect.height > 0)) {
+          return;
         }
-      } else {
-        geom.lineTopsPt = measureLineTopsPt(element, rect.top, pxToPt);
-        if (block.kind === "heading") {
-          geom.dividerFromTopPt = heightPt;
+        const topPt = pxToPt(rect.top - bodyRect.top);
+        const heightPt = pxToPt(rect.height);
+        if (!Number.isFinite(topPt) || !(heightPt > 0)) {
+          return;
         }
+        const geom = { topPt, heightPt, lineTopsPt: [] };
+        if (block.kind === "skills") {
+          const heading = element.querySelector("h2.cv-preview-section-heading");
+          if (heading) {
+            const headingRect = heading.getBoundingClientRect();
+            geom.dividerFromTopPt = pxToPt(headingRect.bottom - rect.top);
+            geom.lineTopsPt = measureLineTopsPt(heading, rect.top, pxToPt);
+          }
+          const list = element.querySelector(".cv-preview-skills-list");
+          if (list) {
+            geom.skillsTopPt = pxToPt(list.getBoundingClientRect().top - rect.top);
+          }
+        } else {
+          geom.lineTopsPt = measureLineTopsPt(element, rect.top, pxToPt);
+          if (block.kind === "heading") {
+            geom.dividerFromTopPt = heightPt;
+          }
+        }
+        measured.push(geom);
       }
-      measured.push(geom);
-    }
 
-    if (measured.length !== blocks.length) {
-      return;
+      if (measured.length !== blocks.length) {
+        return;
+      }
+      measured.forEach((geom, index) => {
+        Object.assign(blocks[index], geom);
+      });
+      model.geometryBodyTopPt = bodyTopPt;
+      model.previewGeometry = true;
+    } finally {
+      cvPreview.classList.remove("is-pdf-measuring");
     }
-    measured.forEach((geom, index) => {
-      Object.assign(blocks[index], geom);
-    });
-    model.geometryBodyTopPt = bodyTopPt;
-    model.previewGeometry = true;
   }
 
   function buildPdfModel() {
