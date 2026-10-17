@@ -4554,25 +4554,57 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 }
 
 .cv-section-save-icon {
-  display: none;
+  display: grid;
+  width: 14px;
+  height: 14px;
   line-height: 0;
   flex-shrink: 0;
 }
 
-.cv-section-save .cv-section-save-icon-hollow {
+.cv-section-save .cv-section-save-icon-hollow,
+.cv-section-save .cv-section-save-icon-filled {
+  grid-area: 1 / 1;
   display: block;
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: center;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .cv-section-save .cv-section-save-icon-filled {
-  display: none;
+  opacity: 0;
+  transform: scale(0.92);
 }
 
 .cv-section-save.is-in-library .cv-section-save-icon-hollow {
-  display: none;
+  opacity: 0;
+  transition-duration: 160ms;
 }
 
 .cv-section-save.is-in-library .cv-section-save-icon-filled {
-  display: block;
+  opacity: 1;
+  transform: scale(1);
+  animation: cv-library-star-fill 280ms ease;
+}
+
+@keyframes cv-library-star-fill {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.16);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-section-save .cv-section-save-icon-hollow,
+  .cv-section-save .cv-section-save-icon-filled {
+    animation: none;
+    transition: none;
+  }
 }
 
 .cv-section-wrap.is-lift-arming {
