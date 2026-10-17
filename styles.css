@@ -2715,26 +2715,30 @@ body.sidebar-open .app-sidebar {
 
 .toast {
   pointer-events: auto;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 2px;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 32px));
   min-height: 44px;
-  padding: 12px 16px;
-  background: rgba(16, 28, 46, 0.9);
+  padding: 0 4px 0 14px;
+  background: rgba(11, 21, 36, 0.88);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-overlay);
+  border: 1px solid #1d2e45;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   animation: toastIn var(--dur-base) var(--ease-out);
-  transition:
-    opacity var(--dur-base) var(--ease-out),
-    transform var(--dur-base) var(--ease-out);
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.toast:not(:has(.toast-action, .toast-dismiss)) {
+  padding-right: 14px;
 }
 
 .toast.is-stacked {
-  opacity: 0.7;
-  transform: translateY(-8px);
+  opacity: 0.72;
 }
 
 .toast.is-leaving {
@@ -2744,7 +2748,7 @@ body.sidebar-open .app-sidebar {
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -2755,60 +2759,102 @@ body.sidebar-open .app-sidebar {
 @keyframes toastOut {
   from {
     opacity: 1;
-    transform: translateY(0);
   }
   to {
     opacity: 0;
-    transform: translateY(4px);
   }
 }
 
 .toast.is-stacked.is-leaving {
   animation: none;
   opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 160ms var(--ease-out), transform 160ms var(--ease-out);
-}
-
-.toast-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--signal-success);
-  flex-shrink: 0;
+  transition: opacity 160ms var(--ease-out);
 }
 
 .toast-message {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-ui);
-  font-size: 0.875rem;
+  padding: 10px 0;
+  font-family: Inter, var(--font-ui);
+  font-size: 14px;
   font-weight: 400;
-  line-height: 1.55;
-  color: var(--text-primary);
+  line-height: 1.35;
+  color: #edf3f8;
 }
 
 .toast-action {
+  flex-shrink: 0;
   border: none;
   background: none;
-  padding: 0;
-  font-family: var(--font-ui);
-  font-size: 0.875rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 12px 12px;
+  font-family: Inter, var(--font-ui);
+  font-size: 14px;
   font-weight: 500;
-  line-height: 1.4;
-  color: var(--brass);
+  line-height: 1.2;
+  color: #e8b45a;
   cursor: pointer;
 }
 
-.toast-action:hover {
-  color: var(--brass-bright);
+.toast-action:hover,
+.toast-action:focus-visible {
+  color: #f2c878;
 }
 
 .toast-dismiss {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  font-size: 0.875rem;
+  width: 44px;
+  height: 44px;
+  font-size: 16px;
+  color: #8ea0b5;
+  transform: none;
+}
+
+.toast-dismiss:hover,
+.toast-dismiss:active {
+  background: transparent;
+  color: #edf3f8;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.is-stacked,
+  .toast.is-leaving,
+  .toast.is-stacked.is-leaving {
+    background: #0b1524;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transform: none !important;
+    animation-name: toastFade;
+    animation-duration: 160ms !important;
+    transition-property: opacity;
+    transition-duration: 160ms !important;
+  }
+
+  .toast.is-leaving,
+  .toast.is-stacked.is-leaving {
+    animation-name: toastFadeOut;
+  }
+}
+
+@keyframes toastFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes toastFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 .modal-root {
@@ -4090,7 +4136,7 @@ body.is-phone-keyboard {
   display: flex;
   flex-direction: column-reverse;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   pointer-events: none;
 }
 

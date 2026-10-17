@@ -310,29 +310,13 @@
 
     const [removed] = state.cvLibrary.splice(index, 1);
     state.cvLibrary = [...state.cvLibrary];
-    const linkedIds = clearLibraryLinks(libraryId);
+    clearLibraryLinks(libraryId);
     saveState();
     renderRail();
     window.AchieveMateCvPreview?.syncLibraryStars?.();
     window.AchieveMateCvHistory?.record?.('Remove from library');
 
-    window.AchieveMateToast?.show('Removed from library', {
-      actionLabel: 'Undo',
-      onAction: () => {
-        if (window.AchieveMateCvHistory?.canUndo?.()) {
-          window.AchieveMateCvHistory.undo();
-          return;
-        }
-        const next = [...state.cvLibrary];
-        next.splice(index, 0, removed);
-        state.cvLibrary = next;
-        restoreLibraryLinks(removed.id, linkedIds);
-        saveState();
-        renderRail();
-        window.AchieveMateCvPreview?.syncLibraryStars?.();
-        window.AchieveMateCvHistory?.record?.('Restore library item');
-      },
-    });
+    window.AchieveMateToast?.show('Removed from library');
 
     return removed;
   }
