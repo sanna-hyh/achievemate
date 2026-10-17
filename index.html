@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=189" />
+  <link rel="stylesheet" href="styles.css?v=190" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -402,12 +402,39 @@
                   <input type="range" class="drawer-slider" name="headingFontSize" id="layoutHeadingFontSize" min="12" max="16" step="0.5" value="13" />
                 </div>
 
-                <div class="drawer-color-row">
-                  <span class="caption">Accent</span>
-                  <button type="button" class="drawer-color-swatch" id="layoutAccentColorSwatch" aria-label="Choose accent color">
-                    <span class="drawer-color-swatch-fill" id="layoutAccentColorPreview"></span>
-                  </button>
-                  <input type="color" name="accentColor" id="layoutAccentColor" class="visually-hidden" value="#000000" tabindex="-1" />
+                <div class="drawer-color-row drawer-accent-row">
+                  <span class="caption" id="layoutAccentLabel">Accent</span>
+                  <div class="drawer-accent-presets" role="radiogroup" aria-labelledby="layoutAccentLabel">
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#1F3864" aria-label="Navy" />
+                      <span class="drawer-accent-dot" style="background-color:#1F3864" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#333333" aria-label="Charcoal" />
+                      <span class="drawer-accent-dot" style="background-color:#333333" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#1E5631" aria-label="Forest" />
+                      <span class="drawer-accent-dot" style="background-color:#1E5631" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#7A1F2B" aria-label="Burgundy" />
+                      <span class="drawer-accent-dot" style="background-color:#7A1F2B" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#008080" aria-label="Teal" />
+                      <span class="drawer-accent-dot" style="background-color:#008080" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#C9A227" aria-label="Brass" />
+                      <span class="drawer-accent-dot drawer-accent-dot-brass" style="background-color:#C9A227" aria-hidden="true"></span>
+                    </label>
+                    <label class="drawer-accent-preset">
+                      <input type="radio" name="accentPreset" value="#000000" aria-label="None" checked />
+                      <span class="drawer-accent-dot drawer-accent-dot-none" style="background-color:#000000" aria-hidden="true"></span>
+                    </label>
+                  </div>
+                  <input type="hidden" name="accentColor" id="layoutAccentColor" value="#000000" />
                 </div>
 
                 <div class="drawer-color-row">
@@ -615,7 +642,7 @@
   <script src="cv-builder.js?v=43"></script>
   <script src="cv-pdf.js?v=19"></script>
   <script src="cv-preview.js?v=120"></script>
-  <script src="cv-layout-panel.js?v=14"></script>
+  <script src="cv-layout-panel.js?v=15"></script>
   <script src="sidebar.js?v=6"></script>
   <script src="workspace-tabs.js?v=14"></script>
 </body>
