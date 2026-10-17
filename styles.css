@@ -6548,11 +6548,34 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
 .export-preview-viewer .export-history-page .cv-hold-tip,
 .export-history-page .cv-section-save,
 .export-history-page .cv-link-ui-btn,
-.export-history-page .cv-skill-chip-remove {
+.export-history-page .cv-skill-chip-remove,
+.export-history-page .cv-skill-input {
   display: none !important;
   background: none !important;
   background-image: none !important;
   pointer-events: none !important;
+}
+
+.export-history-page .cv-preview-skills-list {
+  display: block;
+}
+
+.export-history-page .cv-skill-chip,
+.export-history-page.cv-preview-document.cv-template-compact .cv-skill-chip {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.export-history-page .cv-skill-chip-label {
+  overflow: visible;
+  white-space: normal;
+}
+
+.export-history-page .cv-skill-chip + .cv-skill-chip::before {
+  content: " \00B7 ";
 }
 
 .export-history-page .cv-section-wrap,
