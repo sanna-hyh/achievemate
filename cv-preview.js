@@ -7029,7 +7029,7 @@
       if (armedRestoreEntryId === entry.id) {
         clearArmedRestore();
       }
-    }, 2000);
+    }, 4000);
   }
 
   function buildHistorySnapshot() {
