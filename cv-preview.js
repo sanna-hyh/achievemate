@@ -7107,6 +7107,107 @@
     window.AchieveMateCvHistory?.seed?.();
   }
 
+  const exportThumbPending = new WeakMap();
+  let exportThumbObserver = null;
+
+  function ensureExportThumbObserver() {
+    if (exportThumbObserver || typeof IntersectionObserver !== "function") {
+      return exportThumbObserver;
+    }
+
+    exportThumbObserver = new IntersectionObserver((entries) => {
+      entries.forEach((observed) => {
+        if (!observed.isIntersecting) {
+          return;
+        }
+
+        const thumb = observed.target;
+        exportThumbObserver.unobserve(thumb);
+        const pending = exportThumbPending.get(thumb);
+        exportThumbPending.delete(thumb);
+        if (pending) {
+          paintExportThumbnail(pending.page, pending.html);
+        }
+      });
+    }, { rootMargin: "160px" });
+
+    return exportThumbObserver;
+  }
+
+  function paintExportThumbnail(page, html) {
+    page.innerHTML = html;
+    page.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+    page.querySelectorAll("[contenteditable]").forEach((node) => {
+      node.removeAttribute("contenteditable");
+    });
+    if ("inert" in page) {
+      page.inert = true;
+    }
+    page.classList.add("is-drawn");
+  }
+
+  function applyExportThumbSettings(page, rawSettings) {
+    const styles = {
+      ...app.DEFAULT_CV_SETTINGS,
+      ...(rawSettings || {}),
+    };
+    const pagePadding = PAGE_MARGIN_MAP[styles.pageMargin] || PAGE_MARGIN_MAP.normal;
+    const template = normalizeCvTemplate(styles.template);
+    const divider = styles.headingDivider ?? "solid";
+    const normalizedDivider = ["solid", "dotted", "none"].includes(divider) ? divider : "solid";
+
+    page.classList.remove(...HEADING_DIVIDER_CLASSES, ...CV_TEMPLATE_CLASSES);
+    page.classList.add(`cv-heading-divider-${normalizedDivider}`, `cv-template-${template}`);
+    page.dataset.cvTemplate = template;
+
+    if (template === "modern" && !accentIsDefaultInk(styles.accentColor)) {
+      page.style.setProperty("--cv-modern-heading", styles.accentColor);
+    } else {
+      page.style.removeProperty("--cv-modern-heading");
+    }
+
+    page.style.setProperty("--cv-font-family", fontFamilyStack(styles.fontFamily));
+    page.style.setProperty("--cv-text-color", styles.textColor || "#000000");
+    page.style.setProperty("--cv-accent-color", styles.accentColor || "#000000");
+    page.style.setProperty("--cv-page-padding", pagePadding);
+    page.style.setProperty("--cv-item-gap", `${styles.itemGap ?? 4}px`);
+    page.style.setProperty("--cv-name-font", `${getNameFontSizePt(styles)}pt`);
+    page.style.setProperty("--cv-section-heading-font", `${getHeadingFontSizePt(styles)}pt`);
+    page.classList.toggle("cv-preview-manual-layout", styles.autoFit !== true);
+    page.classList.toggle("cv-underline-links-off", styles.underlineLinks === false);
+
+    if (styles.autoFit !== true) {
+      const typography = manualTypographyFromBase(styles.baseFontSize ?? 11);
+      page.style.setProperty("--cv-body-font", `${typography.bodyFontPt}pt`);
+      page.style.setProperty("--cv-header-font", `${typography.headerFontPt}pt`);
+      page.style.setProperty("--cv-line-height", String(styles.lineHeight ?? 1.3));
+      page.style.setProperty("--cv-section-gap", `${styles.sectionGap ?? 12}px`);
+      page.style.setProperty("--cv-section-margin", `${styles.sectionGap ?? 12}px`);
+    }
+  }
+
+  function scheduleExportThumbnail(thumb, page, html) {
+    const observer = ensureExportThumbObserver();
+    if (!observer) {
+      paintExportThumbnail(page, html);
+      return;
+    }
+
+    exportThumbPending.set(thumb, { page, html });
+    observer.observe(thumb);
+  }
+
+  function releaseExportThumbnails(listEl) {
+    if (!exportThumbObserver || !listEl) {
+      return;
+    }
+
+    listEl.querySelectorAll(".export-history-thumb").forEach((thumb) => {
+      exportThumbObserver.unobserve(thumb);
+      exportThumbPending.delete(thumb);
+    });
+  }
+
   function buildExportHistoryItem(entry) {
     const item = document.createElement("li");
     item.className = "export-history-item";
@@ -7115,38 +7216,58 @@
     const formatted = Number.isNaN(date.getTime())
       ? entry.exportedAt
       : date.toLocaleString(undefined, {
-          year: "numeric",
           month: "short",
           day: "numeric",
-          hour: "2-digit",
+          hour: "numeric",
           minute: "2-digit",
         });
+    const safeName = escapeHtml(entry.fileName);
+    const previewHtml = entry.snapshot?.previewHtml;
+    const hasPreview = typeof previewHtml === "string" && previewHtml.trim().length > 0;
 
     item.innerHTML = `
-      <div class="export-history-meta">
-        <span class="mono-sm export-history-filename">${escapeHtml(entry.fileName)}</span>
-        <span class="caption export-history-timestamp">${escapeHtml(formatted)}</span>
+      <div class="export-history-thumb">
+        ${hasPreview ? '<div class="export-history-page cv-preview-document" aria-hidden="true"></div>' : ""}
+        <button type="button" class="export-history-open" aria-label="Restore ${safeName}"></button>
+        <div class="export-history-actions">
+          <button type="button" class="btn-icon export-history-restore" aria-label="Restore ${safeName}">↺</button>
+          <button type="button" class="btn-icon export-history-delete" aria-label="Delete export history for ${safeName}">×</button>
+        </div>
       </div>
-      <div class="export-history-actions">
-        <button type="button" class="btn-icon export-history-restore" aria-label="Restore ${escapeHtml(entry.fileName)}">↺</button>
-        <button type="button" class="btn-icon export-history-delete" aria-label="Delete export history for ${escapeHtml(entry.fileName)}">×</button>
+      <div class="export-history-meta">
+        <span class="export-history-filename">${safeName}</span>
+        <span class="caption export-history-timestamp">${escapeHtml(formatted)}</span>
       </div>
     `;
 
+    const thumb = item.querySelector(".export-history-thumb");
+    const page = item.querySelector(".export-history-page");
+    if (page) {
+      applyExportThumbSettings(page, entry.snapshot?.cvSettings || entry.snapshot?.cvLayoutStyles);
+      if ("inert" in page) {
+        page.inert = true;
+      }
+      scheduleExportThumbnail(thumb, page, previewHtml);
+    }
+
     const restoreBtn = item.querySelector(".export-history-restore");
     restoreBtn.dataset.defaultLabel = `Restore ${entry.fileName}`;
-    restoreBtn.addEventListener("click", (event) => {
-      const button = event.currentTarget;
+    const requestRestore = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (armedRestoreEntryId === entry.id) {
         clearArmedRestore();
         restoreExportSnapshot(entry);
         return;
       }
 
-      armRestoreConfirm(entry, button);
-    });
+      armRestoreConfirm(entry, restoreBtn);
+    };
+    restoreBtn.addEventListener("click", requestRestore);
+    item.querySelector(".export-history-open").addEventListener("click", requestRestore);
 
-    item.querySelector(".export-history-delete").addEventListener("click", () => {
+    item.querySelector(".export-history-delete").addEventListener("click", (event) => {
+      event.stopPropagation();
       deleteExportHistoryEntry(entry.id);
     });
 
@@ -7158,6 +7279,7 @@
       return;
     }
 
+    releaseExportThumbnails(listEl);
     listEl.innerHTML = "";
 
     if (state.exportHistory.length === 0) {
