@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=202" />
+  <link rel="stylesheet" href="styles.css?v=203" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -650,6 +650,25 @@
     </div>
   </div>
 
+  <div class="export-preview-viewer" id="exportPreviewViewer" hidden>
+    <div class="export-preview-backdrop" id="exportPreviewBackdrop"></div>
+    <div class="export-preview-sheet" role="dialog" aria-modal="true" aria-labelledby="exportPreviewName">
+      <header class="export-preview-bar" id="exportPreviewBar">
+        <div class="export-preview-heading">
+          <span class="export-preview-name" id="exportPreviewName"></span>
+          <span class="export-preview-date caption" id="exportPreviewDate"></span>
+        </div>
+        <button type="button" class="btn btn-primary export-preview-restore" id="exportPreviewRestore" data-default-text="Restore this version" data-default-label="Restore this version">Restore this version</button>
+        <button type="button" class="btn-icon export-preview-close" id="exportPreviewClose" aria-label="Close">✕</button>
+      </header>
+      <div class="export-preview-body" id="exportPreviewBody">
+        <div class="export-preview-slot" id="exportPreviewSlot">
+          <article class="export-history-page cv-preview-document" id="exportPreviewPage" inert aria-hidden="true"></article>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -658,7 +677,7 @@
   <script src="drag-preview.js?v=9"></script>
   <script src="cv-builder.js?v=49"></script>
   <script src="cv-pdf.js?v=19"></script>
-  <script src="cv-preview.js?v=122"></script>
+  <script src="cv-preview.js?v=126"></script>
   <script src="cv-layout-panel.js?v=15"></script>
   <script src="sidebar.js?v=7"></script>
   <script src="workspace-tabs.js?v=15"></script>
