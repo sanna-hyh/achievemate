@@ -7299,22 +7299,67 @@
     }
 
     const restoreBtn = item.querySelector(".export-history-restore");
+    const deleteBtn = item.querySelector(".export-history-delete");
     restoreBtn.dataset.defaultLabel = `Restore ${entry.fileName}`;
+    const pointIn = (rect, x, y, slop = 0) =>
+      x >= rect.left - slop && x <= rect.right + slop && y >= rect.top - slop && y <= rect.bottom + slop;
+    const hitArmedPill = (event) => {
+      if (armedRestoreEntryId !== entry.id) {
+        return false;
+      }
+      const pill = restoreBtn.getBoundingClientRect();
+      const x = event.clientX;
+      const y = event.clientY;
+      if (!pointIn(pill, x, y, 4)) {
+        return false;
+      }
+      const del = deleteBtn.getBoundingClientRect();
+      return !(pointIn(del, x, y) && x > pill.right);
+    };
+    const confirmArmedRestore = (event) => {
+      if (armedRestoreEntryId !== entry.id) {
+        return false;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      clearArmedRestore();
+      restoreExportSnapshot(entry);
+      return true;
+    };
     const requestRestore = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (armedRestoreEntryId === entry.id) {
-        clearArmedRestore();
-        restoreExportSnapshot(entry);
+      if (confirmArmedRestore(event)) {
         return;
       }
 
       armRestoreConfirm(entry, restoreBtn);
     };
+    thumb.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (hitArmedPill(event)) {
+          event.stopPropagation();
+        }
+      },
+      true
+    );
+    thumb.addEventListener(
+      "click",
+      (event) => {
+        if (hitArmedPill(event)) {
+          requestRestore(event);
+        }
+      },
+      true
+    );
+    restoreBtn.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
     restoreBtn.addEventListener("click", requestRestore);
     item.querySelector(".export-history-open").addEventListener("click", requestRestore);
 
-    item.querySelector(".export-history-delete").addEventListener("click", (event) => {
+    deleteBtn.addEventListener("click", (event) => {
       event.stopPropagation();
       deleteExportHistoryEntry(entry.id);
     });

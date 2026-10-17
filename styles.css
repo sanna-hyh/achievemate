@@ -6498,6 +6498,31 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
   box-shadow: none !important;
 }
 
+.export-history-page .cv-section-handles,
+.export-history-page .cv-section-handles::before,
+.export-history-page .cv-section-handles::after,
+.export-history-page .cv-section-menu,
+.export-history-page .cv-section-menu-btn,
+.export-history-page .cv-insertion-line,
+.export-history-page .cv-insertion-line::before,
+.export-history-page .cv-insertion-line::after,
+.export-history-page .cv-layout-skeleton,
+.export-history-page .cv-layout-skeleton::before,
+.export-history-page .cv-layout-skeleton::after {
+  display: none !important;
+  background: none !important;
+  background-image: none !important;
+  pointer-events: none !important;
+}
+
+.export-history-page .cv-section-wrap,
+.export-history-page .cv-section-wrap::before,
+.export-history-page .cv-section-wrap::after {
+  background: none !important;
+  background-image: none !important;
+  outline: none !important;
+}
+
 .export-history-page.cv-preview-document.is-drawn {
   visibility: visible;
 }
@@ -6544,7 +6569,7 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
   position: absolute;
   bottom: 6px;
   right: 6px;
-  z-index: 2;
+  z-index: 3;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -6572,7 +6597,20 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
   content: "";
   position: absolute;
   inset: -4px;
+  z-index: 0;
   background: transparent;
+}
+
+.export-history-thumb .export-history-delete {
+  z-index: 1;
+}
+
+.export-history-thumb .export-history-restore.is-armed {
+  z-index: 2;
+}
+
+.export-history-thumb .export-history-restore.is-armed::before {
+  z-index: 1;
 }
 
 .export-history-thumb .export-history-delete {
