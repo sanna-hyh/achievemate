@@ -10,7 +10,6 @@
   const cvPreviewScaler = document.getElementById("cvPreviewScaler");
   const exportPdfBtn = document.getElementById("exportPdfBtn");
   const exportHistoryList = document.getElementById("exportHistoryList");
-  const drawerExportHistoryList = document.getElementById("drawerExportHistoryList");
   const exportModal = document.getElementById("exportModal");
   const exportModalOverlay = document.getElementById("exportModalOverlay");
   const exportModalCaption = document.getElementById("exportModalCaption");
@@ -7163,7 +7162,7 @@
     if (state.exportHistory.length === 0) {
       const empty = document.createElement("li");
       empty.className = "export-history-empty";
-      empty.textContent = "No exports yet";
+      empty.textContent = "No exports yet.";
       listEl.appendChild(empty);
       return;
     }
@@ -7176,7 +7175,6 @@
   function renderExportHistory() {
     clearArmedRestore();
     renderExportHistoryList(exportHistoryList);
-    renderExportHistoryList(drawerExportHistoryList);
   }
 
   function pdfLibraryReady() {

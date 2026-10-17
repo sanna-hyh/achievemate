@@ -4,6 +4,7 @@
   const views = {
     logbook: document.getElementById("viewLogbook"),
     studio: document.getElementById("viewStudio"),
+    exports: document.getElementById("viewExports"),
   };
 
   if (!views.logbook || !views.studio) {
@@ -12,12 +13,14 @@
 
   const HOME_VIEW = "studio";
   const LOGBOOK_VIEW = "logbook";
+  const EXPORTS_VIEW = "exports";
   const logbookEnabled = window.ENABLE_LOGBOOK === true;
   const tabs = tablist ? [...tablist.querySelectorAll("[data-view]")] : [];
   const track = tablist?.querySelector(".view-switcher-track") ?? null;
   const indicator = tablist?.querySelector(".view-switcher-indicator") ?? null;
   const cvMakerMenuBtn = document.getElementById("sidebarOpenCvMakerBtn");
   const logbookMenuBtn = document.getElementById("sidebarOpenLogbookBtn");
+  const exportsMenuBtn = document.getElementById("sidebarOpenExportsBtn");
   const STORAGE_KEY = "achievemate-active-tab";
   let activeView = HOME_VIEW;
   let switchTimer = null;
@@ -34,7 +37,13 @@
   }
 
   function hashForView(viewId) {
-    return viewId === LOGBOOK_VIEW ? "#library" : "#/";
+    if (viewId === LOGBOOK_VIEW) {
+      return "#library";
+    }
+    if (viewId === EXPORTS_VIEW) {
+      return "#exports";
+    }
+    return "#/";
   }
 
   function isLibraryToken(token) {
@@ -67,6 +76,9 @@
         return { viewId: HOME_VIEW, redirect: true };
       }
       return { viewId: LOGBOOK_VIEW, redirect: pathAlias || token !== "library" };
+    }
+    if (token === EXPORTS_VIEW) {
+      return { viewId: EXPORTS_VIEW, redirect: false };
     }
     if (!token) {
       return { viewId: HOME_VIEW, redirect: false };
@@ -158,6 +170,14 @@
         logbookMenuBtn.setAttribute("aria-current", "page");
       } else {
         logbookMenuBtn.removeAttribute("aria-current");
+      }
+    }
+
+    if (exportsMenuBtn) {
+      if (viewId === EXPORTS_VIEW) {
+        exportsMenuBtn.setAttribute("aria-current", "page");
+      } else {
+        exportsMenuBtn.removeAttribute("aria-current");
       }
     }
 

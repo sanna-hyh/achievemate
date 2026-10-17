@@ -6,6 +6,7 @@
   const openStudioBtn = document.getElementById("sidebarOpenStudioBtn");
   const openCvMakerBtn = document.getElementById("sidebarOpenCvMakerBtn");
   const openLogbookBtn = document.getElementById("sidebarOpenLogbookBtn");
+  const openExportsBtn = document.getElementById("sidebarOpenExportsBtn");
   const panelToggles = [...document.querySelectorAll(".sidebar-panel-toggle[aria-controls]")];
 
   if (!sidebar || !toggleBtn) {
@@ -94,6 +95,11 @@
       return;
     }
     window.AchieveMateViews?.setActiveView("logbook");
+    closeSidebar();
+  });
+
+  openExportsBtn?.addEventListener("click", () => {
+    window.AchieveMateViews?.setActiveView("exports");
     closeSidebar();
   });
 

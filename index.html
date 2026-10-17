@@ -119,6 +119,16 @@
           <span class="sidebar-panel-label">Library</span>
         </button>
 
+        <button
+          type="button"
+          class="sidebar-panel-toggle sidebar-nav-link"
+          id="sidebarOpenExportsBtn"
+          data-view="exports"
+        >
+          <span class="sidebar-panel-icon" aria-hidden="true">↓</span>
+          <span class="sidebar-panel-label">Exports</span>
+        </button>
+
         <section class="sidebar-panel">
           <button
             type="button"
@@ -132,7 +142,7 @@
             <span class="sidebar-panel-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="sidebar-panel-body" id="sidebarSettingsBody" hidden>
-            <p class="caption sidebar-panel-hint">Open Design on the main page for typography, layout, and export history.</p>
+            <p class="caption sidebar-panel-hint">Open Design on the main page for typography and layout.</p>
             <button type="button" class="btn btn-ghost sidebar-open-studio-btn" id="sidebarOpenStudioBtn">
               Back to main page
             </button>
@@ -154,6 +164,18 @@
       </header>
 
       <div class="entries-list" id="achievementsList" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <main class="view view-logbook" id="viewExports" aria-label="Exports" aria-hidden="true">
+    <div class="logbook-column">
+      <header class="logbook-header">
+        <div class="logbook-header-main">
+          <h1 class="logbook-title">Exports</h1>
+          <p class="logbook-subtitle">A saved copy of your CV each time you export.</p>
+        </div>
+      </header>
+      <ul class="export-history-list" id="exportHistoryList" aria-live="polite"></ul>
     </div>
   </main>
 
@@ -518,11 +540,6 @@
               <button type="button" class="btn btn-ghost btn-drawer-action" id="saveCvDefaultsBtn">Save as default</button>
               <button type="button" class="btn btn-ghost btn-drawer-action" id="resetCvSettingsBtn">Reset</button>
             </div>
-
-            <section class="drawer-group">
-              <h3 class="drawer-group-heading">Exports</h3>
-              <ul class="export-history-list export-history-list-drawer" id="drawerExportHistoryList" aria-live="polite"></ul>
-            </section>
           </form>
         </div>
       </aside>
@@ -641,9 +658,9 @@
   <script src="drag-preview.js?v=9"></script>
   <script src="cv-builder.js?v=49"></script>
   <script src="cv-pdf.js?v=19"></script>
-  <script src="cv-preview.js?v=120"></script>
+  <script src="cv-preview.js?v=121"></script>
   <script src="cv-layout-panel.js?v=15"></script>
-  <script src="sidebar.js?v=6"></script>
-  <script src="workspace-tabs.js?v=14"></script>
+  <script src="sidebar.js?v=7"></script>
+  <script src="workspace-tabs.js?v=15"></script>
 </body>
 </html>
