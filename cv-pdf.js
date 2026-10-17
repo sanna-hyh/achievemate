@@ -85,7 +85,8 @@
     for (const ch of text) {
       if (Object.prototype.hasOwnProperty.call(WIN_ANSI_REPLACEMENTS, ch)) {
         const replacement = WIN_ANSI_REPLACEMENTS[ch];
-        if (applyWinAnsi || replacement === "") {
+        const keepDash = ch === "\u2013" || ch === "\u2014";
+        if (!keepDash && (applyWinAnsi || replacement === "")) {
           out += replacement;
           continue;
         }
