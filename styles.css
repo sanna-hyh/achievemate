@@ -4522,10 +4522,22 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
   flex-direction: column;
   min-width: 196px;
   padding: 4px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  background: var(--surface-1);
-  box-shadow: var(--shadow-overlay);
+  border: 1px solid #1d2e45;
+  border-radius: 12px;
+  background: rgba(11, 21, 36, 0.88);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cv-section-menu,
+  .cv-section-menu.is-portaled,
+  .cv-section-menu.is-drop-up {
+    background: #0B1524;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 .cv-section-menu[hidden] {
@@ -4567,7 +4579,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 
 .cv-section-menu-item:hover,
 .cv-section-menu-item:focus-visible {
-  background: var(--surface-2);
+  background: rgba(237, 243, 248, 0.08);
   color: var(--text-primary);
 }
 
@@ -4590,7 +4602,7 @@ body.cv-pointer-drag-active .cv-preview-document [contenteditable="true"].is-edi
 .cv-section-save:focus-visible,
 .cv-section-save.is-in-library {
   color: var(--brass-bright);
-  background: var(--surface-2);
+  background: rgba(237, 243, 248, 0.08);
 }
 
 .cv-section-save svg {
