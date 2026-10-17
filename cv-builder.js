@@ -880,9 +880,24 @@
 
       const paintOffset = (offset) => {
         const base = fullHeight || measureFullHeight();
-        const next = Math.max(floorPx(), base - Math.max(0, offset));
+        const next = Math.max(MIN_HEIGHT, base - Math.max(0, offset));
         panel.style.maxHeight = "none";
         panel.style.height = `${next}px`;
+      };
+
+      // Usable min is not a drag floor. A park shorter than the first template
+      // card is raised to that height when the sheet is saved or reopened.
+      const clampParkedHeight = () => {
+        if (!enforceFloor || restY <= 0) {
+          return;
+        }
+        if (!fullHeight) {
+          measureFullHeight();
+        }
+        const floor = floorPx();
+        if (fullHeight - restY < floor) {
+          restY = Math.max(0, fullHeight - floor);
+        }
       };
 
       const applyY = (y) => {
@@ -913,11 +928,14 @@
         pointerId = null;
         panel.classList.remove("is-sheet-dragging");
         if (persistParkedHeight && restY > 0) {
-          // Keep parked height while off-screen so reopen doesn't flash to max.
+          // Keep the live height through the close slide. Raise a below-floor
+          // park in restY so the next open is the usable min, not a slit or max.
           if (!fullHeight) {
             measureFullHeight();
           }
-          paintOffset(restY);
+          const visualY = restY;
+          clampParkedHeight();
+          paintOffset(visualY);
           return;
         }
         panel.style.height = "";
@@ -925,14 +943,11 @@
       };
 
       const show = () => {
-        // A parked height below the usable floor is not restored — reopen at the default.
+        // Reopen keeps her park. A height below the first template card is
+        // raised to that usable min — never cleared back to the default.
         if (enforceFloor && restY > 0) {
           measureFullHeight();
-          if (fullHeight - restY < floorPx()) {
-            restY = 0;
-            panel.style.height = "";
-            panel.style.maxHeight = "";
-          }
+          clampParkedHeight();
         }
         // Apply parked height immediately (before/during slide), never after max open.
         snapParkedHeight();
@@ -943,7 +958,7 @@
           return;
         }
         event.preventDefault();
-        const maxY = Math.max(dismissPx(), (fullHeight || 0) - floorPx());
+        const maxY = Math.max(dismissPx(), (fullHeight || 0) - MIN_HEIGHT);
         dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
         paintOffset(dragY);
       };
@@ -969,11 +984,6 @@
           // Keep the height from before this dismiss pull for the next reopen.
           restY = originY;
           onDismiss?.();
-          return;
-        }
-        if (enforceFloor) {
-          const maxRest = Math.max(0, (fullHeight || 0) - floorPx());
-          applyY(Math.min(dragY, maxRest));
           return;
         }
         applyY(dragY);
