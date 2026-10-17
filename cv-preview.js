@@ -10,7 +10,6 @@
   const cvPreviewScaler = document.getElementById("cvPreviewScaler");
   const exportPdfBtn = document.getElementById("exportPdfBtn");
   const exportHistoryList = document.getElementById("exportHistoryList");
-  const drawerExportHistoryList = document.getElementById("drawerExportHistoryList");
   const exportModal = document.getElementById("exportModal");
   const exportModalOverlay = document.getElementById("exportModalOverlay");
   const exportModalCaption = document.getElementById("exportModalCaption");
@@ -7069,10 +7068,50 @@
     renderExportHistory();
   }
 
+  function capturePreRestoreSnapshot() {
+    return {
+      personalInfo: JSON.parse(JSON.stringify(state.personalInfo)),
+      cvLayout: JSON.parse(JSON.stringify(state.cvLayout || [])),
+      cvPreviewEdits: JSON.parse(
+        JSON.stringify(state.cvPreviewEdits || { personal: {}, items: {} })
+      ),
+      cvSettings: JSON.parse(JSON.stringify(state.cvSettings)),
+    };
+  }
+
+  function applyPreRestoreSnapshot(snapshot) {
+    state.personalInfo = JSON.parse(JSON.stringify(snapshot.personalInfo));
+    state.cvLayout = JSON.parse(JSON.stringify(snapshot.cvLayout));
+    state.cvPreviewEdits = JSON.parse(JSON.stringify(snapshot.cvPreviewEdits));
+    state.cvSettings = JSON.parse(JSON.stringify(snapshot.cvSettings));
+    app.saveCvSettings();
+    saveState();
+
+    if (window.AchieveMateCvLayoutPanel) {
+      window.AchieveMateCvLayoutPanel.syncFormFromState();
+    }
+
+    if (window.AchieveMateApp?.refreshPersonalForm) {
+      window.AchieveMateApp.refreshPersonalForm();
+    }
+
+    if (window.AchieveMateCvBuilder) {
+      window.AchieveMateCvBuilder.render();
+    } else {
+      renderPreview();
+    }
+
+    window.AchieveMateCvHistory?.seed?.();
+    renderPreview({ force: true });
+    window.AchieveMateViews?.setActiveView("studio");
+  }
+
   function restoreExportSnapshot(entry) {
     if (!entry.snapshot) {
       return;
     }
+
+    const undoSnapshot = capturePreRestoreSnapshot();
 
     state.personalInfo = {
       ...state.personalInfo,
@@ -7105,6 +7144,15 @@
     }
 
     window.AchieveMateCvHistory?.seed?.();
+    renderPreview({ force: true });
+    window.AchieveMateViews?.setActiveView("studio");
+    window.AchieveMateToast?.show(`Restored ${entry.fileName}`, {
+      actionLabel: "Undo",
+      duration: 6000,
+      onAction: () => {
+        applyPreRestoreSnapshot(undoSnapshot);
+      },
+    });
   }
 
   const exportThumbPending = new WeakMap();
@@ -7285,7 +7333,7 @@
     if (state.exportHistory.length === 0) {
       const empty = document.createElement("li");
       empty.className = "export-history-empty";
-      empty.textContent = "No exports yet";
+      empty.textContent = "No exports yet.";
       listEl.appendChild(empty);
       return;
     }
@@ -7298,7 +7346,6 @@
   function renderExportHistory() {
     clearArmedRestore();
     renderExportHistoryList(exportHistoryList);
-    renderExportHistoryList(drawerExportHistoryList);
   }
 
   function pdfLibraryReady() {
