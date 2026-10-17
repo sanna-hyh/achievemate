@@ -7039,12 +7039,24 @@
   function buildHistorySnapshot() {
     captureEditsFromDom();
 
+    const previewVars = {};
+    for (let index = 0; index < cvPreview.style.length; index += 1) {
+      const prop = cvPreview.style.item(index);
+      if (prop && prop.startsWith("--")) {
+        previewVars[prop] = cvPreview.style.getPropertyValue(prop);
+      }
+    }
+
     return {
       personalInfo: { ...state.personalInfo },
       cvLayout: JSON.parse(JSON.stringify(state.cvLayout)),
       cvPreviewEdits: JSON.parse(JSON.stringify(state.cvPreviewEdits)),
       cvSettings: JSON.parse(JSON.stringify(state.cvSettings)),
       previewHtml: cvPreview.innerHTML,
+      previewVars,
+      previewPageClass: cvPreview.classList.contains("cv-preview-multipage")
+        ? "cv-preview-multipage"
+        : "cv-preview-single-page",
     };
   }
 
@@ -7235,6 +7247,30 @@
       page.style.setProperty("--cv-line-height", String(styles.lineHeight ?? 1.3));
       page.style.setProperty("--cv-section-gap", `${styles.sectionGap ?? 12}px`);
       page.style.setProperty("--cv-section-margin", `${styles.sectionGap ?? 12}px`);
+    } else {
+      page.style.removeProperty("--cv-body-font");
+      page.style.removeProperty("--cv-header-font");
+      page.style.removeProperty("--cv-line-height");
+      page.style.removeProperty("--cv-section-gap");
+      page.style.removeProperty("--cv-section-margin");
+    }
+  }
+
+  function applyStoredPreviewFit(page, snapshot) {
+    const vars = snapshot?.previewVars;
+    if (!vars || typeof vars !== "object") {
+      page.classList.remove("cv-preview-multipage", "cv-preview-single-page");
+      return;
+    }
+    Object.keys(vars).forEach((prop) => {
+      if (typeof prop === "string" && prop.startsWith("--")) {
+        page.style.setProperty(prop, vars[prop]);
+      }
+    });
+    const pageClass = snapshot.previewPageClass;
+    if (pageClass === "cv-preview-multipage" || pageClass === "cv-preview-single-page") {
+      page.classList.toggle("cv-preview-multipage", pageClass === "cv-preview-multipage");
+      page.classList.toggle("cv-preview-single-page", pageClass === "cv-preview-single-page");
     }
   }
 
@@ -7480,6 +7516,7 @@
       nameEl.textContent = nextEntry.fileName || "";
       dateEl.textContent = item.querySelector(".export-history-timestamp")?.textContent || "";
       applyExportThumbSettings(page, nextEntry.snapshot.cvSettings || nextEntry.snapshot.cvLayoutStyles);
+      applyStoredPreviewFit(page, nextEntry.snapshot);
       paintExportThumbnail(page, previewHtml);
       viewer.hidden = false;
       document.body.classList.add("export-preview-open");
@@ -7658,6 +7695,7 @@
     const page = item.querySelector(".export-history-page");
     if (page) {
       applyExportThumbSettings(page, entry.snapshot?.cvSettings || entry.snapshot?.cvLayoutStyles);
+      applyStoredPreviewFit(page, entry.snapshot);
       if ("inert" in page) {
         page.inert = true;
       }
@@ -7859,63 +7897,69 @@
     if (!body || !cvPreview || !blocks.length) {
       return;
     }
-    const bodyRect = body.getBoundingClientRect();
-    const scale = bodyRect.width / body.offsetWidth;
-    if (!(scale > 0.01) || !Number.isFinite(scale)) {
-      return;
-    }
-    const docRect = cvPreview.getBoundingClientRect();
-    const pxToPt = (px) => (px / scale) * 0.75;
-    const bodyTopPt = pxToPt(bodyRect.top - docRect.top);
-    if (!Number.isFinite(bodyTopPt)) {
-      return;
-    }
+    cvPreview.classList.add("is-pdf-measuring");
+    try {
+      void cvPreview.offsetHeight;
+      const bodyRect = body.getBoundingClientRect();
+      const scale = bodyRect.width / body.offsetWidth;
+      if (!(scale > 0.01) || !Number.isFinite(scale)) {
+        return;
+      }
+      const docRect = cvPreview.getBoundingClientRect();
+      const pxToPt = (px) => (px / scale) * 0.75;
+      const bodyTopPt = pxToPt(bodyRect.top - docRect.top);
+      if (!Number.isFinite(bodyTopPt)) {
+        return;
+      }
 
-    const measured = [];
-    for (let index = 0; index < blocks.length; index += 1) {
-      const block = blocks[index];
-      const element = previewGeometryElement(block);
-      if (!element || !body.contains(element)) {
-        return;
-      }
-      const rect = element.getBoundingClientRect();
-      if (!(rect.width > 0) || !(rect.height > 0)) {
-        return;
-      }
-      const topPt = pxToPt(rect.top - bodyRect.top);
-      const heightPt = pxToPt(rect.height);
-      if (!Number.isFinite(topPt) || !(heightPt > 0)) {
-        return;
-      }
-      const geom = { topPt, heightPt, lineTopsPt: [] };
-      if (block.kind === "skills") {
-        const heading = element.querySelector("h2.cv-preview-section-heading");
-        if (heading) {
-          const headingRect = heading.getBoundingClientRect();
-          geom.dividerFromTopPt = pxToPt(headingRect.bottom - rect.top);
-          geom.lineTopsPt = measureLineTopsPt(heading, rect.top, pxToPt);
+      const measured = [];
+      for (let index = 0; index < blocks.length; index += 1) {
+        const block = blocks[index];
+        const element = previewGeometryElement(block);
+        if (!element || !body.contains(element)) {
+          return;
         }
-        const list = element.querySelector(".cv-preview-skills-list");
-        if (list) {
-          geom.skillsTopPt = pxToPt(list.getBoundingClientRect().top - rect.top);
+        const rect = element.getBoundingClientRect();
+        if (!(rect.width > 0) || !(rect.height > 0)) {
+          return;
         }
-      } else {
-        geom.lineTopsPt = measureLineTopsPt(element, rect.top, pxToPt);
-        if (block.kind === "heading") {
-          geom.dividerFromTopPt = heightPt;
+        const topPt = pxToPt(rect.top - bodyRect.top);
+        const heightPt = pxToPt(rect.height);
+        if (!Number.isFinite(topPt) || !(heightPt > 0)) {
+          return;
         }
+        const geom = { topPt, heightPt, lineTopsPt: [] };
+        if (block.kind === "skills") {
+          const heading = element.querySelector("h2.cv-preview-section-heading");
+          if (heading) {
+            const headingRect = heading.getBoundingClientRect();
+            geom.dividerFromTopPt = pxToPt(headingRect.bottom - rect.top);
+            geom.lineTopsPt = measureLineTopsPt(heading, rect.top, pxToPt);
+          }
+          const list = element.querySelector(".cv-preview-skills-list");
+          if (list) {
+            geom.skillsTopPt = pxToPt(list.getBoundingClientRect().top - rect.top);
+          }
+        } else {
+          geom.lineTopsPt = measureLineTopsPt(element, rect.top, pxToPt);
+          if (block.kind === "heading") {
+            geom.dividerFromTopPt = heightPt;
+          }
+        }
+        measured.push(geom);
       }
-      measured.push(geom);
-    }
 
-    if (measured.length !== blocks.length) {
-      return;
+      if (measured.length !== blocks.length) {
+        return;
+      }
+      measured.forEach((geom, index) => {
+        Object.assign(blocks[index], geom);
+      });
+      model.geometryBodyTopPt = bodyTopPt;
+      model.previewGeometry = true;
+    } finally {
+      cvPreview.classList.remove("is-pdf-measuring");
     }
-    measured.forEach((geom, index) => {
-      Object.assign(blocks[index], geom);
-    });
-    model.geometryBodyTopPt = bodyTopPt;
-    model.previewGeometry = true;
   }
 
   function buildPdfModel() {
