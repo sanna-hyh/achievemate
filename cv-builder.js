@@ -827,7 +827,20 @@
       });
     }
 
-    function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false }) {
+    // Handle + title + one full template row. Fallback matches a ~390px-wide phone
+    // (handle 18 + title 48 + row ~169 + border).
+    function designSheetFloor(panel) {
+      const handleH = panel?.querySelector(".phone-sheet-handle")?.offsetHeight || 0;
+      const titleH = panel?.querySelector(".studio-drawer-title")?.offsetHeight || 0;
+      const rowH = panel?.querySelector(".cv-template-choice")?.offsetHeight || 0;
+      if (!handleH || !titleH || !rowH) {
+        return 236;
+      }
+      const border = Math.max(0, panel.offsetHeight - panel.clientHeight);
+      return handleH + titleH + rowH + border;
+    }
+
+    function bindSheetDrag(panel, { onDismiss, isActive, persistParkedHeight = false, minHeight = 160 }) {
       const handle = panel?.querySelector(".phone-sheet-handle");
       if (!panel || !handle) {
         return { hide: () => {}, show: () => {} };
@@ -835,8 +848,14 @@
 
       // Park by resizing height (not translateY) so inner content can scroll at that height.
       const MIN_HEIGHT = 160;
-      const dismissPx = () => Math.max(380, Math.round((fullHeight || 0) * 0.62));
+      const enforceFloor = minHeight !== 160;
       let fullHeight = 0;
+      const floorPx = () => {
+        const requested = typeof minHeight === "function" ? minHeight() : minHeight;
+        const floor = Math.max(MIN_HEIGHT, Math.round(Number(requested)) || MIN_HEIGHT);
+        return fullHeight > 0 ? Math.min(fullHeight, floor) : floor;
+      };
+      const dismissPx = () => Math.max(380, Math.round((fullHeight || 0) * 0.62));
       let dragging = false;
       let startY = 0;
       let originY = 0;
@@ -858,7 +877,7 @@
 
       const paintOffset = (offset) => {
         const base = fullHeight || measureFullHeight();
-        const next = Math.max(MIN_HEIGHT, base - Math.max(0, offset));
+        const next = Math.max(floorPx(), base - Math.max(0, offset));
         panel.style.maxHeight = "none";
         panel.style.height = `${next}px`;
       };
@@ -903,6 +922,15 @@
       };
 
       const show = () => {
+        // A parked height below the usable floor is not restored — reopen at the default.
+        if (enforceFloor && restY > 0) {
+          measureFullHeight();
+          if (fullHeight - restY < floorPx()) {
+            restY = 0;
+            panel.style.height = "";
+            panel.style.maxHeight = "";
+          }
+        }
         // Apply parked height immediately (before/during slide), never after max open.
         snapParkedHeight();
       };
@@ -912,7 +940,7 @@
           return;
         }
         event.preventDefault();
-        const maxY = Math.max(dismissPx(), (fullHeight || 0) - MIN_HEIGHT);
+        const maxY = Math.max(dismissPx(), (fullHeight || 0) - floorPx());
         dragY = Math.min(maxY, Math.max(0, originY + (event.clientY - startY)));
         paintOffset(dragY);
       };
@@ -938,6 +966,11 @@
           // Keep the height from before this dismiss pull for the next reopen.
           restY = originY;
           onDismiss?.();
+          return;
+        }
+        if (enforceFloor) {
+          const maxRest = Math.max(0, (fullHeight || 0) - floorPx());
+          applyY(Math.min(dragY, maxRest));
           return;
         }
         applyY(dragY);
@@ -996,6 +1029,7 @@
         onDismiss: closeDesignDrawer,
         // Keep parked height across close so slide-up never flashes at max height.
         persistParkedHeight: true,
+        minHeight: () => designSheetFloor(designDrawer),
       }
     ));
 
