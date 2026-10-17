@@ -6544,11 +6544,65 @@ body.cv-link-ui-open .cv-preview-document [data-edit-key] a[href]:hover::after {
 .export-history-page .cv-insertion-line::after,
 .export-history-page .cv-layout-skeleton,
 .export-history-page .cv-layout-skeleton::before,
-.export-history-page .cv-layout-skeleton::after {
+.export-history-page .cv-layout-skeleton::after,
+.export-preview-viewer .export-history-page .cv-hold-tip,
+.export-history-page .cv-section-save,
+.export-history-page .cv-link-ui-btn,
+.export-history-page .cv-skill-chip-remove,
+.export-history-page .cv-skill-input {
   display: none !important;
   background: none !important;
   background-image: none !important;
   pointer-events: none !important;
+}
+
+.export-history-page .cv-preview-skills-list {
+  display: block;
+}
+
+.export-history-page .cv-skill-chip,
+.export-history-page.cv-preview-document.cv-template-compact .cv-skill-chip {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.export-history-page .cv-skill-chip-label {
+  overflow: visible;
+  white-space: normal;
+}
+
+.export-history-page .cv-skill-chip + .cv-skill-chip::before {
+  content: " \00B7 ";
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-input,
+.cv-preview-document.is-pdf-measuring .cv-skill-chip-remove {
+  display: none !important;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-preview-skills-list {
+  display: block;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip,
+.cv-preview-document.is-pdf-measuring.cv-template-compact .cv-skill-chip {
+  display: inline;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip-label {
+  overflow: visible;
+  white-space: normal;
+}
+
+.cv-preview-document.is-pdf-measuring .cv-skill-chip + .cv-skill-chip::before {
+  content: " \00B7 ";
 }
 
 .export-history-page .cv-section-wrap,
@@ -6719,6 +6773,10 @@ body.export-preview-open {
   overflow: hidden;
 }
 
+body.export-preview-open .cv-hold-tip {
+  display: none !important;
+}
+
 .export-preview-viewer {
   position: fixed;
   inset: 0;
@@ -6841,6 +6899,19 @@ body.export-preview-open {
 }
 
 @media (max-width: 640px) {
+  .export-preview-bar {
+    flex-wrap: wrap;
+  }
+
+  .export-preview-heading {
+    flex: 1 0 100%;
+    order: 0;
+  }
+
+  .export-preview-restore {
+    margin-left: auto;
+  }
+
   .export-preview-sheet {
     width: 100%;
     height: 100%;
