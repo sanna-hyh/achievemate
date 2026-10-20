@@ -3363,6 +3363,7 @@ body.layout-drawer-collapsed .studio-cockpit,
 
 .add-scrap-title {
   display: block;
+  min-width: 0;
   font-size: 0.72rem;
   font-weight: 650;
   color: #6e7782;
@@ -3424,7 +3425,11 @@ body.layout-drawer-collapsed .studio-cockpit,
 }
 
 .add-scrap-skills {
-  gap: 6px;
+  gap: 1px;
+}
+
+.add-scrap-skills .add-scrap-chip {
+  margin-top: 6px;
 }
 
 .add-scrap-chip {
