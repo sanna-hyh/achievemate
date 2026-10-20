@@ -11,7 +11,7 @@
     rel="stylesheet"
   />
   <link rel="preload" href="ocean_dark_background.png" as="image" />
-  <link rel="stylesheet" href="styles.css?v=207" />
+  <link rel="stylesheet" href="styles.css?v=209" />
   <script src="features.js?v=3"></script>
   <script>
     document.documentElement.classList.toggle("logbook-enabled", window.ENABLE_LOGBOOK === true);
@@ -224,6 +224,15 @@
               title="Free text / custom CV item"
             >
               <span class="rail-block-label">+ CV item</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-row">
+                  <span class="add-scrap-title">Title</span>
+                  <span class="add-scrap-date">DATE</span>
+                </span>
+                <span class="add-scrap-sub">Subtitle</span>
+                <span class="add-scrap-loc">Location</span>
+                <span class="add-scrap-bullet">Bullet hint</span>
+              </span>
             </button>
             <button
               type="button"
@@ -234,6 +243,10 @@
               title="Section heading"
             >
               <span class="rail-block-label">+ Heading</span>
+              <span class="add-scrap add-scrap-heading" aria-hidden="true">
+                <span class="add-scrap-kicker">Section title</span>
+                <span class="add-scrap-rule"></span>
+              </span>
             </button>
             <button
               type="button"
@@ -243,6 +256,14 @@
               data-source="palette"
             >
               <span class="rail-block-label">+ Experience</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-title">Job title</span>
+                <span class="add-scrap-row">
+                  <span class="add-scrap-sub">Company</span>
+                  <span class="add-scrap-date">Start – End</span>
+                </span>
+                <span class="add-scrap-bullet">What you achieved</span>
+              </span>
             </button>
             <button
               type="button"
@@ -252,6 +273,14 @@
               data-source="palette"
             >
               <span class="rail-block-label">+ Education</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-title">Degree or program</span>
+                <span class="add-scrap-row">
+                  <span class="add-scrap-sub">School</span>
+                  <span class="add-scrap-date">Start – End</span>
+                </span>
+                <span class="add-scrap-bullet">Honors or coursework</span>
+              </span>
             </button>
             <button
               type="button"
@@ -261,6 +290,11 @@
               data-source="palette"
             >
               <span class="rail-block-label">+ Skills</span>
+              <span class="add-scrap add-scrap-skills" aria-hidden="true">
+                <span class="add-scrap-kicker">Skills</span>
+                <span class="add-scrap-rule"></span>
+                <span class="add-scrap-chip">Add a skill</span>
+              </span>
             </button>
           </div>
         </div>
@@ -578,19 +612,53 @@
           </button>
           <div class="phone-type-menu" id="phoneTypeMenu" role="listbox" aria-label="Block type" hidden>
             <button type="button" class="phone-type-option" role="option" data-add-kind="free-text" aria-selected="true">
-              + CV item
+              <span class="rail-block-label">+ CV item</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-row">
+                  <span class="add-scrap-title">Title</span>
+                  <span class="add-scrap-date">DATE</span>
+                </span>
+                <span class="add-scrap-sub">Subtitle</span>
+                <span class="add-scrap-loc">Location</span>
+                <span class="add-scrap-bullet">Bullet hint</span>
+              </span>
             </button>
             <button type="button" class="phone-type-option" role="option" data-add-kind="heading" aria-selected="false">
-              + Heading
+              <span class="rail-block-label">+ Heading</span>
+              <span class="add-scrap add-scrap-heading" aria-hidden="true">
+                <span class="add-scrap-kicker">Section title</span>
+                <span class="add-scrap-rule"></span>
+              </span>
             </button>
             <button type="button" class="phone-type-option" role="option" data-add-kind="experience" aria-selected="false">
-              + Experience
+              <span class="rail-block-label">+ Experience</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-title">Job title</span>
+                <span class="add-scrap-row">
+                  <span class="add-scrap-sub">Company</span>
+                  <span class="add-scrap-date">Start – End</span>
+                </span>
+                <span class="add-scrap-bullet">What you achieved</span>
+              </span>
             </button>
             <button type="button" class="phone-type-option" role="option" data-add-kind="education" aria-selected="false">
-              + Education
+              <span class="rail-block-label">+ Education</span>
+              <span class="add-scrap" aria-hidden="true">
+                <span class="add-scrap-title">Degree or program</span>
+                <span class="add-scrap-row">
+                  <span class="add-scrap-sub">School</span>
+                  <span class="add-scrap-date">Start – End</span>
+                </span>
+                <span class="add-scrap-bullet">Honors or coursework</span>
+              </span>
             </button>
             <button type="button" class="phone-type-option" role="option" data-add-kind="skills" aria-selected="false">
-              + Skills
+              <span class="rail-block-label">+ Skills</span>
+              <span class="add-scrap add-scrap-skills" aria-hidden="true">
+                <span class="add-scrap-kicker">Skills</span>
+                <span class="add-scrap-rule"></span>
+                <span class="add-scrap-chip">Add a skill</span>
+              </span>
             </button>
           </div>
         </div>
@@ -675,7 +743,7 @@
   <script src="app.js?v=60"></script>
   <script src="cv-history.js?v=3"></script>
   <script src="drag-preview.js?v=9"></script>
-  <script src="cv-builder.js?v=49"></script>
+  <script src="cv-builder.js?v=50"></script>
   <script src="cv-pdf.js?v=20"></script>
   <script src="cv-preview.js?v=129"></script>
   <script src="cv-layout-panel.js?v=15"></script>

@@ -817,7 +817,9 @@
         return;
       }
       selectedKind = kind;
-      const label = option.textContent.replace(/\s+/g, " ").trim();
+      const label = (option.querySelector(".rail-block-label")?.textContent || option.textContent)
+        .replace(/\s+/g, " ")
+        .trim();
       if (typeLabel) {
         typeLabel.textContent = label;
       }
