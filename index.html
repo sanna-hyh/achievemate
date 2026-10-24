@@ -750,7 +750,32 @@
   <script src="sidebar.js?v=7"></script>
   <script src="workspace-tabs.js?v=15"></script>
   <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      var flag = params.get('exclude-self-visits');
+      if (flag !== 'true' && flag !== 'false') return;
+      try {
+        if (flag === 'true') localStorage.setItem('va-disable', '1');
+        else localStorage.removeItem('va-disable');
+      } catch (err) {}
+      params.delete('exclude-self-visits');
+      var query = params.toString();
+      var next = location.pathname + (query ? '?' + query : '') + location.hash;
+      if (history.replaceState) {
+        try {
+          history.replaceState(history.state, '', next);
+          return;
+        } catch (err) {}
+      }
+      location.replace(next);
+    })();
     window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    window.va('beforeSend', function (event) {
+      try {
+        if (localStorage.getItem('va-disable')) return null;
+      } catch (err) {}
+      return event;
+    });
   </script>
   <script defer src="/_vercel/insights/script.js"></script>
 </body>
