@@ -143,7 +143,7 @@
     location: "Location",
     description: "Bullet 1\nBullet 2\nBullet 3",
   };
-  const CV_ITEM_FIELD_KEYS = ["title", "date", "subtitle", "location", "description"];
+  const CV_ITEM_FIELD_KEYS = ["title", "location", "subtitle", "date", "description"];
   const CV_ITEM_SCHEMAS = {
     default: {
       fields: CV_ITEM_FIELD_KEYS,
@@ -151,24 +151,26 @@
       optional: [],
     },
     experience: {
-      fields: ["title", "subtitle", "date", "description"],
+      fields: ["title", "location", "subtitle", "date", "description"],
       placeholders: {
         title: "Job title",
         subtitle: "Company",
         date: "Start – End",
+        location: "Location",
         description: "What you achieved",
       },
-      optional: [],
+      optional: ["location"],
     },
     education: {
-      fields: ["title", "subtitle", "date", "description"],
+      fields: ["title", "location", "subtitle", "date", "description"],
       placeholders: {
         title: "Degree or program",
         subtitle: "School",
         date: "Start – End",
+        location: "Location",
         description: "Honors or coursework",
       },
-      optional: ["description"],
+      optional: ["description", "location"],
     },
   };
   const CV_BULLET_PREFIX = "• ";
@@ -6547,7 +6549,7 @@
       filled[field] ? getCvItemFieldContent(item, field) : placeholders[field];
 
     let titleHtml = "";
-    if (shouldShow("title") || shouldShow("date")) {
+    if (shouldShow("title") || shouldShow("location")) {
       titleHtml = `
         <div class="cv-preview-entry-header cv-preview-cv-item-title-row">
           ${
@@ -6561,6 +6563,34 @@
               : ""
           }
           ${
+            shouldShow("location")
+              ? `<span
+            class="cv-preview-cv-item-location${placeholderClass("location")}${hiddenFieldClass("location")}"
+            contenteditable="false"
+            data-edit-key="items.${item.id}.location"
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.location)}"
+          >${richTextToHtml(fieldText("location"))}</span>`
+              : ""
+          }
+        </div>
+      `;
+    }
+
+    let subrowHtml = "";
+    if (shouldShow("subtitle") || shouldShow("date")) {
+      subrowHtml = `
+        <div class="cv-preview-cv-item-subrow">
+          ${
+            shouldShow("subtitle")
+              ? `<span
+            class="cv-preview-cv-item-subtitle${placeholderClass("subtitle")}${hiddenFieldClass("subtitle")}"
+            contenteditable="false"
+            data-edit-key="items.${item.id}.subtitle"
+            data-placeholder-text="${escapeDataPlaceholder(placeholders.subtitle)}"
+          >${richTextToHtml(fieldText("subtitle"))}</span>`
+              : ""
+          }
+          ${
             shouldShow("date")
               ? `<span
             class="cv-preview-entry-date cv-preview-cv-item-date${placeholderClass("date")}${hiddenFieldClass("date")}"
@@ -6571,32 +6601,6 @@
               : ""
           }
         </div>
-      `;
-    }
-
-    let subrowHtml = "";
-    if (shouldShow("subtitle")) {
-      subrowHtml = `
-        <div class="cv-preview-cv-item-subrow">
-          <span
-            class="cv-preview-cv-item-subtitle${placeholderClass("subtitle")}${hiddenFieldClass("subtitle")}"
-            contenteditable="false"
-            data-edit-key="items.${item.id}.subtitle"
-            data-placeholder-text="${escapeDataPlaceholder(placeholders.subtitle)}"
-          >${richTextToHtml(fieldText("subtitle"))}</span>
-        </div>
-      `;
-    }
-
-    let locationHtml = "";
-    if (shouldShow("location")) {
-      locationHtml = `
-        <p
-          class="cv-preview-cv-item-location${placeholderClass("location")}${hiddenFieldClass("location")}"
-          contenteditable="false"
-          data-edit-key="items.${item.id}.location"
-          data-placeholder-text="${escapeDataPlaceholder(placeholders.location)}"
-        >${richTextToHtml(fieldText("location"))}</p>
       `;
     }
 
@@ -6618,7 +6622,7 @@
       }
     }
 
-    if (publish && !titleHtml && !subrowHtml && !locationHtml && !bulletsHtml) {
+    if (publish && !titleHtml && !subrowHtml && !bulletsHtml) {
       return "";
     }
 
@@ -6628,7 +6632,6 @@
       <section class="cv-preview-entry cv-preview-cv-item" data-item-id="${item.id}"${kindAttr}>
         ${titleHtml}
         ${subrowHtml}
-        ${locationHtml}
         ${bulletsHtml}
       </section>
     `;
