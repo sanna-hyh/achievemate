@@ -99,11 +99,11 @@
     title.className = "cv-preview-entry-title cv-preview-cv-item-title";
     title.textContent = "Title";
 
-    const date = document.createElement("span");
-    date.className = "cv-preview-entry-date cv-preview-cv-item-date";
-    date.textContent = "DATE";
+    const location = document.createElement("span");
+    location.className = "cv-preview-cv-item-location";
+    location.textContent = "Location";
 
-    titleRow.append(title, date);
+    titleRow.append(title, location);
     article.appendChild(titleRow);
 
     const subrow = document.createElement("div");
@@ -113,13 +113,12 @@
     subtitle.className = "cv-preview-cv-item-subtitle";
     subtitle.textContent = "Subtitle";
 
-    subrow.append(subtitle);
-    article.appendChild(subrow);
+    const date = document.createElement("span");
+    date.className = "cv-preview-entry-date cv-preview-cv-item-date";
+    date.textContent = "DATE";
 
-    const location = document.createElement("p");
-    location.className = "cv-preview-cv-item-location";
-    location.textContent = "Location";
-    article.appendChild(location);
+    subrow.append(subtitle, date);
+    article.appendChild(subrow);
 
     const body = document.createElement("div");
     body.className = "cv-preview-entry-body cv-preview-description cv-preview-cv-item-bullets";

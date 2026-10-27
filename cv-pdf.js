@@ -715,7 +715,11 @@
       return Math.min(maxWidth, widest);
     }
 
-    function drawSplitRow(leftLines, rightLines, leftSize, rightSize, leftColor, rightColor) {
+    function drawSplitRow(leftLines, rightLines, leftSize, rightSize, leftColor, rightColor, style = {}) {
+      const leftBold = style.leftBold !== false;
+      const leftItalic = Boolean(style.leftItalic);
+      const rightBold = Boolean(style.rightBold);
+      const rightItalic = style.rightItalic !== false;
       const usableRight = rightLines.filter(lineHasText);
       const usableLeft = leftLines.filter(lineHasText);
       if (usableLeft.length === 0 && usableRight.length === 0) {
@@ -725,7 +729,7 @@
       const columnGap = 10;
       const rightMax = contentWidth * 0.42;
       const rightWidth = usableRight.length
-        ? pairWidth(usableRight, rightMax, rightSize, false, true)
+        ? pairWidth(usableRight, rightMax, rightSize, rightBold, rightItalic)
         : 0;
       const leftMax = usableRight.length
         ? Math.max(48, contentWidth - rightWidth - columnGap)
@@ -734,11 +738,11 @@
       const box = lineBox(rowSize, lineHeight);
       const leftWrapped = [];
       usableLeft.forEach((line) => {
-        wrapLine(line, leftMax, leftSize, true, false).forEach((wrapped) => leftWrapped.push(wrapped));
+        wrapLine(line, leftMax, leftSize, leftBold, leftItalic).forEach((wrapped) => leftWrapped.push(wrapped));
       });
       const rightWrapped = [];
       usableRight.forEach((line) => {
-        wrapLine(line, Math.max(rightWidth, 24), rightSize, false, true).forEach((wrapped) =>
+        wrapLine(line, Math.max(rightWidth, 24), rightSize, rightBold, rightItalic).forEach((wrapped) =>
           rightWrapped.push(wrapped)
         );
       });
@@ -752,11 +756,11 @@
         const lineTop = pinnedTop == null ? y : pinnedTop;
         const baseline = lineTop + rowSize;
         if (leftWrapped[index]) {
-          drawRuns(leftWrapped[index], margin, baseline, leftSize, leftColor, true, false);
+          drawRuns(leftWrapped[index], margin, baseline, leftSize, leftColor, leftBold, leftItalic);
         }
         if (rightWrapped[index]) {
           const width = rightWrapped[index].reduce(
-            (sum, run) => sum + runWidth(run, rightSize, false, true),
+            (sum, run) => sum + runWidth(run, rightSize, rightBold, rightItalic),
             0
           );
           drawRuns(
@@ -765,8 +769,8 @@
             baseline,
             rightSize,
             rightColor,
-            false,
-            true
+            rightBold,
+            rightItalic
           );
         }
         y = lineTop + box;
@@ -907,24 +911,26 @@
       const date = (block.date || []).filter(lineHasText);
       const subtitle = (block.subtitle || []).filter(lineHasText);
 
+      const location = (block.location || []).filter(lineHasText);
       if (block.kind === "cv-item") {
-        if (title.length || date.length) {
-          drawSplitRow(title, date, titleSize, bodySize, textColor, textColor);
+        const drewTitle = title.length || location.length;
+        if (drewTitle) {
+          drawSplitRow(title, location, titleSize, titleSize, textColor, textColor, {
+            rightBold: true,
+            rightItalic: false,
+          });
         }
-        if (subtitle.length) {
-          if (title.length || date.length) {
-            y += sectionMargin * 0.08;
+        if (subtitle.length || date.length) {
+          if (drewTitle) {
+            y += sectionMargin * 0.12;
           }
-          drawWrapped(subtitle, margin, contentWidth, titleSize, textColor, { bold: true });
+          drawSplitRow(subtitle, date, titleSize, bodySize, textColor, textColor, {
+            leftBold: false,
+            leftItalic: true,
+          });
         }
       } else if (title.length || date.length) {
         drawSplitRow(title, date, titleSize, bodySize, textColor, textColor);
-      }
-
-      const location = (block.location || []).filter(lineHasText);
-      if (location.length) {
-        y += sectionMargin * 0.12;
-        drawWrapped(location, margin, contentWidth, bodySize, textColor);
       }
 
       const bullets = (block.bullets || []).filter(lineHasText);
@@ -998,7 +1004,11 @@
       return countWrappedRows(lines, contentWidth, headingSize, true, false);
     }
 
-    function countSplitPaintRows(leftLines, rightLines, leftSize, rightSize) {
+    function countSplitPaintRows(leftLines, rightLines, leftSize, rightSize, style = {}) {
+      const leftBold = style.leftBold !== false;
+      const leftItalic = Boolean(style.leftItalic);
+      const rightBold = Boolean(style.rightBold);
+      const rightItalic = style.rightItalic !== false;
       const usableRight = (rightLines || []).filter(lineHasText);
       const usableLeft = (leftLines || []).filter(lineHasText);
       if (usableLeft.length === 0 && usableRight.length === 0) {
@@ -1007,18 +1017,18 @@
       const columnGap = 10;
       const rightMax = contentWidth * 0.42;
       const rightWidth = usableRight.length
-        ? pairWidth(usableRight, rightMax, rightSize, false, true)
+        ? pairWidth(usableRight, rightMax, rightSize, rightBold, rightItalic)
         : 0;
       const leftMax = usableRight.length
         ? Math.max(48, contentWidth - rightWidth - columnGap)
         : contentWidth;
       let leftCount = 0;
       usableLeft.forEach((line) => {
-        leftCount += wrapLine(line, leftMax, leftSize, true, false).length;
+        leftCount += wrapLine(line, leftMax, leftSize, leftBold, leftItalic).length;
       });
       let rightCount = 0;
       usableRight.forEach((line) => {
-        rightCount += wrapLine(line, Math.max(rightWidth, 24), rightSize, false, true).length;
+        rightCount += wrapLine(line, Math.max(rightWidth, 24), rightSize, rightBold, rightItalic).length;
       });
       return Math.max(leftCount, rightCount, 1);
     }
@@ -1034,17 +1044,20 @@
       const bullets = (block.bullets || []).filter(lineHasText);
       let count = 0;
       if (block.kind === "cv-item") {
-        if (title.length || date.length) {
-          count += countSplitPaintRows(title, date, titleSize, bodySize);
+        if (title.length || location.length) {
+          count += countSplitPaintRows(title, location, titleSize, titleSize, {
+            rightBold: true,
+            rightItalic: false,
+          });
         }
-        if (subtitle.length) {
-          count += countWrappedRows(subtitle, contentWidth, titleSize, true, false);
+        if (subtitle.length || date.length) {
+          count += countSplitPaintRows(subtitle, date, titleSize, bodySize, {
+            leftBold: false,
+            leftItalic: true,
+          });
         }
       } else if (title.length || date.length) {
         count += countSplitPaintRows(title, date, titleSize, bodySize);
-      }
-      if (location.length) {
-        count += countWrappedRows(location, contentWidth, bodySize, false, false);
       }
       if (bullets.length) {
         const textWidth = Math.max(48, contentWidth - 1.1 * 16 * 0.75);
